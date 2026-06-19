@@ -1,7 +1,7 @@
 import sys
 import os
 import time
-import uuid
+import json
 import xml.etree.ElementTree as ET
 from fastapi import APIRouter, HTTPException, UploadFile, File, Query
 from pydantic import BaseModel
@@ -14,10 +14,28 @@ from common.config import SCRIPTS_DIR, REPORTS_DIR
 
 router = APIRouter(prefix="/api/scripts", tags=["scripts"])
 
+COUNTER_FILE = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+    "config", "script_counter.json",
+)
+
 
 class ScriptSaveRequest(BaseModel):
     content: str
     name: Optional[str] = None
+
+
+def _get_next_script_id() -> int:
+    os.makedirs(os.path.dirname(COUNTER_FILE), exist_ok=True)
+    if os.path.exists(COUNTER_FILE):
+        with open(COUNTER_FILE, "r") as f:
+            data = json.load(f)
+        counter = data.get("counter", 0) + 1
+    else:
+        counter = 1
+    with open(COUNTER_FILE, "w") as f:
+        json.dump({"counter": counter}, f)
+    return counter
 
 
 @router.post("/upload")
@@ -25,7 +43,9 @@ async def upload_script(file: UploadFile = File(...), name: Optional[str] = None
     if not file.filename.endswith(".jmx"):
         raise HTTPException(status_code=400, detail="Only .jmx files are supported")
 
-    script_id = f"script-{uuid.uuid4().hex[:8]}"
+    script_id_num = _get_next_script_id()
+    script_id = str(script_id_num)
+    original_name = file.filename
     filename = f"{script_id}.jmx"
     filepath = os.path.join(SCRIPTS_DIR, filename)
 
@@ -34,9 +54,19 @@ async def upload_script(file: UploadFile = File(...), name: Optional[str] = None
         content = await file.read()
         f.write(content)
 
+    meta_path = os.path.join(SCRIPTS_DIR, f"{script_id}.json")
+    with open(meta_path, "w") as f:
+        json.dump({
+            "script_id": script_id,
+            "original_name": original_name,
+            "filename": filename,
+            "size": len(content),
+            "created_at": time.time(),
+        }, f)
+
     return {
         "script_id": script_id,
-        "name": name or file.filename,
+        "name": original_name,
         "filename": filename,
         "size": len(content),
         "created_at": time.time(),
@@ -52,14 +82,81 @@ def list_scripts():
                 filepath = os.path.join(SCRIPTS_DIR, f)
                 stat = os.stat(filepath)
                 script_id = f.replace(".jmx", "")
+                original_name = f
+                meta_path = os.path.join(SCRIPTS_DIR, f"{script_id}.json")
+                if os.path.exists(meta_path):
+                    try:
+                        with open(meta_path, "r") as mf:
+                            meta = json.load(mf)
+                        original_name = meta.get("original_name", f)
+                    except Exception:
+                        pass
                 scripts.append({
                     "script_id": script_id,
-                    "filename": f,
+                    "filename": original_name,
                     "size": stat.st_size,
                     "created_at": stat.st_ctime,
                     "modified_at": stat.st_mtime,
                 })
+    scripts.sort(key=lambda x: x.get("modified_at", 0), reverse=True)
     return {"total": len(scripts), "scripts": scripts}
+
+
+@router.get("/search")
+def search_scripts(q: str = ""):
+    if not q:
+        return {"results": []}
+
+    results = []
+    q_lower = q.lower()
+
+    if os.path.exists(SCRIPTS_DIR):
+        for f in os.listdir(SCRIPTS_DIR):
+            if f.endswith(".jmx"):
+                filepath = os.path.join(SCRIPTS_DIR, f)
+                script_id = f.replace(".jmx", "")
+                original_name = f
+                meta_path = os.path.join(SCRIPTS_DIR, f"{script_id}.json")
+                if os.path.exists(meta_path):
+                    try:
+                        with open(meta_path, "r") as mf:
+                            meta = json.load(mf)
+                        original_name = meta.get("original_name", f)
+                    except Exception:
+                        pass
+
+                match_type = None
+                matched_labels = []
+
+                if q_lower in original_name.lower() or q_lower in script_id.lower():
+                    match_type = "name"
+
+                try:
+                    with open(filepath, "r", encoding="utf-8", errors="replace") as cf:
+                        content = cf.read()
+                    if q_lower in content.lower():
+                        match_type = "content"
+                        for line in content.split("\n"):
+                            if 'testname="' in line:
+                                start = line.find('testname="') + 10
+                                end = line.find('"', start)
+                                if end > start:
+                                    label = line[start:end]
+                                    if q_lower in label.lower():
+                                        matched_labels.append(label)
+                except Exception:
+                    pass
+
+                if match_type:
+                    results.append({
+                        "script_id": script_id,
+                        "filename": original_name,
+                        "size": os.path.getsize(filepath),
+                        "matched_labels": matched_labels[:10],
+                        "match_type": match_type,
+                    })
+
+    return {"total": len(results), "results": results}
 
 
 @router.get("/{script_id}")
@@ -72,9 +169,19 @@ def get_script(script_id: str):
         content = f.read()
 
     stat = os.stat(filepath)
+    filename = f"{script_id}.jmx"
+    meta_path = os.path.join(SCRIPTS_DIR, f"{script_id}.json")
+    if os.path.exists(meta_path):
+        try:
+            with open(meta_path, "r") as mf:
+                meta = json.load(mf)
+            filename = meta.get("original_name", filename)
+        except Exception:
+            pass
 
     return {
         "script_id": script_id,
+        "filename": filename,
         "content": content,
         "size": stat.st_size,
         "modified_at": stat.st_mtime,
@@ -128,6 +235,47 @@ def _parse_jmx_tree(element, elements, depth):
             elem_type = "extractor"
         elif "Listener" in testclass or "listener" in testclass.lower():
             elem_type = "listener"
+        elif "CSVDataSet" in testclass:
+            elem_type = "csv_data_set"
+
+        props = {}
+        for child in element:
+            child_tag = child.tag
+            child_text = child.text or ""
+            if child_tag in ("stringProp", "intProp", "boolProp", "longProp"):
+                name = child.get("name", "")
+                if name and child_text:
+                    short_name = name.split(".")[-1] if "." in name else name
+                    props[short_name] = child_text
+            elif child_tag == "collectionProp":
+                coll_name = child.get("name", "")
+                items = []
+                for item in child:
+                    item_props = {}
+                    item_props["type"] = item.tag
+                    item_props["name"] = item.get("name", "")
+                    for sub in item:
+                        sub_text = sub.text or ""
+                        if sub_text:
+                            sub_name = sub.get("name", sub.tag)
+                            item_props[sub_name] = sub_text
+                    items.append(item_props)
+                if items:
+                    props[coll_name.split(".")[-1] if "." in coll_name else coll_name] = items
+            elif child_tag == "elementProp":
+                name = child.get("name", "")
+                etype = child.get("elementType", "")
+                if name:
+                    sub_items = {}
+                    for sub in child:
+                        sub_text = sub.text or ""
+                        if sub_text:
+                            sub_name = sub.get("name", sub.tag)
+                            sub_items[sub_name] = sub_text
+                    if sub_items:
+                        props[name] = sub_items
+                    elif child_text:
+                        props[name] = child_text
 
         elements.append({
             "depth": depth,
@@ -135,6 +283,7 @@ def _parse_jmx_tree(element, elements, depth):
             "testclass": testclass,
             "testname": testname,
             "tag": tag,
+            "props": props,
         })
 
     for child in element:
@@ -209,4 +358,95 @@ def delete_script(script_id: str):
         raise HTTPException(status_code=404, detail="Script not found")
 
     os.remove(filepath)
+    meta_path = os.path.join(SCRIPTS_DIR, f"{script_id}.json")
+    if os.path.exists(meta_path):
+        os.remove(meta_path)
     return {"message": "Script deleted"}
+
+
+class ReorderRequest(BaseModel):
+    from_index: int
+    to_index: int
+
+
+@router.post("/{script_id}/reorder")
+def reorder_elements(script_id: str, req: ReorderRequest):
+    filepath = os.path.join(SCRIPTS_DIR, f"{script_id}.jmx")
+    if not os.path.exists(filepath):
+        raise HTTPException(status_code=404, detail="Script not found")
+
+    try:
+        tree = ET.parse(filepath)
+        root = tree.getroot()
+
+        root_ht = root.find("hashTree") if root.tag == "jmeterTestPlan" else root
+        children = list(root_ht)
+        start_ht = children[1] if len(children) > 1 and children[1].tag == "hashTree" else root_ht
+
+        def walk(ht, depth):
+            result = []
+            children = list(ht)
+            i = 0
+            while i < len(children):
+                child = children[i]
+                if child.tag != "hashTree":
+                    tc = child.attrib.get("testclass", "")
+                    tn = child.attrib.get("testname", "")
+                    if tc:
+                        next_ht = children[i + 1] if i + 1 < len(children) and children[i + 1].tag == "hashTree" else None
+                        result.append({
+                            "depth": depth,
+                            "element": child,
+                            "hashtree": ht,
+                            "next_ht": next_ht,
+                            "testclass": tc,
+                            "testname": tn,
+                        })
+                        if next_ht is not None:
+                            result.extend(walk(next_ht, depth + 1))
+                i += 1
+            return result
+
+        elements = walk(start_ht, 0)
+
+        if req.from_index < 0 or req.from_index >= len(elements):
+            raise HTTPException(status_code=400, detail=f"Invalid from_index: {req.from_index}, max: {len(elements)-1}")
+        if req.to_index < 0 or req.to_index >= len(elements):
+            raise HTTPException(status_code=400, detail=f"Invalid to_index: {req.to_index}, max: {len(elements)-1}")
+
+        from_el = elements[req.from_index]
+        to_el = elements[req.to_index]
+
+        if from_el["depth"] != to_el["depth"]:
+            raise HTTPException(status_code=400, detail="只能在同一层级内拖拽排序")
+
+        parent_ht = from_el["hashtree"]
+        children = list(parent_ht)
+
+        from_elem = from_el["element"]
+        from_ht = from_el["next_ht"]
+        to_elem = to_el["element"]
+
+        from_pos = children.index(from_elem)
+        to_pos = children.index(to_elem)
+
+        parent_ht.remove(from_elem)
+        if from_ht is not None:
+            parent_ht.remove(from_ht)
+
+        children = list(parent_ht)
+        insert_pos = children.index(to_elem)
+
+        parent_ht.insert(insert_pos, from_elem)
+        if from_ht is not None:
+            parent_ht.insert(insert_pos + 1, from_ht)
+
+        tree.write(filepath, encoding="UTF-8", xml_declaration=True)
+
+        return {"status": "reordered", "from": req.from_index, "to": req.to_index}
+    except ET.ParseError as e:
+        raise HTTPException(status_code=400, detail=f"XML解析错误: {str(e)}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

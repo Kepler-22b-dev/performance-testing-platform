@@ -27,6 +27,8 @@
         .chart-box { background: #fff; border-radius: 6px; padding: 16px; border: 1px solid #e0e0e0; overflow-x: auto; }
         .chart-box h3 { font-size: 13px; color: #666; margin-bottom: 12px; font-weight: 500; }
         .chart-container { height: 280px; }
+        #script-tree div { white-space: nowrap; }
+        .tree-node:hover { background: #f5f5f5; }
         .full-width { grid-column: 1 / -1; }
         .task-list { background: #fff; border-radius: 6px; padding: 16px; border: 1px solid #e0e0e0; overflow-x: auto; }
         .task-list h3 { font-size: 13px; color: #666; margin-bottom: 12px; font-weight: 500; }
@@ -612,7 +614,7 @@
                     <button class="btn-success" onclick="showCreateSchedule()">新建调度</button>
                 </div>
                 <table>
-                    <thead><tr><th>名称</th><th>脚本</th><th>间隔</th><th>执行次数</th><th>状态</th><th>操作</th></tr></thead>
+                    <thead><tr><th>名称</th><th>脚本</th><th>间隔</th><th>执行次数</th><th>创建时间</th><th>状态</th><th>操作</th></tr></thead>
                     <tbody id="schedule-tbody"></tbody>
                 </table>
                 <div id="no-schedules" class="empty-tip">暂无调度任务</div>
@@ -756,7 +758,7 @@
                     <button class="btn-success" onclick="showCreateAlert()">新建规则</button>
                 </div>
                 <table>
-                    <thead><tr><th>名称</th><th>指标</th><th>条件</th><th>阈值</th><th>触发次数</th><th>状态</th><th>操作</th></tr></thead>
+                    <thead><tr><th>名称</th><th>指标</th><th>条件</th><th>阈值</th><th>触发次数</th><th>创建时间</th><th>状态</th><th>操作</th></tr></thead>
                     <tbody id="alerts-tbody"></tbody>
                 </table>
                 <div id="no-alerts" class="empty-tip">暂无告警规则</div>
@@ -796,7 +798,7 @@
                     <button class="btn-success" onclick="showCreateEnv()">新建环境</button>
                 </div>
                 <table>
-                    <thead><tr><th>环境名称</th><th>Base URL</th><th>说明</th><th>变量数</th><th>操作</th></tr></thead>
+                    <thead><tr><th>环境名称</th><th>Base URL</th><th>说明</th><th>变量数</th><th>创建时间</th><th>操作</th></tr></thead>
                     <tbody id="envs-tbody"></tbody>
                 </table>
                 <div id="no-envs" class="empty-tip">暂无环境配置</div>
@@ -830,7 +832,13 @@
             <div id="scripts-list-view">
                 <div class="task-list">
                     <div class="toolbar">
-                        <h3>JMeter 脚本</h3>
+                        <div style="display:flex;align-items:center;gap:12px;">
+                            <h3>JMeter 脚本</h3>
+                            <div style="position:relative;">
+                                <input type="text" id="script-search" placeholder="搜索接口关键词..." oninput="searchScripts()" style="padding:6px 12px;border:1px solid #d0d0d0;border-radius:4px;font-size:12px;width:200px;">
+                                <div id="script-search-results" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #d0d0d0;border-radius:4px;max-height:300px;overflow-y:auto;z-index:100;margin-top:4px;box-shadow:0 2px 8px rgba(0,0,0,0.1);"></div>
+                            </div>
+                        </div>
                         <div>
                             <input type="file" id="script-upload" accept=".jmx" style="display:none" onchange="uploadScript()">
                             <button class="btn-primary" onclick="document.getElementById('script-upload').click()">上传脚本</button>
@@ -888,11 +896,20 @@
                     <div class="toolbar">
                         <h3>脚本内容</h3>
                         <div style="display:flex;gap:8px;">
+                            <button class="filter-btn active" id="btn-tree-view" onclick="switchEditorView('tree')">树形视图</button>
+                            <button class="filter-btn" id="btn-code-view" onclick="switchEditorView('code')">代码视图</button>
                             <button class="filter-btn" onclick="formatXml()">格式化</button>
                             <button class="filter-btn" onclick="toggleWordWrap()">自动换行</button>
                         </div>
                     </div>
-                    <textarea id="script-editor" style="width:100%;height:500px;font-family:'Menlo','Consolas',monospace;font-size:12px;line-height:1.5;border:1px solid #d0d0d0;border-radius:4px;padding:12px;resize:vertical;background:#fafafa;color:#1a1a1a;tab-size:2;" spellcheck="false"></textarea>
+                    <!-- 树形视图 -->
+                    <div id="tree-view-container" style="border:1px solid #d0d0d0;border-radius:4px;background:#fafafa;max-height:500px;overflow:auto;padding:8px;">
+                        <div id="script-tree"></div>
+                    </div>
+                    <!-- 代码视图 -->
+                    <div id="code-view-container" class="hidden">
+                        <textarea id="script-editor" style="width:100%;height:500px;font-family:'Menlo','Consolas',monospace;font-size:12px;line-height:1.5;border:1px solid #d0d0d0;border-radius:4px;padding:12px;resize:vertical;background:#fafafa;color:#1a1a1a;tab-size:2;" spellcheck="false"></textarea>
+                    </div>
                     <div style="margin-top:8px;font-size:12px;color:#888" id="editor-status">就绪</div>
                 </div>
 
@@ -942,6 +959,20 @@
         let refreshTimer = null;
         let detailTimer = null;
         let allTasks = [];
+
+        function formatTime(ts) {
+            if (!ts) return '-';
+            const d = new Date(ts * 1000);
+            const pad = n => String(n).padStart(2, '0');
+            return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+        }
+
+        function formatTimeShort(ts) {
+            if (!ts) return '-';
+            const d = new Date(ts * 1000);
+            const pad = n => String(n).padStart(2, '0');
+            return `${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+        }
 
         // ===== 首页 =====
         async function loadHomePage() {
@@ -1002,7 +1033,7 @@
                 }
 
                 // 最近任务
-                const recentTasks = allTasksList.sort((a, b) => (b.created_at || 0) - (a.created_at || 0)).slice(0, 5);
+                const recentTasks = allTasksList.sort((a, b) => ((b.modified_at || b.end_time || b.created_at) || 0) - ((a.modified_at || a.end_time || a.created_at) || 0)).slice(0, 5);
                 const tbody = document.getElementById('home-tasks-tbody');
                 const noTasks = document.getElementById('home-no-tasks');
 
@@ -1139,7 +1170,7 @@
             }
             noTasks.style.display = 'none';
 
-            filtered.sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
+            filtered.sort((a, b) => ((b.modified_at || b.end_time || b.created_at) || 0) - ((a.modified_at || a.end_time || a.created_at) || 0));
 
             let html = '';
             filtered.forEach(t => {
@@ -2214,7 +2245,7 @@
                 document.getElementById('csv-preview-title').textContent = `${filename} (共 ${data.total} 行)`;
                 let html = '<table style="width:100%;border-collapse:collapse;font-size:12px;">';
                 html += '<thead><tr>' + data.headers.map(h => `<th style="padding:6px 8px;border:1px solid #ddd;background:#f5f5f5;text-align:left">${h}</th>`).join('') + '</tr></thead>';
-                html += '<tbody>' + data.rows.map(row => '<tr>' + row.map(cell => `<td style="padding:6px 8px;border:1px solid #eee;font-family:monospace">${cell}</td>`).join('') + '</tr>').join('') + '</tbody></html>';
+                html += '<tbody>' + data.rows.map(row => '<tr>' + row.map(cell => `<td style="padding:6px 8px;border:1px solid #eee;font-family:monospace">${cell}</td>`).join('') + '</tr>').join('') + '</tbody></table>';
                 if (data.total > 20) html += `<p style="margin-top:8px;color:#888;font-size:12px">显示前 20 行，共 ${data.total} 行</p>`;
 
                 document.getElementById('csv-preview-content').innerHTML = html;
@@ -2229,6 +2260,53 @@
         // ===== 脚本管理 =====
         let currentScriptId = null;
         let wordWrap = false;
+        let searchTimer = null;
+
+        async function searchScripts() {
+            const input = document.getElementById('script-search');
+            const resultsDiv = document.getElementById('script-search-results');
+            const q = input.value.trim();
+
+            if (!q) {
+                resultsDiv.style.display = 'none';
+                return;
+            }
+
+            clearTimeout(searchTimer);
+            searchTimer = setTimeout(async () => {
+                try {
+                    const res = await fetch(`${API}/api/scripts/search?q=${encodeURIComponent(q)}`);
+                    const data = await res.json();
+                    const results = data.results || [];
+
+                    if (results.length === 0) {
+                        resultsDiv.innerHTML = '<div style="padding:12px;color:#888;font-size:12px;text-align:center">未找到匹配的脚本</div>';
+                    } else {
+                        resultsDiv.innerHTML = results.map(r => {
+                            const labels = r.matched_labels.length > 0
+                                ? `<div style="font-size:11px;color:#888;margin-top:2px">匹配接口: ${r.matched_labels.slice(0, 3).join(', ')}${r.matched_labels.length > 3 ? '...' : ''}</div>`
+                                : '';
+                            return `<div style="padding:8px 12px;cursor:pointer;border-bottom:1px solid #f0f0f0;" onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background='#fff'" onclick="openEditor('${r.script_id}');document.getElementById('script-search-results').style.display='none';document.getElementById('script-search').value='';">
+                                <div style="font-size:12px;font-weight:500">${r.filename}</div>
+                                <div style="font-size:11px;color:#888">ID: ${r.script_id} | ${(r.size/1024).toFixed(1)}KB | ${r.match_type === 'content' ? '接口匹配' : '名称匹配'}</div>
+                                ${labels}
+                            </div>`;
+                        }).join('');
+                    }
+                    resultsDiv.style.display = 'block';
+                } catch (e) {
+                    resultsDiv.style.display = 'none';
+                }
+            }, 300);
+        }
+
+        document.addEventListener('click', (e) => {
+            const searchInput = document.getElementById('script-search');
+            const resultsDiv = document.getElementById('script-search-results');
+            if (searchInput && resultsDiv && !searchInput.contains(e.target) && !resultsDiv.contains(e.target)) {
+                resultsDiv.style.display = 'none';
+            }
+        });
 
         async function loadScripts() {
             try {
@@ -2252,13 +2330,20 @@
         async function uploadScript() {
             const input = document.getElementById('script-upload');
             if (!input.files.length) return;
+            const file = input.files[0];
             const formData = new FormData();
-            formData.append('file', input.files[0]);
+            formData.append('file', file);
             try {
-                await fetch(`${API}/api/scripts/upload`, { method: 'POST', body: formData });
-                input.value = '';
-                loadScripts();
-            } catch (e) { alert('上传失败'); }
+                const res = await fetch(`${API}/api/scripts/upload`, { method: 'POST', body: formData });
+                const data = await res.json();
+                if (res.ok) {
+                    alert(`上传成功: ${file.name} (${(file.size/1024).toFixed(1)}KB)`);
+                    input.value = '';
+                    loadScripts();
+                } else {
+                    alert('上传失败: ' + (data.detail || '未知错误'));
+                }
+            } catch (e) { alert('上传失败: ' + e.message); }
         }
 
         async function deleteScript(id) {
@@ -2278,11 +2363,14 @@
 
                 document.getElementById('editor-script-name').textContent = data.filename || scriptId;
                 document.getElementById('script-editor').value = data.content;
-                document.getElementById('editor-status').textContent = `文件大小: ${(data.size/1024).toFixed(1)} KB | 最后修改: ${new Date(data.modified_at*1000).toLocaleString()}`;
+                document.getElementById('editor-status').textContent = `文件大小: ${(data.size/1024).toFixed(1)} KB | 最后修改: ${formatTime(data.modified_at)}`;
 
                 document.getElementById('scripts-list-view').classList.add('hidden');
                 document.getElementById('scripts-editor-view').classList.remove('hidden');
                 document.getElementById('exec-result').classList.add('hidden');
+
+                switchEditorView('tree');
+                loadScriptTree(scriptId);
             } catch (e) { alert('加载脚本失败: ' + e.message); }
         }
 
@@ -2361,6 +2449,337 @@
 
         function viewExecResult() {
             showPage('tasks');
+        }
+
+        let currentEditorView = 'tree';
+        let expandedNodes = new Set();
+        let selectedNode = null;
+        let dragFromIndex = -1;
+
+        function switchEditorView(view) {
+            currentEditorView = view;
+            document.getElementById('btn-tree-view').classList.toggle('active', view === 'tree');
+            document.getElementById('btn-code-view').classList.toggle('active', view === 'code');
+            document.getElementById('tree-view-container').classList.toggle('hidden', view !== 'tree');
+            document.getElementById('code-view-container').classList.toggle('hidden', view !== 'code');
+        }
+
+        async function loadScriptTree(scriptId) {
+            try {
+                const res = await fetch(`${API}/api/scripts/${scriptId}/structure`);
+                const data = await res.json();
+                window._treeElements = data.elements || [];
+                renderTree();
+                document.getElementById('editor-status').textContent = `共 ${data.elements.length} 个组件`;
+            } catch (e) {
+                document.getElementById('script-tree').innerHTML = '<div style="color:#dc2626;font-size:12px;padding:12px">加载失败</div>';
+            }
+        }
+
+        function renderTree() {
+            const elements = window._treeElements || [];
+            const treeContainer = document.getElementById('script-tree');
+
+            const typeIcons = {
+                'test_plan': { icon: '📋', color: '#2563eb' },
+                'thread_group': { icon: '👥', color: '#16a34a' },
+                'http_sampler': { icon: '🌐', color: '#d97706' },
+                'loop_controller': { icon: '🔄', color: '#9333ea' },
+                'arguments': { icon: '📝', color: '#6b7280' },
+                'header_manager': { icon: '📑', color: '#0891b2' },
+                'timer': { icon: '⏱️', color: '#dc2626' },
+                'assertion': { icon: '✅', color: '#16a34a' },
+                'extractor': { icon: '🔍', color: '#7c3aed' },
+                'listener': { icon: '📊', color: '#2563eb' },
+                'csv_data_set': { icon: '📄', color: '#059669' },
+                'unknown': { icon: '📦', color: '#9ca3af' },
+            };
+
+            if (elements.length === 0) {
+                treeContainer.innerHTML = '<div style="color:#888;font-size:12px;padding:12px">空脚本</div>';
+                return;
+            }
+
+            const childMap = {};
+            elements.forEach((el, idx) => {
+                if (el.depth === 0) {
+                    childMap[-1] = childMap[-1] || [];
+                    childMap[-1].push(idx);
+                } else {
+                    let parentIdx = -1;
+                    for (let i = idx - 1; i >= 0; i--) {
+                        if (elements[i].depth < el.depth) {
+                            parentIdx = i;
+                            break;
+                        }
+                    }
+                    if (parentIdx >= 0) {
+                        if (!childMap[parentIdx]) childMap[parentIdx] = [];
+                        childMap[parentIdx].push(idx);
+                    }
+                }
+            });
+
+            function isNodeVisible(idx) {
+                let parentIdx = -1;
+                for (let i = idx - 1; i >= 0; i--) {
+                    if (elements[i].depth < elements[idx].depth) {
+                        parentIdx = i;
+                        break;
+                    }
+                }
+                if (parentIdx < 0) return true;
+                if (!expandedNodes.has(parentIdx)) return false;
+                return isNodeVisible(parentIdx);
+            }
+
+            function getNodeSummary(el) {
+                const props = el.props || {};
+                if (el.type === 'http_sampler') {
+                    const method = props.method || 'GET';
+                    const domain = props.domain || '';
+                    const path = props.path || '';
+                    return `${method} ${domain}${path}`;
+                } else if (el.type === 'thread_group') {
+                    return `${props.num_threads || '?'} 线程, ${props.duration || '?'}s`;
+                } else if (el.type === 'header_manager') {
+                    const headers = props.headers || props.HTTPSampler.headerManager || [];
+                    if (Array.isArray(headers)) {
+                        return `${headers.length} 个请求头`;
+                    }
+                    return '';
+                } else if (el.type === 'csv_data_set') {
+                    return props.filename || '';
+                }
+                return '';
+            }
+
+            let html = '<div style="font-family: -apple-system, sans-serif; font-size: 13px;">';
+            elements.forEach((el, idx) => {
+                if (!isNodeVisible(idx)) return;
+
+                const icon = typeIcons[el.type] || typeIcons['unknown'];
+                const indent = el.depth * 20;
+                const hasChildren = childMap[idx] && childMap[idx].length > 0;
+                const isExpanded = expandedNodes.has(idx);
+                const isSelected = selectedNode === idx;
+                const arrow = hasChildren ? (isExpanded ? '▼' : '▶') : '';
+                const selectedBg = isSelected ? 'background:#e8f0fe;border-left:3px solid #2563eb;' : '';
+                const summary = getNodeSummary(el);
+
+                html += `<div class="tree-node" data-idx="${idx}" draggable="true"
+                    ondragstart="onDragStart(event, ${idx})" 
+                    ondragover="onDragOver(event, ${idx})" 
+                    ondrop="onDrop(event, ${idx})"
+                    style="padding:6px 8px 6px ${indent + 8}px;border-left:1px solid #e0e0e0;cursor:pointer;border-radius:0 4px 4px 0;transition:all 0.15s;${selectedBg}" 
+                    onmouseover="if(${!isSelected})this.style.background='#f5f5f5'" 
+                    onmouseout="if(${!isSelected})this.style.background=''"
+                    onclick="selectTreeNode(${idx})">
+                    <span style="display:inline-block;width:16px;color:#888;font-size:10px;cursor:pointer" onclick="event.stopPropagation();toggleNode(${idx})">${arrow}</span>
+                    <span style="color:${icon.color};margin-right:4px">${icon.icon}</span>
+                    <span style="font-weight:500;color:#1a1a1a">${el.testname}</span>
+                    <span style="font-size:11px;color:#888;margin-left:6px">${el.type.replace(/_/g, ' ')}</span>
+                    ${summary ? `<span style="font-size:11px;color:#666;margin-left:8px;opacity:0.7">- ${summary}</span>` : ''}
+                </div>`;
+            });
+            html += '</div>';
+
+            treeContainer.innerHTML = html;
+        }
+
+        function toggleNode(idx) {
+            if (expandedNodes.has(idx)) {
+                expandedNodes.delete(idx);
+            } else {
+                expandedNodes.add(idx);
+            }
+            renderTree();
+        }
+
+        function selectTreeNode(idx) {
+            selectedNode = idx;
+            renderTree();
+            showNodeDetail(idx);
+        }
+
+        function onDragStart(e, idx) {
+            dragFromIndex = idx;
+            e.dataTransfer.effectAllowed = 'move';
+            e.target.style.opacity = '0.5';
+        }
+
+        function onDragOver(e, idx) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            const node = e.target.closest('.tree-node');
+            if (node) {
+                node.style.borderTop = '2px solid #2563eb';
+            }
+        }
+
+        function onDrop(e, toIdx) {
+            e.preventDefault();
+            const node = e.target.closest('.tree-node');
+            if (node) {
+                node.style.borderTop = '';
+            }
+
+            if (dragFromIndex === -1 || dragFromIndex === toIdx) return;
+
+            const fromEl = window._treeElements[dragFromIndex];
+            const toEl = window._treeElements[toIdx];
+
+            if (fromEl.depth !== toEl.depth) {
+                alert('只能在同一层级内拖拽排序');
+                dragFromIndex = -1;
+                return;
+            }
+
+            const moved = window._treeElements.splice(dragFromIndex, 1)[0];
+            const insertIdx = dragFromIndex < toIdx ? toIdx - 1 : toIdx;
+            window._treeElements.splice(insertIdx, 0, moved);
+
+            dragFromIndex = -1;
+            renderTree();
+
+            if (currentScriptId) {
+                fetch(`${API}/api/scripts/${currentScriptId}/reorder`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ from_index: dragFromIndex, to_index: toIdx }),
+                }).catch(e => console.error('Reorder failed:', e));
+            }
+        }
+
+        function showNodeDetail(idx) {
+            const el = window._treeElements[idx];
+            if (!el) return;
+
+            const typeLabels = {
+                'test_plan': '测试计划',
+                'thread_group': '线程组',
+                'http_sampler': 'HTTP 请求',
+                'loop_controller': '循环控制器',
+                'arguments': '用户变量',
+                'header_manager': 'HTTP Header 管理器',
+                'timer': '定时器',
+                'assertion': '断言',
+                'extractor': '提取器',
+                'listener': '监听器',
+                'csv_data_set': 'CSV 数据集',
+                'unknown': '未知组件',
+            };
+
+            const props = el.props || {};
+            let detailHtml = `<div style="padding:12px;background:#f8f9fa;border-radius:6px;border:1px solid #e0e0e0;">
+                <div style="font-size:14px;font-weight:600;color:#1a1a1a;margin-bottom:8px">${el.testname}</div>
+                <div style="font-size:12px;color:#888;margin-bottom:12px">类型: ${typeLabels[el.type] || el.type} (${el.testclass})</div>`;
+
+            if (el.type === 'http_sampler') {
+                const method = props.method || 'GET';
+                const domain = props.domain || '';
+                const port = props.port || '';
+                const path = props.path || '';
+                const url = port ? `${domain}:${port}${path}` : `${domain}${path}`;
+                const postBody = props.postBodyRaw === 'true';
+                const body = props.body || props.Arguments || '';
+                detailHtml += `
+                    <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
+                        <span style="background:${method === 'GET' ? '#16a34a' : method === 'POST' ? '#2563eb' : method === 'PUT' ? '#d97706' : '#dc2626'};color:#fff;padding:3px 10px;border-radius:4px;font-size:12px;font-weight:600">${method}</span>
+                        <span style="font-family:monospace;font-size:13px;color:#1a1a1a">${url}</span>
+                    </div>`;
+                if (props.protocol) detailHtml += `<div style="font-size:12px;color:#666;margin-bottom:4px">协议: <b>${props.protocol}</b></div>`;
+                if (props.contentEncoding) detailHtml += `<div style="font-size:12px;color:#666;margin-bottom:4px">编码: <b>${props.contentEncoding}</b></div>`;
+                if (postBody && body) {
+                    detailHtml += `<div style="font-size:12px;color:#666;margin-bottom:4px">请求体:</div>`;
+                    detailHtml += `<div style="background:#1a1a1a;color:#d4d4d4;padding:8px;border-radius:4px;font-family:monospace;font-size:11px;max-height:100px;overflow:auto;white-space:pre-wrap">${escapeHtml(body)}</div>`;
+                }
+                detailHtml += `<div style="font-size:12px;color:#888;margin-top:8px">应用: 保存响应数据 = ${props.saveResponseHeaders === 'true' ? '是' : '否'}</div>`;
+            } else if (el.type === 'thread_group') {
+                const threads = props.num_threads || '-';
+                const ramp = props.ramp_time || '-';
+                const duration = props.duration || '-';
+                const scheduler = props.scheduler || '-';
+                const loops = props.loops || props.LoopController?.loops || '-';
+                detailHtml += `
+                    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;">
+                        <div style="text-align:center;padding:10px;background:#fff;border-radius:4px;border:1px solid #e0e0e0">
+                            <div style="font-size:11px;color:#888">线程数</div>
+                            <div style="font-size:20px;font-weight:600;color:#2563eb">${threads}</div>
+                        </div>
+                        <div style="text-align:center;padding:10px;background:#fff;border-radius:4px;border:1px solid #e0e0e0">
+                            <div style="font-size:11px;color:#888">预热(s)</div>
+                            <div style="font-size:20px;font-weight:600;color:#16a34a">${ramp}</div>
+                        </div>
+                        <div style="text-align:center;padding:10px;background:#fff;border-radius:4px;border:1px solid #e0e0e0">
+                            <div style="font-size:11px;color:#888">持续(s)</div>
+                            <div style="font-size:20px;font-weight:600;color:#d97706">${duration}</div>
+                        </div>
+                        <div style="text-align:center;padding:10px;background:#fff;border-radius:4px;border:1px solid #e0e0e0">
+                            <div style="font-size:11px;color:#888">循环次数</div>
+                            <div style="font-size:20px;font-weight:600;color:#9333ea">${loops === '-1' ? '∞' : loops}</div>
+                        </div>
+                    </div>`;
+                detailHtml += `<div style="font-size:12px;color:#666">调度器: ${scheduler === 'true' ? '<span style="color:#16a34a">启用</span>' : '<span style="color:#888">禁用</span>'}</div>`;
+            } else if (el.type === 'header_manager') {
+                const headers = props.headers || props.HTTPSampler?.headerManager || [];
+                detailHtml += `<div style="font-size:12px;color:#666;margin-bottom:8px">请求头列表:</div>`;
+                detailHtml += `<div style="background:#1a1a1a;color:#d4d4d4;padding:10px;border-radius:4px;font-family:monospace;font-size:11px;line-height:1.6;">`;
+                if (Array.isArray(headers)) {
+                    headers.forEach(h => {
+                        const name = h.name || h['Header.name'] || '';
+                        const value = h.value || h['Header.value'] || '';
+                        if (name) detailHtml += `<div><span style="color:#569cd6">${name}</span>: ${escapeHtml(value)}</div>`;
+                    });
+                } else {
+                    for (const [k, v] of Object.entries(props)) {
+                        detailHtml += `<div><span style="color:#569cd6">${k}</span>: ${escapeHtml(String(v))}</div>`;
+                    }
+                }
+                detailHtml += `</div>`;
+            } else if (el.type === 'arguments') {
+                detailHtml += `<div style="font-size:12px;color:#666;margin-bottom:8px">变量列表:</div>`;
+                detailHtml += `<div style="background:#1a1a1a;color:#d4d4d4;padding:10px;border-radius:4px;font-family:monospace;font-size:11px;line-height:1.6;">`;
+                for (const [k, v] of Object.entries(props)) {
+                    detailHtml += `<div><span style="color:#569cd6">${k}</span> = ${escapeHtml(String(v))}</div>`;
+                }
+                detailHtml += `</div>`;
+            } else if (el.type === 'csv_data_set') {
+                detailHtml += `
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                        <div style="padding:10px;background:#fff;border-radius:4px;border:1px solid #e0e0e0">
+                            <div style="font-size:11px;color:#888">文件</div>
+                            <div style="font-size:13px;font-weight:500;color:#1a1a1a;margin-top:2px">${props.filename || '-'}</div>
+                        </div>
+                        <div style="padding:10px;background:#fff;border-radius:4px;border:1px solid #e0e0e0">
+                            <div style="font-size:11px;color:#888">变量名</div>
+                            <div style="font-size:13px;font-weight:500;color:#1a1a1a;margin-top:2px">${props.variableNames || '-'}</div>
+                        </div>
+                        <div style="padding:10px;background:#fff;border-radius:4px;border:1px solid #e0e0e0">
+                            <div style="font-size:11px;color:#888">分隔符</div>
+                            <div style="font-size:13px;font-weight:500;color:#1a1a1a;margin-top:2px">${props.delimiter || ','}</div>
+                        </div>
+                        <div style="padding:10px;background:#fff;border-radius:4px;border:1px solid #e0e0e0">
+                            <div style="font-size:11px;color:#888">循环读取</div>
+                            <div style="font-size:13px;font-weight:500;color:#1a1a1a;margin-top:2px">${props.recycle === 'true' ? '是' : '否'}</div>
+                        </div>
+                    </div>`;
+            } else if (Object.keys(props).length > 0) {
+                detailHtml += `<div style="font-size:12px;color:#666;margin-bottom:8px">属性:</div>`;
+                detailHtml += `<div style="background:#1a1a1a;color:#d4d4d4;padding:10px;border-radius:4px;font-family:monospace;font-size:11px;line-height:1.6;max-height:200px;overflow:auto;">`;
+                for (const [k, v] of Object.entries(props)) {
+                    const val = typeof v === 'object' ? JSON.stringify(v) : String(v);
+                    detailHtml += `<div><span style="color:#569cd6">${k}</span>: ${escapeHtml(val)}</div>`;
+                }
+                detailHtml += `</div>`;
+            }
+
+            detailHtml += '</div>';
+            document.getElementById('editor-status').innerHTML = detailHtml;
+        }
+
+        function escapeHtml(str) {
+            return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
         }
 
         function formatXml() {
@@ -2567,7 +2986,7 @@
                 ]);
                 const rulesData = await rulesRes.json();
                 const metricsData = await metricsRes.json();
-                const rules = rulesData.rules || [];
+                const rules = (rulesData.rules || []).sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
                 const metrics = metricsData.metrics || [];
 
                 const tbody = document.getElementById('alerts-tbody');
@@ -2583,18 +3002,23 @@
                 const metricMap = {};
                 metrics.forEach(m => metricMap[m.key] = m.name);
 
-                tbody.innerHTML = rules.map(r => `<tr>
-                    <td>${r.name}</td>
-                    <td>${metricMap[r.metric] || r.metric}</td>
-                    <td>${r.operator}</td>
-                    <td>${r.threshold}</td>
-                    <td>${r.triggered_count || 0}</td>
-                    <td><span class="status-badge ${r.enabled ? 'status-completed' : 'status-stopped'}">${r.enabled ? '启用' : '禁用'}</span></td>
-                    <td>
-                        <button class="filter-btn btn-sm" onclick="toggleAlert('${r.rule_id}', ${!r.enabled})">${r.enabled ? '禁用' : '启用'}</button>
-                        <button class="btn-danger btn-sm" style="margin-left:4px" onclick="deleteAlert('${r.rule_id}')">删除</button>
-                    </td>
-                </tr>`).join('');
+                tbody.innerHTML = rules.map(r => {
+                    const created = formatTimeShort(r.created_at);
+                    const lastTriggered = r.last_triggered ? formatTimeShort(r.last_triggered) : '-';
+                    return `<tr>
+                        <td>${r.name}</td>
+                        <td>${metricMap[r.metric] || r.metric}</td>
+                        <td>${r.operator}</td>
+                        <td>${r.threshold}</td>
+                        <td>${r.triggered_count || 0}</td>
+                        <td style="font-size:12px;color:#888">${created}</td>
+                        <td><span class="status-badge ${r.enabled ? 'status-completed' : 'status-stopped'}">${r.enabled ? '启用' : '禁用'}</span></td>
+                        <td>
+                            <button class="filter-btn btn-sm" onclick="toggleAlert('${r.rule_id}', ${!r.enabled})">${r.enabled ? '禁用' : '启用'}</button>
+                            <button class="btn-danger btn-sm" style="margin-left:4px" onclick="deleteAlert('${r.rule_id}')">删除</button>
+                        </td>
+                    </tr>`;
+                }).join('');
 
                 const sel = document.getElementById('alert-metric');
                 sel.innerHTML = metrics.map(m => `<option value="${m.key}">${m.name}</option>`).join('');
@@ -2643,7 +3067,7 @@
             try {
                 const res = await fetch(`${API}/api/environments/`);
                 const data = await res.json();
-                const envs = data.environments || [];
+                const envs = (data.environments || []).sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
                 const tbody = document.getElementById('envs-tbody');
                 const noEnvs = document.getElementById('no-envs');
 
@@ -2654,16 +3078,20 @@
                 }
                 noEnvs.style.display = 'none';
 
-                tbody.innerHTML = envs.map(e => `<tr>
-                    <td style="font-weight:500">${e.name}</td>
-                    <td style="font-family:monospace;font-size:12px">${e.base_url}</td>
-                    <td>${e.description || '-'}</td>
-                    <td>${Object.keys(e.variables || {}).length}</td>
-                    <td>
-                        <button class="btn-success btn-sm" onclick="testEnv('${e.env_id}')">测试</button>
-                        <button class="btn-danger btn-sm" style="margin-left:4px" onclick="deleteEnv('${e.env_id}')">删除</button>
-                    </td>
-                </tr>`).join('');
+                tbody.innerHTML = envs.map(e => {
+                    const created = formatTimeShort(e.created_at);
+                    return `<tr>
+                        <td style="font-weight:500">${e.name}</td>
+                        <td style="font-family:monospace;font-size:12px">${e.base_url}</td>
+                        <td>${e.description || '-'}</td>
+                        <td>${Object.keys(e.variables || {}).length}</td>
+                        <td style="font-size:12px;color:#888">${created}</td>
+                        <td>
+                            <button class="btn-success btn-sm" onclick="testEnv('${e.env_id}')">测试</button>
+                            <button class="btn-danger btn-sm" style="margin-left:4px" onclick="deleteEnv('${e.env_id}')">删除</button>
+                        </td>
+                    </tr>`;
+                }).join('');
             } catch (e) { console.error('loadEnvs error:', e); }
         }
 
@@ -2723,7 +3151,7 @@
             try {
                 const res = await fetch(`${API}/api/templates/`);
                 const data = await res.json();
-                const templates = data.templates || [];
+                const templates = (data.templates || []).sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
                 const grid = document.getElementById('templates-grid');
 
                 const categoryColors = { '基础': '#2563eb', '进阶': '#d97706', '场景': '#16a34a', '自定义': '#9333ea' };
@@ -2731,6 +3159,7 @@
                 grid.innerHTML = templates.map(t => {
                     const color = categoryColors[t.category] || '#666';
                     const cfg = t.config || {};
+                    const created = t.created_at ? formatTimeShort(t.created_at) : '';
                     return `<div style="background:#fff;border:1px solid #e0e0e0;border-radius:8px;padding:16px;">
                         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
                             <span style="font-size:14px;font-weight:600">${t.name}</span>
@@ -2740,6 +3169,7 @@
                         <div style="font-size:12px;color:#888;margin-bottom:12px">
                             并发: ${cfg.threads || '-'} | 预热: ${cfg.ramp_time || '-'}s | 持续: ${cfg.duration || '-'}s
                         </div>
+                        ${created ? `<div style="font-size:11px;color:#aaa;margin-bottom:8px">创建: ${created}</div>` : ''}
                         <div style="display:flex;gap:8px">
                             <button class="btn-primary btn-sm" onclick="useTemplate('${t.template_id}')">使用模板</button>
                             ${!t.builtin ? `<button class="btn-danger btn-sm" onclick="deleteTemplate('${t.template_id}')">删除</button>` : ''}
@@ -2805,7 +3235,7 @@
             try {
                 const res = await fetch(`${API}/api/scheduler/`);
                 const data = await res.json();
-                const schedules = data.schedules || [];
+                const schedules = (data.schedules || []).sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
                 const tbody = document.getElementById('schedule-tbody');
                 const noSchedules = document.getElementById('no-schedules');
 
@@ -2818,11 +3248,13 @@
 
                 tbody.innerHTML = schedules.map(s => {
                     const interval = s.interval_seconds > 0 ? (s.interval_seconds >= 86400 ? Math.round(s.interval_seconds/86400)+'天' : s.interval_seconds >= 3600 ? Math.round(s.interval_seconds/3600)+'小时' : s.interval_seconds+'秒') : '单次';
+                    const created = formatTimeShort(s.created_at);
                     return `<tr>
                         <td>${s.name}</td>
                         <td style="font-family:monospace;font-size:12px">${s.script_id}</td>
                         <td>${interval}</td>
                         <td>${s.run_count || 0}</td>
+                        <td style="font-size:12px;color:#888">${created}</td>
                         <td><span class="status-badge ${s.enabled ? 'status-completed' : 'status-stopped'}">${s.enabled ? '启用' : '禁用'}</span></td>
                         <td>
                             <button class="filter-btn btn-sm" onclick="toggleSchedule('${s.schedule_id}', ${!s.enabled})">${s.enabled ? '禁用' : '启用'}</button>
