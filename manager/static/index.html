@@ -104,6 +104,9 @@
             <button onclick="showPage('templates')">模板管理</button>
             <button onclick="showPage('schedule')">定时调度</button>
             <button onclick="showPage('notify')">通知设置</button>
+            <button onclick="showPage('trend')">性能趋势</button>
+            <button onclick="showPage('alerts')">告警规则</button>
+            <button onclick="showPage('envs')">环境管理</button>
             <button onclick="showPage('scripts')">脚本管理</button>
             <a href="/docs" target="_blank" style="background:transparent;border:1px solid #d0d0d0;color:#555;padding:6px 12px;border-radius:4px;text-decoration:none;font-size:13px;cursor:pointer">API 文档</a>
         </div>
@@ -298,7 +301,8 @@
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
                     <h2 style="font-size:16px;font-weight:600;">测试报告：<span id="detail-task-id" style="color:#555"></span></h2>
                     <div style="display:flex;gap:8px">
-                        <a id="export-report-btn" class="btn-primary" style="display:none;text-decoration:none" target="_blank">导出 HTML 报告</a>
+                        <a id="export-report-btn" class="btn-primary" style="display:none;text-decoration:none" target="_blank">导出 HTML</a>
+                        <a id="export-pdf-btn" class="btn-success" style="display:none;text-decoration:none" target="_blank">导出 PDF</a>
                         <button class="filter-btn" onclick="showTaskList()">关闭</button>
                     </div>
                 </div>
@@ -717,6 +721,110 @@
             <div id="compare-empty" class="empty-tip" style="margin-top:40px">请选择两个已完成的任务进行对比</div>
         </div>
 
+        <!-- 性能趋势 -->
+        <div id="page-trend" class="hidden">
+            <div class="task-list" style="margin-bottom:12px;">
+                <div class="toolbar">
+                    <h3>性能趋势</h3>
+                    <div style="display:flex;gap:8px;align-items:center">
+                        <select id="trend-label" onchange="loadTrend()" style="padding:4px 8px;border:1px solid #d0d0d0;border-radius:4px;font-size:12px">
+                            <option value="">全部接口</option>
+                        </select>
+                        <button class="filter-btn" onclick="loadTrend()">刷新</button>
+                    </div>
+                </div>
+                <div class="chart-box">
+                    <h3>TPS / 响应时间 / 错误率 趋势</h3>
+                    <div id="chart-trend" style="height:350px;"></div>
+                </div>
+            </div>
+            <div class="task-list">
+                <h3>历史数据</h3>
+                <table>
+                    <thead><tr><th>任务 ID</th><th>请求数</th><th>TPS</th><th>平均RT</th><th>P99</th><th>错误率</th><th>时间</th></tr></thead>
+                    <tbody id="trend-tbody"></tbody>
+                </table>
+                <div id="no-trend" class="empty-tip">暂无历史数据</div>
+            </div>
+        </div>
+
+        <!-- 告警规则 -->
+        <div id="page-alerts" class="hidden">
+            <div class="task-list" style="margin-bottom:12px;">
+                <div class="toolbar">
+                    <h3>告警规则</h3>
+                    <button class="btn-success" onclick="showCreateAlert()">新建规则</button>
+                </div>
+                <table>
+                    <thead><tr><th>名称</th><th>指标</th><th>条件</th><th>阈值</th><th>触发次数</th><th>状态</th><th>操作</th></tr></thead>
+                    <tbody id="alerts-tbody"></tbody>
+                </table>
+                <div id="no-alerts" class="empty-tip">暂无告警规则</div>
+            </div>
+
+            <div id="alert-create-modal" class="hidden" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:none;z-index:1000;justify-content:center;align-items:center;">
+                <div style="background:#fff;border-radius:8px;padding:20px;width:500px;">
+                    <h3 style="font-size:16px;margin-bottom:16px">新建告警规则</h3>
+                    <div class="form-group"><label>规则名称</label><input type="text" id="alert-name" placeholder="平均RT过高"></div>
+                    <div class="form-row">
+                        <div class="form-group"><label>监控指标</label><select id="alert-metric"></select></div>
+                        <div class="form-group"><label>条件</label>
+                            <select id="alert-operator">
+                                <option value=">">大于 (>)</option>
+                                <option value=">=">>= (大于等于)</option>
+                                <option value="<">小于 (<)</option>
+                                <option value="<="><= (小于等于)</option>
+                                <option value="==">等于 (==)</option>
+                            </select>
+                        </div>
+                        <div class="form-group"><label>阈值</label><input type="number" id="alert-threshold" value="1000" step="0.1"></div>
+                    </div>
+                    <div class="form-group"><label>说明</label><input type="text" id="alert-desc" placeholder="可选"></div>
+                    <div style="display:flex;gap:8px;justify-content:flex-end;">
+                        <button class="filter-btn" onclick="closeCreateAlert()">取消</button>
+                        <button class="btn-primary" onclick="submitAlert()">创建</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 多环境管理 -->
+        <div id="page-envs" class="hidden">
+            <div class="task-list" style="margin-bottom:12px;">
+                <div class="toolbar">
+                    <h3>环境管理</h3>
+                    <button class="btn-success" onclick="showCreateEnv()">新建环境</button>
+                </div>
+                <table>
+                    <thead><tr><th>环境名称</th><th>Base URL</th><th>说明</th><th>变量数</th><th>操作</th></tr></thead>
+                    <tbody id="envs-tbody"></tbody>
+                </table>
+                <div id="no-envs" class="empty-tip">暂无环境配置</div>
+            </div>
+
+            <div id="env-create-modal" class="hidden" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:none;z-index:1000;justify-content:center;align-items:center;">
+                <div style="background:#fff;border-radius:8px;padding:20px;width:560px;max-height:80vh;overflow:auto;">
+                    <h3 style="font-size:16px;margin-bottom:16px">新建环境</h3>
+                    <div class="form-group"><label>环境名称</label><input type="text" id="env-name" placeholder="production"></div>
+                    <div class="form-group"><label>Base URL</label><input type="text" id="env-url" placeholder="https://api.example.com"></div>
+                    <div class="form-group"><label>说明</label><input type="text" id="env-desc" placeholder="生产环境"></div>
+                    <div class="form-group">
+                        <label>自定义变量 (JSON 格式)</label>
+                        <textarea id="env-vars" style="width:100%;height:80px;font-family:monospace;font-size:12px;border:1px solid #d0d0d0;border-radius:4px;padding:8px;" placeholder='{"api_key": "xxx", "timeout": "30000"}'></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>请求头 (JSON 格式)</label>
+                        <textarea id="env-headers" style="width:100%;height:60px;font-family:monospace;font-size:12px;border:1px solid #d0d0d0;border-radius:4px;padding:8px;" placeholder='{"Content-Type": "application/json"}'></textarea>
+                    </div>
+                    <div class="form-group"><label>Auth Token (可选)</label><input type="text" id="env-token" placeholder="Bearer xxx"></div>
+                    <div style="display:flex;gap:8px;justify-content:flex-end;">
+                        <button class="filter-btn" onclick="closeCreateEnv()">取消</button>
+                        <button class="btn-primary" onclick="submitEnv()">创建</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div id="page-scripts" class="hidden">
             <!-- 脚本列表 -->
             <div id="scripts-list-view">
@@ -950,6 +1058,9 @@
                     (page === 'templates' && b.textContent === '模板管理') ||
                     (page === 'schedule' && b.textContent === '定时调度') ||
                     (page === 'notify' && b.textContent === '通知设置') ||
+                    (page === 'trend' && b.textContent === '性能趋势') ||
+                    (page === 'alerts' && b.textContent === '告警规则') ||
+                    (page === 'envs' && b.textContent === '环境管理') ||
                     (page === 'scripts' && b.textContent === '脚本管理')) {
                     b.classList.add('active');
                 }
@@ -968,6 +1079,9 @@
             if (page === 'schedule') loadSchedules();
             if (page === 'notify') loadNotifyConfig();
             if (page === 'compare') loadCompareForm();
+            if (page === 'trend') loadTrend();
+            if (page === 'alerts') loadAlerts();
+            if (page === 'envs') loadEnvs();
             if (page === 'scripts') loadScripts();
         }
 
@@ -1202,6 +1316,8 @@
             document.getElementById('detail-task-id').textContent = taskId;
             document.getElementById('export-report-btn').href = `${API}/api/results/tasks/${taskId}/export`;
             document.getElementById('export-report-btn').style.display = 'inline-block';
+            document.getElementById('export-pdf-btn').href = `${API}/api/results/tasks/${taskId}/export-pdf`;
+            document.getElementById('export-pdf-btn').style.display = 'inline-block';
             loadTaskDetail(taskId);
         }
 
@@ -2377,6 +2493,229 @@
                     alert(data.detail || '创建失败');
                 }
             } catch (e) { alert('创建失败: ' + e.message); }
+        }
+
+        // ===== 性能趋势 =====
+        async function loadTrend() {
+            const label = document.getElementById('trend-label').value;
+            try {
+                let url = `${API}/api/results/trend?limit=30`;
+                if (label) url += `&label=${encodeURIComponent(label)}`;
+                const res = await fetch(url);
+                const data = await res.json();
+                const tasks = data.tasks || [];
+
+                const tbody = document.getElementById('trend-tbody');
+                const noTrend = document.getElementById('no-trend');
+
+                if (tasks.length === 0) {
+                    tbody.innerHTML = '';
+                    noTrend.style.display = 'block';
+                    return;
+                }
+                noTrend.style.display = 'none';
+
+                tbody.innerHTML = tasks.map(t => {
+                    const time = new Date(t.created_at * 1000).toLocaleString();
+                    return `<tr>
+                        <td style="font-family:monospace;font-size:12px">${t.task_id}</td>
+                        <td>${t.total_samples}</td>
+                        <td style="color:#2563eb;font-weight:500">${t.tps}</td>
+                        <td>${t.avg_response_time}ms</td>
+                        <td>${t.p99}ms</td>
+                        <td style="color:${t.error_rate > 0 ? '#dc2626' : '#16a34a'}">${t.error_rate}%</td>
+                        <td style="font-size:12px;color:#888">${time}</td>
+                    </tr>`;
+                }).join('');
+
+                if (charts.trend) charts.trend.dispose();
+                charts.trend = echarts.init(document.getElementById('chart-trend'));
+                const times = tasks.map(t => new Date(t.created_at * 1000).toLocaleString());
+                charts.trend.setOption({
+                    tooltip: { trigger: 'axis', axisPointer: { type: 'cross' }, formatter: function(params) {
+                        let html = `<div style="font-size:12px;margin-bottom:4px;color:#888">${params[0].axisValue}</div>`;
+                        params.forEach(p => {
+                            let unit = p.seriesName.includes('RT') || p.seriesName.includes('P99') ? 'ms' : p.seriesName.includes('错误') ? '%' : '';
+                            html += `<div style="font-size:12px">${p.marker} ${p.seriesName}: <strong>${p.value}</strong>${unit}</div>`;
+                        });
+                        return html;
+                    }},
+                    legend: { data: ['TPS', '平均RT(ms)', 'P99(ms)', '错误率(%)'], top: 0 },
+                    xAxis: { type: 'category', data: times, axisLabel: { rotate: 30, fontSize: 10 } },
+                    yAxis: [
+                        { type: 'value', name: 'TPS' },
+                        { type: 'value', name: 'ms / %' }
+                    ],
+                    series: [
+                        { name: 'TPS', type: 'line', data: tasks.map(t => t.tps), smooth: true, lineStyle: { width: 2.5, color: '#2563eb' }, itemStyle: { color: '#2563eb' }, symbol: 'circle', symbolSize: 6, areaStyle: { color: 'rgba(37,99,235,0.08)' }, yAxisIndex: 0 },
+                        { name: '平均RT(ms)', type: 'line', data: tasks.map(t => t.avg_response_time), smooth: true, lineStyle: { width: 2, color: '#16a34a' }, itemStyle: { color: '#16a34a' }, symbol: 'circle', symbolSize: 4, yAxisIndex: 1 },
+                        { name: 'P99(ms)', type: 'line', data: tasks.map(t => t.p99), smooth: true, lineStyle: { width: 2, color: '#d97706' }, itemStyle: { color: '#d97706' }, symbol: 'circle', symbolSize: 4, yAxisIndex: 1 },
+                        { name: '错误率(%)', type: 'line', data: tasks.map(t => t.error_rate), smooth: true, lineStyle: { width: 2, color: '#dc2626' }, itemStyle: { color: '#dc2626' }, symbol: 'circle', symbolSize: 4, yAxisIndex: 1 }
+                    ],
+                    grid: { left: 60, right: 60, top: 40, bottom: 60 }
+                });
+                window.addEventListener('resize', () => { if (charts.trend) charts.trend.resize(); });
+            } catch (e) { console.error('loadTrend error:', e); }
+        }
+
+        // ===== 告警规则 =====
+        async function loadAlerts() {
+            try {
+                const [rulesRes, metricsRes] = await Promise.all([
+                    fetch(`${API}/api/alerts/`),
+                    fetch(`${API}/api/alerts/metrics`),
+                ]);
+                const rulesData = await rulesRes.json();
+                const metricsData = await metricsRes.json();
+                const rules = rulesData.rules || [];
+                const metrics = metricsData.metrics || [];
+
+                const tbody = document.getElementById('alerts-tbody');
+                const noAlerts = document.getElementById('no-alerts');
+
+                if (rules.length === 0) {
+                    tbody.innerHTML = '';
+                    noAlerts.style.display = 'block';
+                    return;
+                }
+                noAlerts.style.display = 'none';
+
+                const metricMap = {};
+                metrics.forEach(m => metricMap[m.key] = m.name);
+
+                tbody.innerHTML = rules.map(r => `<tr>
+                    <td>${r.name}</td>
+                    <td>${metricMap[r.metric] || r.metric}</td>
+                    <td>${r.operator}</td>
+                    <td>${r.threshold}</td>
+                    <td>${r.triggered_count || 0}</td>
+                    <td><span class="status-badge ${r.enabled ? 'status-completed' : 'status-stopped'}">${r.enabled ? '启用' : '禁用'}</span></td>
+                    <td>
+                        <button class="filter-btn btn-sm" onclick="toggleAlert('${r.rule_id}', ${!r.enabled})">${r.enabled ? '禁用' : '启用'}</button>
+                        <button class="btn-danger btn-sm" style="margin-left:4px" onclick="deleteAlert('${r.rule_id}')">删除</button>
+                    </td>
+                </tr>`).join('');
+
+                const sel = document.getElementById('alert-metric');
+                sel.innerHTML = metrics.map(m => `<option value="${m.key}">${m.name}</option>`).join('');
+            } catch (e) { console.error('loadAlerts error:', e); }
+        }
+
+        function showCreateAlert() { document.getElementById('alert-create-modal').style.display = 'flex'; }
+        function closeCreateAlert() { document.getElementById('alert-create-modal').style.display = 'none'; }
+
+        async function submitAlert() {
+            const name = document.getElementById('alert-name').value.trim();
+            if (!name) { alert('请输入规则名称'); return; }
+            try {
+                await fetch(`${API}/api/alerts/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name,
+                        metric: document.getElementById('alert-metric').value,
+                        operator: document.getElementById('alert-operator').value,
+                        threshold: parseFloat(document.getElementById('alert-threshold').value),
+                        description: document.getElementById('alert-desc').value.trim(),
+                    }),
+                });
+                closeCreateAlert();
+                loadAlerts();
+            } catch (e) { alert('创建失败: ' + e.message); }
+        }
+
+        async function toggleAlert(id, enabled) {
+            await fetch(`${API}/api/alerts/${id}`, {
+                method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ enabled }),
+            });
+            loadAlerts();
+        }
+
+        async function deleteAlert(id) {
+            if (!confirm('确定删除此规则？')) return;
+            await fetch(`${API}/api/alerts/${id}`, { method: 'DELETE' });
+            loadAlerts();
+        }
+
+        // ===== 环境管理 =====
+        async function loadEnvs() {
+            try {
+                const res = await fetch(`${API}/api/environments/`);
+                const data = await res.json();
+                const envs = data.environments || [];
+                const tbody = document.getElementById('envs-tbody');
+                const noEnvs = document.getElementById('no-envs');
+
+                if (envs.length === 0) {
+                    tbody.innerHTML = '';
+                    noEnvs.style.display = 'block';
+                    return;
+                }
+                noEnvs.style.display = 'none';
+
+                tbody.innerHTML = envs.map(e => `<tr>
+                    <td style="font-weight:500">${e.name}</td>
+                    <td style="font-family:monospace;font-size:12px">${e.base_url}</td>
+                    <td>${e.description || '-'}</td>
+                    <td>${Object.keys(e.variables || {}).length}</td>
+                    <td>
+                        <button class="btn-success btn-sm" onclick="testEnv('${e.env_id}')">测试</button>
+                        <button class="btn-danger btn-sm" style="margin-left:4px" onclick="deleteEnv('${e.env_id}')">删除</button>
+                    </td>
+                </tr>`).join('');
+            } catch (e) { console.error('loadEnvs error:', e); }
+        }
+
+        function showCreateEnv() { document.getElementById('env-create-modal').style.display = 'flex'; }
+        function closeCreateEnv() { document.getElementById('env-create-modal').style.display = 'none'; }
+
+        async function submitEnv() {
+            const name = document.getElementById('env-name').value.trim();
+            const url = document.getElementById('env-url').value.trim();
+            if (!name || !url) { alert('请填写环境名称和 URL'); return; }
+
+            let variables = {};
+            let headers = {};
+            try {
+                const varsText = document.getElementById('env-vars').value.trim();
+                if (varsText) variables = JSON.parse(varsText);
+            } catch (e) { alert('变量 JSON 格式错误'); return; }
+            try {
+                const headersText = document.getElementById('env-headers').value.trim();
+                if (headersText) headers = JSON.parse(headersText);
+            } catch (e) { alert('请求头 JSON 格式错误'); return; }
+
+            try {
+                await fetch(`${API}/api/environments/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name,
+                        base_url: url,
+                        description: document.getElementById('env-desc').value.trim(),
+                        variables,
+                        headers,
+                        auth_token: document.getElementById('env-token').value.trim() || null,
+                    }),
+                });
+                closeCreateEnv();
+                loadEnvs();
+            } catch (e) { alert('创建失败: ' + e.message); }
+        }
+
+        async function testEnv(envId) {
+            try {
+                const res = await fetch(`${API}/api/environments/${envId}/test`, { method: 'POST' });
+                const data = await res.json();
+                alert(data.status === 'success' ? `测试成功: ${data.url} (状态码: ${data.response_code})` : `测试失败: ${data.error}`);
+            } catch (e) { alert('测试失败: ' + e.message); }
+        }
+
+        async function deleteEnv(envId) {
+            if (!confirm('确定删除此环境？')) return;
+            await fetch(`${API}/api/environments/${envId}`, { method: 'DELETE' });
+            loadEnvs();
         }
 
         // ===== 模板管理 =====

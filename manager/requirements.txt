@@ -4,3 +4,4 @@ redis
 psutil
 python-multipart
 aiofiles
+weasyprint

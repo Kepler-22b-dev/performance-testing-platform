@@ -1,0 +1,81 @@
+name: Performance Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      script_id:
+        description: '脚本 ID'
+        required: true
+      threads:
+        description: '并发线程数'
+        required: false
+        default: '10'
+      duration:
+        description: '持续时间(秒)'
+        required: false
+        default: '60'
+      max_avg_rt:
+        description: '平均RT阈值(ms)'
+        required: false
+        default: '1000'
+      max_error_rate:
+        description: '错误率阈值(%)'
+        required: false
+        default: '1'
+
+env:
+  PERFTEST_URL: ${{ secrets.PERFTEST_URL }}
+
+jobs:
+  performance-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Run performance test
+        id: perf_test
+        run: |
+          TASK_ID=$(python cli.py run \
+            --script ${{ inputs.script_id }} \
+            --threads ${{ inputs.threads }} \
+            --duration ${{ inputs.duration }})
+          echo "task_id=$TASK_ID" >> $GITHUB_OUTPUT
+
+      - name: Wait for completion
+        run: |
+          python cli.py wait --task ${{ steps.perf_test.outputs.task_id }} --timeout 600
+
+      - name: Check thresholds
+        id: check
+        run: |
+          python cli.py check \
+            --task ${{ steps.perf_test.outputs.task_id }} \
+            --max-avg-rt ${{ inputs.max_avg_rt }} \
+            --max-error-rate ${{ inputs.max_error_rate }}
+
+      - name: Export report
+        if: always()
+        run: |
+          python cli.py report \
+            --task ${{ steps.perf_test.outputs.task_id }} \
+            --format html \
+            --output report.html
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-report
+          path: report.html
+
+      - name: Fail if thresholds exceeded
+        if: steps.check.outcome == 'failure'
+        run: exit 1

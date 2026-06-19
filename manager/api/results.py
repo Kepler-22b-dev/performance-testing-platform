@@ -853,3 +853,100 @@ tr:hover {{ background: #fafafa; }}
 
     from fastapi.responses import HTMLResponse
     return HTMLResponse(content=html)
+
+
+@router.get("/tasks/{task_id}/export-pdf")
+def export_report_pdf(task_id: str):
+    task_path = os.path.join(REPORTS_DIR, task_id)
+    if not os.path.exists(task_path):
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    try:
+        from weasyprint import HTML
+    except ImportError:
+        raise HTTPException(status_code=500, detail="PDF 导出需要安装 weasyprint: pip install weasyprint")
+
+    html_resp = export_report(task_id)
+    html_content = html_resp.body.decode("utf-8")
+
+    pdf_path = os.path.join(task_path, f"{task_id}_report.pdf")
+    HTML(string=html_content).write_pdf(pdf_path)
+
+    from fastapi.responses import FileResponse
+    return FileResponse(
+        pdf_path,
+        media_type="application/pdf",
+        filename=f"report_{task_id}.pdf",
+    )
+
+
+@router.get("/trend")
+def get_performance_trend(label: str = None, limit: int = 20):
+    if not os.path.exists(REPORTS_DIR):
+        return {"tasks": []}
+
+    task_data = []
+    for task_dir in os.listdir(REPORTS_DIR):
+        task_path = os.path.join(REPORTS_DIR, task_dir)
+        if not os.path.isdir(task_path):
+            continue
+
+        all_samples = []
+        for agent_dir in os.listdir(task_path):
+            agent_path = os.path.join(task_path, agent_dir)
+            if not os.path.isdir(agent_path):
+                continue
+            for filename in os.listdir(agent_path):
+                filepath = os.path.join(agent_path, filename)
+                if filename.endswith(".xml"):
+                    from manager.core.sample_cache import _parse_xml_result
+                    samples = _parse_xml_result(filepath)
+                    all_samples.extend(samples)
+                elif filename.endswith(".jtl"):
+                    try:
+                        with open(filepath, "r", encoding="utf-8") as f:
+                            first_line = f.readline().strip()
+                        if first_line.startswith("<?xml") or first_line.startswith("<testResults"):
+                            from manager.core.sample_cache import _parse_xml_result
+                            samples = _parse_xml_result(filepath)
+                            all_samples.extend(samples)
+                        else:
+                            data = _parse_jtl(filepath)
+                            all_samples.extend(data["samples"])
+                    except Exception:
+                        pass
+
+        if not all_samples:
+            continue
+
+        if label:
+            all_samples = [s for s in all_samples if s["label"] == label]
+
+        if not all_samples:
+            continue
+
+        all_samples.sort(key=lambda x: x["timestamp"])
+        elapsed_times = sorted([s["elapsed"] for s in all_samples])
+        error_count = sum(1 for s in all_samples if not s["success"])
+        total = len(all_samples)
+
+        ts = [s["timestamp"] for s in all_samples]
+        duration = (max(ts) - min(ts)) / 1000 if len(ts) > 1 else 1
+        tps = round(total / duration, 2) if duration > 0 else 0
+
+        stat = os.stat(task_path)
+        task_data.append({
+            "task_id": task_dir,
+            "created_at": stat.st_ctime,
+            "total_samples": total,
+            "error_count": error_count,
+            "error_rate": round(error_count / total * 100, 2) if total > 0 else 0,
+            "avg_response_time": round(sum(elapsed_times) / len(elapsed_times), 2),
+            "p50": _percentile(elapsed_times, 50),
+            "p90": _percentile(elapsed_times, 90),
+            "p99": _percentile(elapsed_times, 99),
+            "tps": tps,
+        })
+
+    task_data.sort(key=lambda x: x["created_at"])
+    return {"tasks": task_data[-limit:]}

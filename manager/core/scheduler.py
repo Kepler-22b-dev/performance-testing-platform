@@ -246,6 +246,7 @@ class TaskScheduler:
 
         if all_done:
             self._trigger_notifications(task)
+            self._check_alerts(task)
 
     def handle_progress(self, update: ProgressUpdate):
         self._progress[update.task_id] = update
@@ -275,6 +276,43 @@ class TaskScheduler:
                         "status": task["status"],
                         "script_id": task.get("script_id", ""),
                         "results": task.get("results", {}),
+                    }).encode()
+                    req = urllib.request.Request(
+                        webhook_url,
+                        data=payload,
+                        headers={"Content-Type": "application/json"},
+                    )
+                    urllib.request.urlopen(req, timeout=10)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    def _check_alerts(self, task: dict):
+        try:
+            from manager.api.alerts import check_alerts
+            triggered = check_alerts(task)
+            if triggered:
+                self._send_alert_notification(task, triggered)
+        except Exception:
+            pass
+
+    def _send_alert_notification(self, task: dict, triggered: list):
+        try:
+            notifications_data = self.redis.hget("jmeter:config", "notifications")
+            if not notifications_data:
+                return
+            config = json.loads(notifications_data)
+            if not config.get("enabled"):
+                return
+            webhooks = config.get("webhooks", [])
+            for webhook_url in webhooks:
+                try:
+                    import urllib.request
+                    payload = json.dumps({
+                        "event": "alert_triggered",
+                        "task_id": task["task_id"],
+                        "alerts": triggered,
                     }).encode()
                     req = urllib.request.Request(
                         webhook_url,

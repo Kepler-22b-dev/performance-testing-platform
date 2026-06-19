@@ -27,6 +27,8 @@ from manager.api.data import router as data_router
 from manager.api.templates import router as templates_router
 from manager.api.notifications import router as notifications_router
 from manager.api.scheduler_api import router as scheduler_router
+from manager.api.alerts import router as alerts_router
+from manager.api.environments import router as environments_router
 
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -135,6 +137,8 @@ app.include_router(data_router)
 app.include_router(templates_router)
 app.include_router(notifications_router)
 app.include_router(scheduler_router)
+app.include_router(alerts_router)
+app.include_router(environments_router)
 
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 
