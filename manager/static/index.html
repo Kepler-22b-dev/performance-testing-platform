@@ -1,0 +1,2730 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>性能测试平台</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif; background: #f5f5f5; color: #1a1a1a; }
+        .header { background: #fff; padding: 0 24px; height: 56px; border-bottom: 1px solid #e0e0e0; display: flex; align-items: center; justify-content: space-between; }
+        .header h1 { font-size: 18px; font-weight: 600; color: #1a1a1a; }
+        .header .nav { display: flex; gap: 8px; }
+        .header .nav button { background: transparent; border: 1px solid #d0d0d0; color: #555; padding: 6px 16px; border-radius: 4px; cursor: pointer; font-size: 13px; transition: all 0.2s; }
+        .header .nav button:hover { background: #f0f0f0; }
+        .header .nav button.active { background: #1a1a1a; border-color: #1a1a1a; color: #fff; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+        .summary-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 16px; }
+        .card { background: #fff; border-radius: 6px; padding: 16px; border: 1px solid #e0e0e0; }
+        .card .label { font-size: 11px; color: #888; margin-bottom: 2px; }
+        .card .value { font-size: 20px; font-weight: 600; color: #1a1a1a; white-space: nowrap; }
+        .card .value.green { color: #16a34a; }
+        .card .value.red { color: #dc2626; }
+        .card .value.blue { color: #2563eb; }
+        .card .value.yellow { color: #d97706; }
+        .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+        .chart-box { background: #fff; border-radius: 6px; padding: 16px; border: 1px solid #e0e0e0; overflow-x: auto; }
+        .chart-box h3 { font-size: 13px; color: #666; margin-bottom: 12px; font-weight: 500; }
+        .chart-container { height: 280px; }
+        .full-width { grid-column: 1 / -1; }
+        .task-list { background: #fff; border-radius: 6px; padding: 16px; border: 1px solid #e0e0e0; overflow-x: auto; }
+        .task-list h3 { font-size: 13px; color: #666; margin-bottom: 12px; font-weight: 500; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #f0f0f0; font-size: 13px; color: #333; white-space: nowrap; }
+        th { color: #888; font-weight: 500; background: #fafafa; }
+        tr:hover { background: #fafafa; }
+        .status-badge { padding: 2px 8px; border-radius: 4px; font-size: 12px; display: inline-block; }
+        .status-completed { background: #dcfce7; color: #16a34a; }
+        .status-failed { background: #fee2e2; color: #dc2626; }
+        .status-running { background: #dbeafe; color: #2563eb; }
+        .status-pending { background: #f3f4f6; color: #6b7280; }
+        .status-stopped { background: #fef3c7; color: #d97706; }
+        .clickable { cursor: pointer; color: #2563eb; text-decoration: none; }
+        .clickable:hover { text-decoration: underline; }
+        .hidden { display: none; }
+        .back-btn { background: none; border: none; color: #2563eb; cursor: pointer; font-size: 13px; margin-bottom: 12px; padding: 0; }
+        .back-btn:hover { text-decoration: underline; }
+        .btn-primary { background: #2563eb; border: none; color: #fff; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 13px; transition: background 0.2s; }
+        .btn-primary:hover { background: #1d4ed8; }
+        .btn-success { background: #16a34a; border: none; color: #fff; padding: 6px 14px; border-radius: 4px; cursor: pointer; font-size: 13px; transition: background 0.2s; }
+        .btn-success:hover { background: #15803d; }
+        .btn-danger { background: #fff; border: 1px solid #d0d0d0; color: #dc2626; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; transition: all 0.2s; }
+        .btn-danger:hover { background: #fee2e2; border-color: #fca5a5; }
+        .btn-sm { padding: 4px 10px; font-size: 12px; }
+        #loading { text-align: center; padding: 40px; color: #888; }
+        .empty-tip { text-align: center; padding: 24px; color: #aaa; font-size: 13px; }
+        .expand-row td { padding: 0 !important; border-bottom: 1px solid #e0e0e0; }
+        .expand-content { padding: 16px 20px; background: #fafafa; display: none; }
+        .expand-content.open { display: block; }
+        .detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+        .detail-item { font-size: 13px; }
+        .detail-item .dl { color: #888; margin-bottom: 2px; }
+        .detail-item .dv { color: #1a1a1a; font-weight: 500; }
+        .task-id-link { font-family: monospace; font-size: 12px; color: #2563eb; cursor: pointer; }
+        .task-id-link:hover { text-decoration: underline; }
+        .arrow { display: inline-block; transition: transform 0.2s; font-size: 10px; margin-right: 4px; color: #888; }
+        .arrow.open { transform: rotate(90deg); }
+        .log-tabs { display: flex; gap: 0; margin-top: 12px; border-bottom: 1px solid #d0d0d0; }
+        .log-tab { padding: 6px 14px; font-size: 12px; cursor: pointer; border: 1px solid transparent; border-bottom: none; border-radius: 4px 4px 0 0; color: #666; background: transparent; }
+        .log-tab:hover { background: #f0f0f0; }
+        .log-tab.active { background: #fff; border-color: #d0d0d0; color: #1a1a1a; font-weight: 500; }
+        .log-box { background: #1a1a1a; color: #d4d4d4; padding: 12px; border-radius: 0 4px 4px 4px; font-family: 'Menlo', 'Consolas', monospace; font-size: 11px; line-height: 1.6; max-height: 320px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; }
+        .log-box .log-info { color: #6a9955; }
+        .log-box .log-warn { color: #dcdcaa; }
+        .log-box .log-error { color: #f44747; }
+        .log-loading { text-align: center; padding: 16px; color: #888; font-size: 12px; }
+        .form-group { margin-bottom: 16px; }
+        .form-group label { display: block; font-size: 13px; color: #555; margin-bottom: 6px; font-weight: 500; }
+        .form-group input, .form-group select { width: 100%; padding: 8px 12px; border: 1px solid #d0d0d0; border-radius: 4px; font-size: 13px; color: #333; background: #fff; outline: none; transition: border 0.2s; }
+        .form-group input:focus, .form-group select:focus { border-color: #2563eb; }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+        .form-actions { display: flex; gap: 8px; margin-top: 20px; }
+        .live-bar { display: flex; gap: 16px; padding: 12px 16px; background: #f0f7ff; border: 1px solid #bfdbfe; border-radius: 6px; margin-bottom: 16px; font-size: 13px; }
+        .live-bar .item { display: flex; align-items: center; gap: 6px; }
+        .live-bar .dot { width: 8px; height: 8px; border-radius: 50%; background: #2563eb; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+        .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .toolbar .left { display: flex; gap: 8px; align-items: center; }
+        .filter-btn { background: transparent; border: 1px solid #d0d0d0; color: #555; padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; }
+        .filter-btn.active { background: #1a1a1a; border-color: #1a1a1a; color: #fff; }
+        .progress-text { font-size: 12px; color: #888; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>性能测试平台</h1>
+        <div class="nav" style="align-items:center">
+            <button class="active" onclick="showPage('home')">首页</button>
+            <button onclick="showPage('tasks')">任务管理</button>
+            <button onclick="showPage('create')">创建任务</button>
+            <button onclick="showPage('data')">数据管理</button>
+            <button onclick="showPage('nodes')">施压节点</button>
+            <button onclick="showPage('compare')">任务对比</button>
+            <button onclick="showPage('templates')">模板管理</button>
+            <button onclick="showPage('schedule')">定时调度</button>
+            <button onclick="showPage('notify')">通知设置</button>
+            <button onclick="showPage('scripts')">脚本管理</button>
+            <a href="/docs" target="_blank" style="background:transparent;border:1px solid #d0d0d0;color:#555;padding:6px 12px;border-radius:4px;text-decoration:none;font-size:13px;cursor:pointer">API 文档</a>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- 首页 -->
+        <div id="page-home">
+            <!-- 系统概览 -->
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:16px;">
+                <div class="card" style="cursor:pointer" onclick="showPage('tasks')">
+                    <div class="label">测试任务</div>
+                    <div class="value blue" id="home-tasks-count">-</div>
+                    <div style="font-size:11px;color:#888;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" id="home-tasks-status">加载中...</div>
+                </div>
+                <div class="card" style="cursor:pointer" onclick="showPage('scripts')">
+                    <div class="label">脚本数量</div>
+                    <div class="value green" id="home-scripts-count">-</div>
+                </div>
+                <div class="card" style="cursor:pointer" onclick="showPage('nodes')">
+                    <div class="label">施压节点</div>
+                    <div class="value" id="home-nodes-count">-</div>
+                    <div style="font-size:11px;color:#888;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" id="home-nodes-status">加载中...</div>
+                </div>
+                <div class="card" style="cursor:pointer" onclick="showPage('nodes')">
+                    <div class="label">CPU</div>
+                    <div class="value" id="home-cpu">-</div>
+                </div>
+                <div class="card" style="cursor:pointer" onclick="showPage('nodes')">
+                    <div class="label">内存</div>
+                    <div class="value" id="home-mem">-</div>
+                </div>
+            </div>
+
+            <!-- 最近任务 -->
+            <div class="task-list" style="margin-bottom:20px;">
+                <div class="toolbar">
+                    <h3>最近任务</h3>
+                    <button class="filter-btn" onclick="showPage('tasks')">查看全部</button>
+                </div>
+                <table>
+                    <thead><tr><th>任务 ID</th><th>脚本</th><th>状态</th><th>请求数</th><th>平均 RT</th><th>创建时间</th></tr></thead>
+                    <tbody id="home-tasks-tbody"></tbody>
+                </table>
+                <div id="home-no-tasks" class="empty-tip">暂无任务</div>
+            </div>
+
+            <!-- 系统介绍 -->
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+                <!-- 功能特性 -->
+                <div class="task-list">
+                    <h3 style="font-size:15px;font-weight:600;margin-bottom:16px">功能特性</h3>
+                    <div style="display:grid;gap:12px;">
+                        <div style="display:flex;gap:12px;align-items:flex-start">
+                            <div style="width:32px;height:32px;background:#e8f5e9;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#16a34a;font-size:16px">&#10003;</div>
+                            <div><div style="font-weight:500;margin-bottom:2px">分布式压测</div><div style="font-size:12px;color:#888">支持多台施压节点并行执行，水平扩展压力</div></div>
+                        </div>
+                        <div style="display:flex;gap:12px;align-items:flex-start">
+                            <div style="width:32px;height:32px;background:#e3f2fd;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#2563eb;font-size:16px">&#9881;</div>
+                            <div><div style="font-weight:500;margin-bottom:2px">脚本在线编辑</div><div style="font-size:12px;color:#888">Web 端直接编辑 JMeter 脚本，支持保存、格式化、一键执行</div></div>
+                        </div>
+                        <div style="display:flex;gap:12px;align-items:flex-start">
+                            <div style="width:32px;height:32px;background:#fff3e0;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#d97706;font-size:16px">&#128200;</div>
+                            <div><div style="font-weight:500;margin-bottom:2px">实时监控</div><div style="font-size:12px;color:#888">CPU/内存/网络实时监控，JMeter 进程资源追踪</div></div>
+                        </div>
+                        <div style="display:flex;gap:12px;align-items:flex-start">
+                            <div style="width:32px;height:32px;background:#fce4ec;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#dc2626;font-size:16px">&#128202;</div>
+                            <div><div style="font-weight:500;margin-bottom:2px">结果分析</div><div style="font-size:12px;color:#888">TPS/响应时间/错误率/百分位分布，多维度可视化图表</div></div>
+                        </div>
+                        <div style="display:flex;gap:12px;align-items:flex-start">
+                            <div style="width:32px;height:32px;background:#f3e5f5;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#9333ea;font-size:16px">&#128193;</div>
+                            <div><div style="font-weight:500;margin-bottom:2px">数据驱动</div><div style="font-size:12px;color:#888">CSV 数据文件管理，全局变量配置，支持参数化压测</div></div>
+                        </div>
+                        <div style="display:flex;gap:12px;align-items:flex-start">
+                            <div style="width:32px;height:32px;background:#e8eaf6;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#3f51b5;font-size:16px">&#9200;</div>
+                            <div><div style="font-weight:500;margin-bottom:2px">定时调度</div><div style="font-size:12px;color:#888">支持定时/周期性执行压测任务，自动化测试</div></div>
+                        </div>
+                        <div style="display:flex;gap:12px;align-items:flex-start">
+                            <div style="width:32px;height:32px;background:#fff8e1;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#ff8f00;font-size:16px">&#128276;</div>
+                            <div><div style="font-weight:500;margin-bottom:2px">通知系统</div><div style="font-size:12px;color:#888">任务完成后通过 Webhook 自动通知</div></div>
+                        </div>
+                        <div style="display:flex;gap:12px;align-items:flex-start">
+                            <div style="width:32px;height:32px;background:#e0f2f1;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#00897b;font-size:16px">&#128200;</div>
+                            <div><div style="font-weight:500;margin-bottom:2px">任务对比</div><div style="font-size:12px;color:#888">对比两次压测结果，直观查看性能变化</div></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 快速开始 -->
+                <div class="task-list">
+                    <h3 style="font-size:15px;font-weight:600;margin-bottom:16px">快速开始</h3>
+                    <div style="display:grid;gap:16px;font-size:13px;">
+                        <div>
+                            <div style="font-weight:500;color:#2563eb;margin-bottom:6px">1. 一键部署</div>
+                            <div style="background:#f5f5f5;padding:8px 12px;border-radius:4px;font-family:monospace;font-size:12px">bash deploy.sh</div>
+                        </div>
+                        <div>
+                            <div style="font-weight:500;color:#2563eb;margin-bottom:6px">2. 访问平台</div>
+                            <div style="background:#f5f5f5;padding:8px 12px;border-radius:4px;font-family:monospace;font-size:12px">http://localhost:8000</div>
+                        </div>
+                        <div>
+                            <div style="font-weight:500;color:#2563eb;margin-bottom:6px">3. 上传脚本</div>
+                            <div style="color:#666">进入「脚本管理」上传 .jmx 文件或新建脚本</div>
+                        </div>
+                        <div>
+                            <div style="font-weight:500;color:#2563eb;margin-bottom:6px">4. 执行压测</div>
+                            <div style="color:#666">进入「创建任务」配置参数并启动压测</div>
+                        </div>
+                        <div>
+                            <div style="font-weight:500;color:#2563eb;margin-bottom:6px">5. 查看结果</div>
+                            <div style="color:#666">在「任务管理」查看实时进度和分析报告</div>
+                        </div>
+                        <div>
+                            <div style="font-weight:500;color:#2563eb;margin-bottom:6px">6. API 文档</div>
+                            <div style="color:#666">访问 <a href="/docs" target="_blank" style="color:#2563eb">/docs</a> 查看完整 API 文档</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 系统架构 -->
+            <div class="task-list" style="margin-top:16px;">
+                <h3 style="font-size:15px;font-weight:600;margin-bottom:16px">系统架构</h3>
+                <div style="background:#1a1a1a;color:#d4d4d4;padding:20px;border-radius:6px;font-family:monospace;font-size:12px;line-height:1.8;overflow-x:auto;">
+<pre style="margin:0">
+┌─────────────────────────────────────────────────────────────────┐
+│                        Web 浏览器                                │
+│                    http://localhost:8000                         │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐           │
+│  │ 首页概览  │ │ 任务管理  │ │ 脚本编辑  │ │ 结果分析  │           │
+│  │ 模板管理  │ │ 定时调度  │ │ 通知设置  │ │ API 文档  │           │
+│  └──────────┘ └──────────┘ └──────────┘ └──────────┘           │
+└───────────────────────────┬─────────────────────────────────────┘
+                            │ HTTP / WebSocket
+┌───────────────────────────▼─────────────────────────────────────┐
+│                      Manager (FastAPI)                           │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐           │
+│  │ 任务管理  │ │ 脚本编辑  │ │ 结果分析  │ │ 节点管理  │           │
+│  │ 模板引擎  │ │ 定时调度  │ │ 通知系统  │ │ 资源监控  │           │
+│  └──────────┘ └──────────┘ └──────────┘ └──────────┘           │
+└───────┬───────────────────┬───────────────────┬─────────────────┘
+        │ Redis             │ Redis             │ JMeter CLI
+┌───────▼───────┐  ┌───────▼───────┐  ┌───────▼─────────────────┐
+│   Agent 1     │  │   Agent 2     │  │   JMeter Master         │
+│  (本机施压)    │  │  (远程施压)    │  │   -r (分布式模式)        │
+└───────┬───────┘  └───────┬───────┘  └───────┬─────────────────┘
+        │                  │                   │
+┌───────▼──────────────────▼───────────────────▼─────────────────┐
+│                    JMeter Slave 节点                             │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐       │
+│  │ Slave:1100│  │ Slave:1200│  │ Slave:1300│  │ Slave:N  │       │
+│  └──────────┘  └──────────┘  └──────────┘  └──────────┘       │
+└─────────────────────────────────────────────────────────────────┘
+</pre>
+                </div>
+            </div>
+        </div>
+
+        <!-- 任务管理 -->
+        <div id="page-tasks">
+            <div id="tasks-list-view">
+                <div class="task-list">
+                    <div class="toolbar">
+                        <div class="left">
+                            <h3>测试任务</h3>
+                            <button class="filter-btn active" onclick="filterTasks('all', this)">全部</button>
+                            <button class="filter-btn" onclick="filterTasks('running', this)">运行中</button>
+                            <button class="filter-btn" onclick="filterTasks('completed', this)">已完成</button>
+                            <button class="filter-btn" onclick="filterTasks('failed', this)">失败</button>
+                        </div>
+                        <button class="btn-primary" onclick="showPage('create')">+ 创建任务</button>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>任务 ID</th>
+                                <th>脚本</th>
+                                <th>状态</th>
+                                <th>节点</th>
+                                <th>创建时间</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tasks-tbody"></tbody>
+                    </table>
+                    <div id="no-tasks" class="empty-tip">暂无任务</div>
+                </div>
+            </div>
+
+            <div id="task-detail-view" class="hidden">
+                <button class="back-btn" onclick="showTaskList()">&larr; 返回列表</button>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+                    <h2 style="font-size:16px;font-weight:600;">测试报告：<span id="detail-task-id" style="color:#555"></span></h2>
+                    <div style="display:flex;gap:8px">
+                        <a id="export-report-btn" class="btn-primary" style="display:none;text-decoration:none" target="_blank">导出 HTML 报告</a>
+                        <button class="filter-btn" onclick="showTaskList()">关闭</button>
+                    </div>
+                </div>
+                <div id="live-monitor" class="hidden"></div>
+                <div class="summary-cards" id="summary-cards"></div>
+
+                <!-- 场景总览：多曲线合并 -->
+                <div class="chart-box" style="margin-bottom:12px">
+                    <h3>场景总览（并发数 / TPS / 响应时间 / 错误率）</h3>
+                    <div class="chart-container" id="chart-overview" style="height:350px"></div>
+                </div>
+
+                <div class="charts-grid">
+                    <div class="chart-box"><h3>响应时间分布</h3><div class="chart-container" id="chart-distribution"></div></div>
+                    <div class="chart-box"><h3>百分位响应时间</h3><div class="chart-container" id="chart-percentiles"></div></div>
+                </div>
+
+                <!-- 单接口图表 -->
+                <div class="chart-box" style="margin-bottom:12px">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+                        <h3>单接口分析</h3>
+                        <select id="label-select" onchange="switchLabelChart()" style="padding:4px 8px;border:1px solid #d0d0d0;border-radius:4px;font-size:12px;"></select>
+                    </div>
+                    <div class="chart-container" id="chart-label" style="height:300px"></div>
+                </div>
+
+                <div class="chart-box">
+                    <h3>接口统计</h3>
+                    <table>
+                        <thead><tr><th>接口名称</th><th>请求数</th><th>TPS</th><th>平均耗时</th><th>P50</th><th>P90</th><th>P99</th><th>错误率</th></tr></thead>
+                        <tbody id="label-stats-tbody"></tbody>
+                    </table>
+                </div>
+
+                <!-- 请求日志 -->
+                <div class="chart-box" style="margin-top:12px">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+                        <h3>请求日志</h3>
+                        <div style="display:flex;gap:8px;align-items:center">
+                            <select id="log-label-filter" onchange="loadRequestLogs(0)" style="padding:4px 8px;border:1px solid #d0d0d0;border-radius:4px;font-size:12px">
+                                <option value="">全部接口</option>
+                            </select>
+                            <label style="font-size:12px;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;">
+                                <input type="checkbox" id="log-errors-only" onchange="loadRequestLogs(0)"> 仅错误
+                            </label>
+                        </div>
+                    </div>
+                    <div id="log-summary" style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:12px;padding:10px 12px;background:#fafafa;border-radius:6px;font-size:12px;"></div>
+                    <table style="font-size:12px">
+                        <thead><tr><th>接口</th><th>状态</th><th>耗时</th><th>响应码</th><th>操作</th></tr></thead>
+                        <tbody id="request-log-tbody"></tbody>
+                    </table>
+                    <div style="margin-top:8px;display:flex;justify-content:center;gap:8px">
+                        <button class="filter-btn" id="log-prev-btn" onclick="loadRequestLogs(logPage-1)" disabled>上一页</button>
+                        <span id="log-page-info" style="font-size:12px;color:#888;line-height:28px"></span>
+                        <button class="filter-btn" id="log-next-btn" onclick="loadRequestLogs(logPage+1)">下一页</button>
+                    </div>
+                </div>
+
+                <!-- 请求详情弹窗 -->
+                <div id="request-detail-modal" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:none;z-index:1000;justify-content:center;align-items:center;">
+                    <div style="background:#fff;border-radius:8px;padding:20px;width:90%;max-width:900px;max-height:90vh;overflow:auto;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+                            <h3 style="font-size:16px">请求详情</h3>
+                            <button class="filter-btn" onclick="closeRequestDetail()">关闭</button>
+                        </div>
+                        <div id="request-detail-content"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 创建任务 -->
+        <div id="page-create" class="hidden">
+            <div class="task-list" style="max-width:640px;">
+                <h3>创建测试任务</h3>
+                <div class="form-group">
+                    <label>选择脚本</label>
+                    <select id="create-script"></select>
+                </div>
+                <div class="form-group">
+                    <label>施压节点</label>
+                    <select id="create-nodes"></select>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>并发线程数</label>
+                        <input type="number" id="create-threads" value="1" min="1" max="1000">
+                    </div>
+                    <div class="form-group">
+                        <label>预热时间（秒）</label>
+                        <input type="number" id="create-ramp" value="1" min="0">
+                    </div>
+                    <div class="form-group">
+                        <label>持续时间（秒）</label>
+                        <input type="number" id="create-duration" value="10" min="1">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>超时时间（秒）</label>
+                    <input type="number" id="create-timeout" value="300" min="10">
+                </div>
+                <div class="form-group" style="display:flex;align-items:center;gap:12px;flex-wrap:nowrap;">
+                    <label style="margin-bottom:0;display:inline-flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap;">
+                        <input type="checkbox" id="create-distributed"> 分布式模式
+                    </label>
+                    <input type="text" id="create-remote-hosts" placeholder="留空则使用配置的所有 Slave，或指定 IP:端口" style="flex:1;padding:6px 10px;border:1px solid #d0d0d0;border-radius:4px;font-size:12px;display:none">
+                </div>
+
+                <!-- CSV 参数化 -->
+                <div style="border-top:1px solid #e0e0e0;margin-top:16px;padding-top:16px;">
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+                        <input type="checkbox" id="create-use-csv" onchange="toggleCsvOptions()">
+                        <label style="margin-bottom:0;font-weight:500;white-space:nowrap;">使用 CSV 参数化数据</label>
+                    </div>
+                    <div id="csv-options" style="display:none;">
+                        <div class="form-group">
+                            <label>选择 CSV 文件</label>
+                            <select id="create-csv-file"><option value="">不使用 CSV</option></select>
+                            <div style="font-size:11px;color:#888;margin-top:4px">CSV 文件中的列名将作为 JMeter 变量名，格式: ${变量名}</div>
+                        </div>
+                        <div class="form-group">
+                            <label>变量名（可选，留空则使用 CSV 表头）</label>
+                            <input type="text" id="create-csv-vars" placeholder="username,password,email">
+                            <div style="font-size:11px;color:#888;margin-top:4px">多个变量名用逗号分隔，顺序需与 CSV 列一致</div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>分隔符</label>
+                                <input type="text" id="create-csv-delimiter" value=",">
+                            </div>
+                            <div class="form-group">
+                                <label style="display:inline-flex;align-items:center;gap:6px;white-space:nowrap;">
+                                    <input type="checkbox" id="create-csv-recycle" checked> 循环读取
+                                </label>
+                            </div>
+                            <div class="form-group">
+                                <label style="display:inline-flex;align-items:center;gap:6px;white-space:nowrap;">
+                                    <input type="checkbox" id="create-csv-stop"> 读完停止
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button class="btn-primary" onclick="submitTask()">启动压测</button>
+                    <button class="filter-btn" onclick="showPage('tasks')">取消</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 施压节点 -->
+        <div id="page-nodes" class="hidden">
+            <!-- 添加节点 -->
+            <div class="task-list" style="margin-bottom:12px;">
+                <div class="toolbar">
+                    <h3>添加远程节点</h3>
+                </div>
+                <div style="display:flex;gap:8px;align-items:flex-end;">
+                    <div class="form-group" style="margin-bottom:0;flex:1">
+                        <label>IP 地址</label>
+                        <input type="text" id="reg-ip" placeholder="192.168.1.100">
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;width:120px">
+                        <label>端口</label>
+                        <input type="number" id="reg-port" value="1100">
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;flex:1">
+                        <label>备注名（可选）</label>
+                        <input type="text" id="reg-name" placeholder="Slave-1">
+                    </div>
+                    <button class="btn-primary" style="height:34px;margin-bottom:0" onclick="addRegistryNode()">添加</button>
+                </div>
+            </div>
+
+            <!-- 已注册节点 -->
+            <div class="task-list" style="margin-bottom:12px;">
+                <div class="toolbar">
+                    <h3>已注册节点</h3>
+                    <div>
+                        <button class="btn-primary btn-sm" onclick="verifyAllNodes()">全部验证</button>
+                        <button class="filter-btn" style="margin-left:6px" onclick="loadRegistryNodes()">刷新</button>
+                    </div>
+                </div>
+                <table>
+                    <thead><tr><th>节点名称</th><th>地址</th><th>状态</th><th>最后验证</th><th>操作</th></tr></thead>
+                    <tbody id="registry-tbody"></tbody>
+                </table>
+                <div id="no-registry" class="empty-tip">暂无注册节点，请在上方添加</div>
+            </div>
+
+            <!-- Agent 节点 -->
+            <div class="task-list" style="margin-bottom:12px;">
+                <div class="toolbar">
+                    <h3>本地 Agent 节点</h3>
+                    <button class="filter-btn" onclick="loadNodes()">刷新</button>
+                </div>
+                <table>
+                    <thead><tr><th>节点 ID</th><th>地址</th><th>状态</th><th>CPU</th><th>内存</th><th>当前任务</th></tr></thead>
+                    <tbody id="nodes-tbody"></tbody>
+                </table>
+            </div>
+
+            <!-- 资源监控 -->
+            <div class="task-list">
+                <div class="toolbar">
+                    <h3>压力机资源监控</h3>
+                    <button class="filter-btn" onclick="loadMonitor()">刷新</button>
+                </div>
+                <div id="monitor-panel" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;">
+                </div>
+                <div id="monitor-jmeter" style="margin-top:12px;"></div>
+            </div>
+        </div>
+
+        <!-- 数据管理 -->
+        <div id="page-data" class="hidden">
+            <!-- 变量管理 -->
+            <div class="task-list" style="margin-bottom:12px;">
+                <div class="toolbar">
+                    <h3>全局变量</h3>
+                </div>
+                <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:12px;">
+                    <div class="form-group" style="margin-bottom:0;flex:1">
+                        <label>变量名</label>
+                        <input type="text" id="var-name" placeholder="base_url">
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;flex:1">
+                        <label>变量值</label>
+                        <input type="text" id="var-value" placeholder="https://api.example.com">
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;flex:1">
+                        <label>说明</label>
+                        <input type="text" id="var-desc" placeholder="接口基础地址">
+                    </div>
+                    <button class="btn-primary" style="height:34px;margin-bottom:0" onclick="addVar()">添加</button>
+                </div>
+                <table>
+                    <thead><tr><th>变量名</th><th>变量值</th><th>说明</th><th>更新时间</th><th>操作</th></tr></thead>
+                    <tbody id="vars-tbody"></tbody>
+                </table>
+                <div id="no-vars" class="empty-tip">暂无变量</div>
+            </div>
+
+            <!-- CSV 数据文件 -->
+            <div class="task-list">
+                <div class="toolbar">
+                    <h3>CSV 数据文件</h3>
+                    <div>
+                        <input type="file" id="csv-upload" accept=".csv" style="display:none" onchange="uploadCsv()">
+                        <button class="btn-primary" onclick="document.getElementById('csv-upload').click()">上传 CSV</button>
+                    </div>
+                </div>
+                <table>
+                    <thead><tr><th>文件名</th><th>列数</th><th>行数</th><th>大小</th><th>预览</th><th>操作</th></tr></thead>
+                    <tbody id="csvs-tbody"></tbody>
+                </table>
+                <div id="no-csvs" class="empty-tip">暂无数据文件</div>
+            </div>
+
+            <!-- CSV 预览弹窗 -->
+            <div id="csv-preview-modal" class="hidden" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:none;z-index:1000;justify-content:center;align-items:center;">
+                <div style="background:#fff;border-radius:8px;padding:20px;max-width:800px;width:90%;max-height:80vh;overflow:auto;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                        <h3 style="font-size:16px" id="csv-preview-title"></h3>
+                        <button class="filter-btn" onclick="closeCsvPreview()">关闭</button>
+                    </div>
+                    <div id="csv-preview-content"></div>
+                </div>
+            </div>
+        </div>
+        <!-- 模板管理 -->
+        <div id="page-templates" class="hidden">
+            <div class="task-list">
+                <div class="toolbar">
+                    <h3>测试计划模板</h3>
+                    <button class="btn-success" onclick="showCreateTemplate()">新建模板</button>
+                </div>
+                <div id="templates-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;"></div>
+            </div>
+
+            <div id="template-create-modal" class="hidden" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:none;z-index:1000;justify-content:center;align-items:center;">
+                <div style="background:#fff;border-radius:8px;padding:20px;width:500px;">
+                    <h3 style="font-size:16px;margin-bottom:16px">新建模板</h3>
+                    <div class="form-group"><label>模板名称</label><input type="text" id="tpl-name" placeholder="我的模板"></div>
+                    <div class="form-group"><label>描述</label><input type="text" id="tpl-desc" placeholder="模板说明"></div>
+                    <div class="form-group"><label>分类</label><input type="text" id="tpl-category" value="自定义"></div>
+                    <div class="form-row">
+                        <div class="form-group"><label>并发数</label><input type="number" id="tpl-threads" value="10"></div>
+                        <div class="form-group"><label>预热(s)</label><input type="number" id="tpl-ramp" value="1"></div>
+                        <div class="form-group"><label>持续(s)</label><input type="number" id="tpl-duration" value="60"></div>
+                    </div>
+                    <div style="display:flex;gap:8px;justify-content:flex-end;">
+                        <button class="filter-btn" onclick="closeCreateTemplate()">取消</button>
+                        <button class="btn-primary" onclick="submitTemplate()">创建</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 定时调度 -->
+        <div id="page-schedule" class="hidden">
+            <div class="task-list" style="margin-bottom:12px;">
+                <div class="toolbar">
+                    <h3>定时调度</h3>
+                    <button class="btn-success" onclick="showCreateSchedule()">新建调度</button>
+                </div>
+                <table>
+                    <thead><tr><th>名称</th><th>脚本</th><th>间隔</th><th>执行次数</th><th>状态</th><th>操作</th></tr></thead>
+                    <tbody id="schedule-tbody"></tbody>
+                </table>
+                <div id="no-schedules" class="empty-tip">暂无调度任务</div>
+            </div>
+
+            <div id="schedule-create-modal" class="hidden" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:none;z-index:1000;justify-content:center;align-items:center;">
+                <div style="background:#fff;border-radius:8px;padding:20px;width:560px;">
+                    <h3 style="font-size:16px;margin-bottom:16px">新建调度</h3>
+                    <div class="form-group"><label>调度名称</label><input type="text" id="sch-name" placeholder="每日负载测试"></div>
+                    <div class="form-group"><label>选择脚本</label><select id="sch-script"></select></div>
+                    <div class="form-group">
+                        <label>执行间隔（秒，0=单次）</label>
+                        <input type="number" id="sch-interval" value="0" min="0">
+                        <div style="font-size:11px;color:#888;margin-top:4px">常用: 3600(每小时), 86400(每天), 0(单次定时)</div>
+                    </div>
+                    <div class="form-group">
+                        <label>单次执行时间（可选，Unix时间戳）</label>
+                        <input type="number" id="sch-runat" placeholder="留空则立即创建后按间隔执行">
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label>并发数</label><input type="number" id="sch-threads" value="10"></div>
+                        <div class="form-group"><label>持续(s)</label><input type="number" id="sch-duration" value="60"></div>
+                        <div class="form-group"><label>超时(s)</label><input type="number" id="sch-timeout" value="300"></div>
+                    </div>
+                    <div style="display:flex;gap:8px;justify-content:flex-end;">
+                        <button class="filter-btn" onclick="closeCreateSchedule()">取消</button>
+                        <button class="btn-primary" onclick="submitSchedule()">创建</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 通知设置 -->
+        <div id="page-notify" class="hidden">
+            <div class="task-list" style="margin-bottom:12px;">
+                <div class="toolbar"><h3>通知设置</h3></div>
+                <div style="display:flex;align-items:center;gap:16px;">
+                    <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap;flex-shrink:0;">
+                        <input type="checkbox" id="notify-enabled" checked onchange="saveNotifyConfig()"> 启用通知
+                    </label>
+                    <span style="font-size:12px;color:#888;white-space:nowrap;">任务完成后自动发送通知</span>
+                </div>
+            </div>
+
+            <div class="task-list">
+                <div class="toolbar">
+                    <h3>Webhook 列表</h3>
+                    <button class="btn-success" onclick="showAddWebhook()">添加 Webhook</button>
+                </div>
+                <table>
+                    <thead><tr><th>URL</th><th>操作</th></tr></thead>
+                    <tbody id="webhook-tbody"></tbody>
+                </table>
+                <div id="no-webhooks" class="empty-tip">暂无 Webhook</div>
+            </div>
+
+            <div id="webhook-add-modal" class="hidden" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:none;z-index:1000;justify-content:center;align-items:center;">
+                <div style="background:#fff;border-radius:8px;padding:20px;width:500px;">
+                    <h3 style="font-size:16px;margin-bottom:16px">添加 Webhook</h3>
+                    <div class="form-group"><label>Webhook URL</label><input type="url" id="webhook-url" placeholder="https://example.com/webhook"></div>
+                    <div style="display:flex;gap:8px;justify-content:flex-end;">
+                        <button class="filter-btn" onclick="closeAddWebhook()">取消</button>
+                        <button class="filter-btn" onclick="testWebhook()">测试</button>
+                        <button class="btn-primary" onclick="submitWebhook()">添加</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 任务对比 -->
+        <div id="page-compare" class="hidden">
+            <div class="task-list" style="margin-bottom:12px;">
+                <div class="toolbar">
+                    <h3>任务对比</h3>
+                    <div style="display:flex;gap:8px;align-items:center">
+                        <select id="compare-task-1" style="padding:6px 10px;border:1px solid #d0d0d0;border-radius:4px;font-size:13px;min-width:200px">
+                            <option value="">选择任务 A</option>
+                        </select>
+                        <span style="color:#888;font-size:13px">VS</span>
+                        <select id="compare-task-2" style="padding:6px 10px;border:1px solid #d0d0d0;border-radius:4px;font-size:13px;min-width:200px">
+                            <option value="">选择任务 B</option>
+                        </select>
+                        <button class="btn-primary" onclick="runCompare()">对比</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="compare-result" class="hidden">
+                <div class="summary-cards" id="compare-cards"></div>
+                <div class="chart-box" style="margin-bottom:12px">
+                    <h3>TPS 对比</h3>
+                    <div class="chart-container" id="chart-compare-tps" style="height:300px"></div>
+                </div>
+                <div class="chart-box" style="margin-bottom:12px">
+                    <h3>平均响应时间对比</h3>
+                    <div class="chart-container" id="chart-compare-rt" style="height:300px"></div>
+                </div>
+                <div class="chart-box">
+                    <h3>接口级对比</h3>
+                    <table>
+                        <thead><tr><th>接口</th><th>任务A 耗时</th><th>任务B 耗时</th><th>变化</th><th>任务A 错误率</th><th>任务B 错误率</th><th>变化</th></tr></thead>
+                        <tbody id="compare-label-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div id="compare-empty" class="empty-tip" style="margin-top:40px">请选择两个已完成的任务进行对比</div>
+        </div>
+
+        <div id="page-scripts" class="hidden">
+            <!-- 脚本列表 -->
+            <div id="scripts-list-view">
+                <div class="task-list">
+                    <div class="toolbar">
+                        <h3>JMeter 脚本</h3>
+                        <div>
+                            <input type="file" id="script-upload" accept=".jmx" style="display:none" onchange="uploadScript()">
+                            <button class="btn-primary" onclick="document.getElementById('script-upload').click()">上传脚本</button>
+                            <button class="btn-success" style="margin-left:6px" onclick="createNewScript()">新建脚本</button>
+                        </div>
+                    </div>
+                    <table>
+                        <thead><tr><th>脚本 ID</th><th>文件名</th><th>大小</th><th>修改时间</th><th>操作</th></tr></thead>
+                        <tbody id="scripts-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 脚本编辑器 -->
+            <div id="scripts-editor-view" class="hidden">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                    <div style="display:flex;align-items:center;gap:12px;">
+                        <button class="back-btn" onclick="closeEditor()">&larr; 返回列表</button>
+                        <h2 style="font-size:16px;font-weight:600" id="editor-script-name"></h2>
+                    </div>
+                    <div style="display:flex;gap:8px;">
+                        <button class="btn-primary" onclick="saveScript()">保存</button>
+                        <button class="btn-success" onclick="runScript()">执行</button>
+                    </div>
+                </div>
+
+                <!-- 执行参数 -->
+                <div class="task-list" style="margin-bottom:12px;">
+                    <div style="display:flex;gap:12px;align-items:flex-end;">
+                        <div class="form-group" style="margin-bottom:0;width:120px">
+                            <label>并发线程数</label>
+                            <input type="number" id="exec-threads" value="1" min="1">
+                        </div>
+                        <div class="form-group" style="margin-bottom:0;width:120px">
+                            <label>预热时间(s)</label>
+                            <input type="number" id="exec-ramp" value="1" min="0">
+                        </div>
+                        <div class="form-group" style="margin-bottom:0;width:120px">
+                            <label>持续时间(s)</label>
+                            <input type="number" id="exec-duration" value="10" min="1">
+                        </div>
+                        <div class="form-group" style="margin-bottom:0;width:120px">
+                            <label>超时(s)</label>
+                            <input type="number" id="exec-timeout" value="300" min="10">
+                        </div>
+                        <div class="form-group" style="margin-bottom:0;display:flex;align-items:center;gap:6px;">
+                            <input type="checkbox" id="exec-distributed">
+                            <label style="margin-bottom:0;white-space:nowrap;">分布式</label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 编辑器 -->
+                <div class="task-list">
+                    <div class="toolbar">
+                        <h3>脚本内容</h3>
+                        <div style="display:flex;gap:8px;">
+                            <button class="filter-btn" onclick="formatXml()">格式化</button>
+                            <button class="filter-btn" onclick="toggleWordWrap()">自动换行</button>
+                        </div>
+                    </div>
+                    <textarea id="script-editor" style="width:100%;height:500px;font-family:'Menlo','Consolas',monospace;font-size:12px;line-height:1.5;border:1px solid #d0d0d0;border-radius:4px;padding:12px;resize:vertical;background:#fafafa;color:#1a1a1a;tab-size:2;" spellcheck="false"></textarea>
+                    <div style="margin-top:8px;font-size:12px;color:#888" id="editor-status">就绪</div>
+                </div>
+
+                <!-- 执行结果 -->
+                <div id="exec-result" class="hidden" style="margin-top:12px;">
+                    <div class="task-list">
+                        <div class="toolbar">
+                            <h3>执行结果</h3>
+                            <a class="clickable" onclick="viewExecResult()">查看详细报告</a>
+                        </div>
+                        <div id="exec-result-content"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 新建脚本弹窗 -->
+            <div id="new-script-modal" class="hidden" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:none;z-index:1000;justify-content:center;align-items:center;">
+                <div style="background:#fff;border-radius:8px;padding:20px;width:500px;">
+                    <h3 style="font-size:16px;margin-bottom:16px">新建脚本</h3>
+                    <div class="form-group">
+                        <label>脚本名称</label>
+                        <input type="text" id="new-script-name" placeholder="my-test.jmx">
+                    </div>
+                    <div class="form-group">
+                        <label>模板</label>
+                        <select id="new-script-template">
+                            <option value="blank">空白脚本</option>
+                            <option value="http">HTTP 请求模板</option>
+                            <option value="stress">压力测试模板</option>
+                        </select>
+                    </div>
+                    <div style="display:flex;gap:8px;justify-content:flex-end;">
+                        <button class="filter-btn" onclick="closeNewScriptModal()">取消</button>
+                        <button class="btn-primary" onclick="confirmNewScript()">创建</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="loading" class="hidden">加载中...</div>
+    </div>
+
+    <script>
+        const API = '';
+        let charts = {};
+        let taskFilter = 'all';
+        let refreshTimer = null;
+        let detailTimer = null;
+        let allTasks = [];
+
+        // ===== 首页 =====
+        async function loadHomePage() {
+            try {
+                // 并行加载数据
+                const [tasksRes, resultsRes, scriptsRes, nodesRes, monitorRes] = await Promise.all([
+                    fetch(`${API}/api/tasks/`),
+                    fetch(`${API}/api/results/tasks`),
+                    fetch(`${API}/api/scripts/`),
+                    fetch(`${API}/api/registry/`).catch(() => ({json: () => ({nodes: []})})),
+                    fetch(`${API}/api/monitor/overview`).catch(() => ({json: () => ({})})),
+                ]);
+
+                const tasks = await tasksRes.json();
+                const results = await resultsRes.json();
+                const scripts = await scriptsRes.json();
+                const nodes = await nodesRes.json();
+                const monitor = await monitorRes.json();
+
+                // 合并任务
+                const memoryTasks = tasks.tasks || [];
+                const resultTasks = (results.tasks || []).map(t => ({
+                    task_id: t.task_id,
+                    script_id: '-',
+                    status: 'completed',
+                    created_at: t.created_at,
+                    modified_at: t.modified_at,
+                    results: {},
+                    source: 'result',
+                }));
+
+                const taskMap = new Map();
+                memoryTasks.forEach(t => taskMap.set(t.task_id, t));
+                resultTasks.forEach(t => {
+                    if (!taskMap.has(t.task_id)) taskMap.set(t.task_id, t);
+                });
+                const allTasksList = Array.from(taskMap.values());
+
+                // 统计卡片
+                const running = allTasksList.filter(t => t.status === 'running').length;
+                const completed = allTasksList.filter(t => t.status === 'completed').length;
+                const failed = allTasksList.filter(t => t.status === 'failed').length;
+
+                document.getElementById('home-tasks-count').textContent = allTasksList.length;
+                document.getElementById('home-tasks-status').textContent = `运行中 ${running} | 已完成 ${completed} | 失败 ${failed}`;
+
+                document.getElementById('home-scripts-count').textContent = (scripts.scripts || []).length;
+
+                const verifiedNodes = (nodes.nodes || []).filter(n => n.status === 'verified').length;
+                document.getElementById('home-nodes-count').textContent = verifiedNodes;
+                document.getElementById('home-nodes-status').textContent = `已注册 ${nodes.nodes?.length || 0} 个`;
+
+                if (monitor.cpu_percent !== undefined) {
+                    document.getElementById('home-cpu').textContent = monitor.cpu_percent + '%';
+                    document.getElementById('home-cpu').className = 'value ' + (monitor.cpu_percent > 80 ? 'red' : monitor.cpu_percent > 50 ? 'yellow' : 'green');
+                    document.getElementById('home-mem').textContent = monitor.memory_percent + '%';
+                    document.getElementById('home-mem').className = 'value ' + (monitor.memory_percent > 80 ? 'red' : monitor.memory_percent > 50 ? 'yellow' : 'green');
+                }
+
+                // 最近任务
+                const recentTasks = allTasksList.sort((a, b) => (b.created_at || 0) - (a.created_at || 0)).slice(0, 5);
+                const tbody = document.getElementById('home-tasks-tbody');
+                const noTasks = document.getElementById('home-no-tasks');
+
+                if (recentTasks.length === 0) {
+                    tbody.innerHTML = '';
+                    noTasks.style.display = 'block';
+                } else {
+                    noTasks.style.display = 'none';
+                    tbody.innerHTML = recentTasks.map(t => {
+                        const statusMap = {
+                            pending: ['待执行', 'status-pending'],
+                            running: ['运行中', 'status-running'],
+                            completed: ['已完成', 'status-completed'],
+                            failed: ['失败', 'status-failed'],
+                            stopped: ['已停止', 'status-stopped'],
+                        };
+                        const [label, cls] = statusMap[t.status] || [t.status, ''];
+
+                        let samples = '-', avgRt = '-';
+                        const results = t.results || {};
+                        for (const [agent, r] of Object.entries(results)) {
+                            if (r.summary && r.summary.total_samples) {
+                                samples = r.summary.total_samples;
+                                avgRt = r.summary.avg_response_time + 'ms';
+                                break;
+                            }
+                        }
+
+                        const created = t.created_at ? new Date(t.created_at * 1000).toLocaleString() : '-';
+                        return `<tr style="cursor:pointer" onclick="viewTask('${t.task_id}')">
+                            <td style="font-family:monospace;font-size:12px">${t.task_id}</td>
+                            <td>${t.script_id || '-'}</td>
+                            <td><span class="status-badge ${cls}">${label}</span></td>
+                            <td>${samples}</td>
+                            <td>${avgRt}</td>
+                            <td style="font-size:12px;color:#888">${created}</td>
+                        </tr>`;
+                    }).join('');
+                }
+            } catch (e) { console.error('loadHomePage error:', e); }
+        }
+
+        // ===== 页面切换 =====
+        function showPage(page) {
+            document.querySelectorAll('.nav button').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.nav button').forEach(b => {
+                if ((page === 'home' && b.textContent === '首页') ||
+                    (page === 'tasks' && b.textContent === '任务管理') ||
+                    (page === 'create' && b.textContent === '创建任务') ||
+                    (page === 'data' && b.textContent === '数据管理') ||
+                    (page === 'nodes' && b.textContent === '施压节点') ||
+                    (page === 'compare' && b.textContent === '任务对比') ||
+                    (page === 'templates' && b.textContent === '模板管理') ||
+                    (page === 'schedule' && b.textContent === '定时调度') ||
+                    (page === 'notify' && b.textContent === '通知设置') ||
+                    (page === 'scripts' && b.textContent === '脚本管理')) {
+                    b.classList.add('active');
+                }
+            });
+            document.querySelectorAll('[id^="page-"]').forEach(p => p.classList.add('hidden'));
+            document.getElementById(`page-${page}`).classList.remove('hidden');
+
+            clearAutoRefresh();
+
+            if (page === 'home') loadHomePage();
+            if (page === 'tasks') { showTaskList(); loadTasks(); startAutoRefresh(); }
+            if (page === 'create') loadCreateForm();
+            if (page === 'data') { loadVars(); loadCsvs(); }
+            if (page === 'nodes') { loadNodes(); startMonitorAutoRefresh(); }
+            if (page === 'templates') loadTemplates();
+            if (page === 'schedule') loadSchedules();
+            if (page === 'notify') loadNotifyConfig();
+            if (page === 'compare') loadCompareForm();
+            if (page === 'scripts') loadScripts();
+        }
+
+        // ===== 任务列表 =====
+        async function loadTasks() {
+            try {
+                // 并行加载内存任务和历史结果任务
+                const [tasksRes, resultsRes] = await Promise.all([
+                    fetch(`${API}/api/tasks/`),
+                    fetch(`${API}/api/results/tasks`),
+                ]);
+                const tasksData = await tasksRes.json();
+                const resultsData = await resultsRes.json();
+
+                // 合并任务列表
+                const memoryTasks = tasksData.tasks || [];
+                const resultTasks = (resultsData.tasks || []).map(t => ({
+                    task_id: t.task_id,
+                    script_id: '-',
+                    status: 'completed',
+                    created_at: t.created_at,
+                    modified_at: t.modified_at,
+                    results: {},
+                    source: 'result',
+                }));
+
+                // 去重合并
+                const taskMap = new Map();
+                memoryTasks.forEach(t => taskMap.set(t.task_id, t));
+                resultTasks.forEach(t => {
+                    if (!taskMap.has(t.task_id)) {
+                        taskMap.set(t.task_id, t);
+                    }
+                });
+
+                allTasks = Array.from(taskMap.values());
+                renderTaskList();
+            } catch (e) {
+                console.error('loadTasks error:', e);
+            }
+        }
+
+        let expandedTask = null;
+
+        function renderTaskList() {
+            const tbody = document.getElementById('tasks-tbody');
+            const noTasks = document.getElementById('no-tasks');
+            let filtered = allTasks;
+            if (taskFilter !== 'all') filtered = allTasks.filter(t => t.status === taskFilter);
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = '';
+                noTasks.style.display = 'block';
+                return;
+            }
+            noTasks.style.display = 'none';
+
+            filtered.sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
+
+            let html = '';
+            filtered.forEach(t => {
+                const statusMap = {
+                    pending: ['待执行', 'status-pending'],
+                    running: ['运行中', 'status-running'],
+                    completed: ['已完成', 'status-completed'],
+                    failed: ['失败', 'status-failed'],
+                    stopped: ['已停止', 'status-stopped'],
+                };
+                const [label, cls] = statusMap[t.status] || [t.status, ''];
+                const agents = (t.target_agents || []).join(', ');
+                const created = t.created_at ? new Date(t.created_at * 1000).toLocaleString() : '-';
+                let actions = `<a class="clickable" onclick="viewTask('${t.task_id}')">查看图表</a>`;
+                if (t.status === 'running') actions += ` <button class="btn-danger btn-sm" style="margin-left:8px" onclick="stopTask('${t.task_id}')">停止</button>`;
+                if (t.status === 'completed' || t.status === 'failed') actions += ` <button class="filter-btn btn-sm" style="margin-left:8px" onclick="rerunTask('${t.task_id}')">重跑</button>`;
+                if (t.status !== 'running') actions += ` <button class="btn-danger btn-sm" style="margin-left:4px" onclick="deleteTask('${t.task_id}')">删除</button>`;
+
+                const isOpen = expandedTask === t.task_id;
+                const arrowCls = isOpen ? 'arrow open' : 'arrow';
+
+                html += `<tr>
+                    <td><span class="${arrowCls}">&▶</span><span class="task-id-link" onclick="toggleExpand('${t.task_id}')">${t.task_id}</span></td>
+                    <td>${t.script_id || '-'}</td>
+                    <td><span class="status-badge ${cls}">${label}</span></td>
+                    <td style="font-size:12px">${agents}</td>
+                    <td>${created}</td>
+                    <td>${actions}</td>
+                </tr>`;
+
+                html += `<tr class="expand-row"><td colspan="6"><div class="expand-content ${isOpen ? 'open' : ''}" id="expand-${t.task_id}">${renderTaskDetail(t)}</div></td></tr>`;
+            });
+
+            tbody.innerHTML = html;
+        }
+
+        function renderTaskDetail(t) {
+            const args = t.jmeter_args || {};
+            const created = t.created_at ? new Date(t.created_at * 1000).toLocaleString() : '-';
+            const started = t.start_time ? new Date(t.start_time * 1000).toLocaleString() : '-';
+            const ended = t.end_time ? new Date(t.end_time * 1000).toLocaleString() : '-';
+            const duration = t.start_time && t.end_time ? ((t.end_time - t.start_time)).toFixed(1) + 's' : '-';
+            const agents = (t.target_agents || []).map(a => `<span style="background:#e8e8e8;padding:1px 6px;border-radius:3px;font-size:12px;margin-right:4px">${a}</span>`).join('');
+
+            const results = t.results || {};
+            let resultSummary = '';
+            for (const [agentId, r] of Object.entries(results)) {
+                const s = r.summary || {};
+                if (s.total_samples) {
+                    resultSummary += `<div style="margin-top:8px;padding:8px 12px;background:#fff;border:1px solid #e0e0e0;border-radius:4px;font-size:12px">
+                        <strong>${agentId}</strong> — ${s.total_samples} 请求, 平均 ${s.avg_response_time}ms, P99 ${s.p99}ms, 错误率 ${s.error_rate}%
+                    </div>`;
+                }
+            }
+
+            const hasLogs = t.status === 'completed' || t.status === 'failed' || t.status === 'running' || t.status === 'stopped';
+            const logSection = hasLogs ? `
+                <div style="margin-top:16px">
+                    <div style="font-size:12px;color:#888;margin-bottom:4px">执行日志</div>
+                    <div class="log-tabs" id="log-tabs-${t.task_id}">
+                        ${(t.target_agents || []).map((a, i) => `<div class="log-tab ${i === 0 ? 'active' : ''}" onclick="loadLog('${t.task_id}', '${a}', this)">${a}</div>`).join('')}
+                    </div>
+                    <div class="log-box" id="log-content-${t.task_id}"><span class="log-loading">点击节点标签查看日志</span></div>
+                </div>` : '';
+
+            return `<div class="detail-grid">
+                <div class="detail-item"><div class="dl">脚本</div><div class="dv">${t.script_id || '-'}</div></div>
+                <div class="detail-item"><div class="dl">状态</div><div class="dv">${t.status}</div></div>
+                <div class="detail-item"><div class="dl">并发线程数</div><div class="dv">${args.threads || '-'}</div></div>
+                <div class="detail-item"><div class="dl">预热时间</div><div class="dv">${args.ramp_time ? args.ramp_time + 's' : '-'}</div></div>
+                <div class="detail-item"><div class="dl">持续时间</div><div class="dv">${args.duration ? args.duration + 's' : '-'}</div></div>
+                <div class="detail-item"><div class="dl">超时时间</div><div class="dv">${t.timeout ? t.timeout + 's' : '-'}</div></div>
+                <div class="detail-item"><div class="dl">施压节点</div><div class="dv">${agents || '-'}</div></div>
+                <div class="detail-item"><div class="dl">分布式模式</div><div class="dv">${t.distributed ? '是' : '否'}${t.remote_hosts ? ' (' + t.remote_hosts + ')' : ''}</div></div>
+                <div class="detail-item"><div class="dl">创建时间</div><div class="dv">${created}</div></div>
+                <div class="detail-item"><div class="dl">启动时间</div><div class="dv">${started}</div></div>
+                <div class="detail-item"><div class="dl">完成时间</div><div class="dv">${ended}</div></div>
+                <div class="detail-item"><div class="dl">执行耗时</div><div class="dv">${duration}</div></div>
+            </div>${resultSummary ? '<div style="margin-top:12px"><div style="font-size:12px;color:#888;margin-bottom:4px">执行结果</div>' + resultSummary + '</div>' : ''}${logSection}`;
+        }
+
+        async function loadLog(taskId, agentId, tabEl) {
+            document.querySelectorAll(`#log-tabs-${taskId} .log-tab`).forEach(t => t.classList.remove('active'));
+            tabEl.classList.add('active');
+
+            const box = document.getElementById(`log-content-${taskId}`);
+            box.innerHTML = '<span class="log-loading">加载中...</span>';
+
+            try {
+                const res = await fetch(`${API}/api/results/tasks/${taskId}/logs/${agentId}`);
+                if (!res.ok) { box.innerHTML = '<span class="log-loading">暂无日志</span>'; return; }
+                const data = await res.json();
+                const lines = data.content.split('\n');
+                box.innerHTML = lines.map(line => {
+                    if (line.includes(' ERROR ') || line.includes('Exception') || line.includes('Caused by')) {
+                        return `<span class="log-error">${escapeHtml(line)}</span>`;
+                    } else if (line.includes(' WARN ')) {
+                        return `<span class="log-warn">${escapeHtml(line)}</span>`;
+                    } else if (line.includes(' INFO ')) {
+                        return `<span class="log-info">${escapeHtml(line)}</span>`;
+                    }
+                    return escapeHtml(line);
+                }).join('\n');
+                box.scrollTop = box.scrollHeight;
+            } catch (e) {
+                box.innerHTML = '<span class="log-loading">加载失败</span>';
+            }
+        }
+
+        function escapeHtml(str) {
+            return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        }
+
+        function toggleExpand(taskId) {
+            expandedTask = expandedTask === taskId ? null : taskId;
+            renderTaskList();
+        }
+
+        function filterTasks(filter, btn) {
+            taskFilter = filter;
+            document.querySelectorAll('.toolbar .filter-btn').forEach(b => b.classList.remove('active'));
+            if (btn) btn.classList.add('active');
+            renderTaskList();
+        }
+
+        function startAutoRefresh() {
+            clearAutoRefresh();
+            refreshTimer = setInterval(() => {
+                const hasRunning = allTasks.some(t => t.status === 'running');
+                if (hasRunning) loadTasks();
+            }, 3000);
+        }
+
+        function clearAutoRefresh() {
+            if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
+            if (detailTimer) { clearInterval(detailTimer); detailTimer = null; }
+        }
+
+        async function stopTask(taskId) {
+            if (!confirm('确定停止此任务？')) return;
+            try {
+                await fetch(`${API}/api/tasks/${taskId}/stop`, { method: 'POST' });
+                loadTasks();
+            } catch (e) {
+                alert('停止失败');
+            }
+        }
+
+        async function rerunTask(taskId) {
+            if (!confirm('确定重新执行此任务？')) return;
+            try {
+                const res = await fetch(`${API}/api/tasks/${taskId}/rerun`, { method: 'POST' });
+                const data = await res.json();
+                if (res.ok) {
+                    alert(`新任务已启动: ${data.task_id}`);
+                    loadTasks();
+                } else {
+                    alert(data.detail || '重跑失败');
+                }
+            } catch (e) { alert('重跑失败: ' + e.message); }
+        }
+
+        async function deleteTask(taskId) {
+            if (!confirm('确定删除此任务？')) return;
+            try {
+                await fetch(`${API}/api/tasks/${taskId}`, { method: 'DELETE' });
+                loadTasks();
+            } catch (e) { alert('删除失败'); }
+        }
+
+        function viewTask(taskId) {
+            document.getElementById('tasks-list-view').classList.add('hidden');
+            document.getElementById('task-detail-view').classList.remove('hidden');
+            document.getElementById('detail-task-id').textContent = taskId;
+            document.getElementById('export-report-btn').href = `${API}/api/results/tasks/${taskId}/export`;
+            document.getElementById('export-report-btn').style.display = 'inline-block';
+            loadTaskDetail(taskId);
+        }
+
+        function showTaskList() {
+            clearAutoRefresh();
+            document.getElementById('tasks-list-view').classList.remove('hidden');
+            document.getElementById('task-detail-view').classList.add('hidden');
+        }
+
+        async function loadTaskDetail(taskId) {
+            document.getElementById('loading').classList.remove('hidden');
+            try {
+                // 先尝试从内存获取任务信息
+                let task = null;
+                try {
+                    const taskRes = await fetch(`${API}/api/tasks/${taskId}`);
+                    if (taskRes.ok) {
+                        task = await taskRes.json();
+                    }
+                } catch (e) {}
+
+                // 检查是否是运行中的任务
+                if (task && task.status === 'running') {
+                    document.getElementById('live-monitor').classList.remove('hidden');
+                    startDetailAutoRefresh(taskId);
+                } else {
+                    document.getElementById('live-monitor').classList.add('hidden');
+                }
+
+                // 加载结果数据
+                const res = await fetch(`${API}/api/results/tasks/${taskId}/summary`);
+                console.log('Summary API response:', res.status);
+                if (res.ok) {
+                    const data = await res.json();
+                    console.log('Summary data:', data);
+                    renderSummary(data);
+                    renderCharts(data);
+
+                    // 填充接口下拉框
+                    const labelSelect = document.getElementById('log-label-filter');
+                    const currentVal = labelSelect.value;
+                    labelSelect.innerHTML = '<option value="">全部接口</option>' +
+                        (data.label_stats || []).map(l => `<option value="${l.label}" ${l.label === currentVal ? 'selected' : ''}>${l.label}</option>`).join('');
+
+                    loadRequestLogs(0);
+                } else {
+                    document.getElementById('summary-cards').innerHTML =
+                        `<div class="card"><div class="label">状态</div><div class="value blue">运行中...</div></div>
+                         <div class="card"><div class="label">脚本</div><div class="value" style="font-size:16px">${task.script_id || '-'}</div></div>
+                         <div class="card"><div class="label">节点</div><div class="value" style="font-size:14px">${(task.target_agents||[]).join(', ')}</div></div>`;
+                }
+            } catch (e) {
+                console.error('loadTaskDetail error:', e);
+            } finally {
+                document.getElementById('loading').classList.add('hidden');
+            }
+        }
+
+        function startDetailAutoRefresh(taskId) {
+            if (detailTimer) clearInterval(detailTimer);
+            detailTimer = setInterval(async () => {
+                try {
+                    const taskRes = await fetch(`${API}/api/tasks/${taskId}`);
+                    const task = await taskRes.json();
+                    if (task.status !== 'running') {
+                        clearInterval(detailTimer);
+                        detailTimer = null;
+                        document.getElementById('live-monitor').classList.add('hidden');
+                        loadTaskDetail(taskId);
+                        loadTasks();
+                        return;
+                    }
+                    const pRes = await fetch(`${API}/api/tasks/${taskId}/progress`);
+                    const pData = await pRes.json();
+                    if (pData.data) renderLiveMonitor(pData.data);
+                } catch (e) {}
+            }, 2000);
+        }
+
+        function renderLiveMonitor(p) {
+            const el = document.getElementById('live-monitor');
+            el.innerHTML = `
+                <div class="live-bar">
+                    <div class="item"><span class="dot"></span> 实时监控</div>
+                    <div class="item">运行时间: <strong>${p.elapsed}s</strong></div>
+                    <div class="item">吞吐量: <strong>${p.throughput.toFixed(1)}/s</strong></div>
+                    <div class="item">平均RT: <strong>${p.avg_response_time.toFixed(1)}ms</strong></div>
+                    <div class="item">错误率: <strong>${p.error_rate.toFixed(1)}%</strong></div>
+                    <div class="item">总样本: <strong>${p.total_samples}</strong></div>
+                </div>`;
+        }
+
+        // ===== 创建任务 =====
+        async function loadCreateForm() {
+            try {
+                const [scriptsRes, nodesRes, csvsRes] = await Promise.all([
+                    fetch(`${API}/api/scripts/`),
+                    fetch(`${API}/api/nodes/available/list`),
+                    fetch(`${API}/api/data/csv`),
+                ]);
+                const scripts = await scriptsRes.json();
+                const nodes = await nodesRes.json();
+                const csvs = await csvsRes.json();
+
+                const scriptSel = document.getElementById('create-script');
+                scriptSel.innerHTML = scripts.scripts.map(s =>
+                    `<option value="${s.script_id}">${s.filename} (${(s.size/1024).toFixed(1)}KB)</option>`
+                ).join('') || '<option>暂无脚本，请先上传</option>';
+
+                const nodeSel = document.getElementById('create-nodes');
+                nodeSel.innerHTML = nodes.agents.map(a =>
+                    `<option value="${a.agent_id}">${a.agent_id} (${a.host})</option>`
+                ).join('') || '<option>无可用节点</option>';
+
+                const csvSel = document.getElementById('create-csv-file');
+                csvSel.innerHTML = '<option value="">不使用 CSV</option>' +
+                    (csvs.csvs || []).map(c =>
+                        `<option value="${c.filepath}">${c.filename} (${c.row_count} 行, ${(c.size/1024).toFixed(1)}KB)</option>`
+                    ).join('');
+
+                document.getElementById('create-distributed').onchange = function() {
+                    document.getElementById('create-remote-hosts').style.display = this.checked ? 'block' : 'none';
+                };
+            } catch (e) {
+                console.error('loadCreateForm error:', e);
+            }
+        }
+
+        function toggleCsvOptions() {
+            const checked = document.getElementById('create-use-csv').checked;
+            document.getElementById('csv-options').style.display = checked ? 'block' : 'none';
+        }
+
+        async function submitTask() {
+            const scriptId = document.getElementById('create-script').value;
+            const nodeId = document.getElementById('create-nodes').value;
+            const threads = parseInt(document.getElementById('create-threads').value) || 1;
+            const ramp = parseInt(document.getElementById('create-ramp').value) || 1;
+            const duration = parseInt(document.getElementById('create-duration').value) || 10;
+            const timeout = parseInt(document.getElementById('create-timeout').value) || 300;
+            const distributed = document.getElementById('create-distributed').checked;
+            const remoteHosts = document.getElementById('create-remote-hosts').value.trim() || null;
+
+            if (!scriptId) { alert('请选择脚本'); return; }
+            if (!nodeId) { alert('请选择施压节点'); return; }
+
+            const useCsv = document.getElementById('create-use-csv').checked;
+            const csvFile = useCsv ? document.getElementById('create-csv-file').value : null;
+            const csvVars = useCsv ? document.getElementById('create-csv-vars').value.trim() : null;
+            const csvDelimiter = document.getElementById('create-csv-delimiter').value || ',';
+            const csvRecycle = document.getElementById('create-csv-recycle').checked;
+            const csvStop = document.getElementById('create-csv-stop').checked;
+
+            if (useCsv && !csvFile) { alert('请选择 CSV 文件或取消参数化'); return; }
+
+            try {
+                const res = await fetch(`${API}/api/tasks/quick-run`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        script_id: scriptId,
+                        target_agents: [nodeId],
+                        threads, ramp_time: ramp, duration, timeout,
+                        distributed, remote_hosts: remoteHosts,
+                        csv_file: csvFile || null,
+                        csv_variable_names: csvVars || null,
+                        csv_delimiter: csvDelimiter,
+                        csv_recycle: csvRecycle,
+                        csv_stop_on_eof: csvStop,
+                    }),
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    alert(`任务已启动: ${data.task_id}`);
+                    showPage('tasks');
+                } else {
+                    let msg = data.detail || '未知错误';
+                    if (msg.includes('正在执行其他任务')) {
+                        msg = 'Agent 正在执行其他任务，请等待当前任务完成后再试';
+                    } else if (msg.includes('没有注册')) {
+                        msg = '没有可用的 Agent 节点，请先在「施压节点」页面启动 Agent';
+                    } else if (msg.includes('不在线')) {
+                        msg = 'Agent 不在线，请检查 Agent 是否已启动';
+                    }
+                    alert('创建失败: ' + msg);
+                }
+            } catch (e) {
+                alert('创建失败: ' + e.message);
+            }
+        }
+
+        // ===== 结果渲染 =====
+        function renderSummary(data) {
+            const s = data.summary;
+            document.getElementById('summary-cards').innerHTML = `
+                <div class="card"><div class="label">总请求数</div><div class="value blue">${s.total_samples}</div></div>
+                <div class="card"><div class="label">平均RT</div><div class="value green">${s.avg_response_time}ms</div></div>
+                <div class="card"><div class="label">P90</div><div class="value yellow">${s.p90}ms</div></div>
+                <div class="card"><div class="label">P99</div><div class="value red">${s.p99}ms</div></div>
+                <div class="card"><div class="label">最小/最大</div><div class="value" style="font-size:15px">${s.min_response_time}/${s.max_response_time}ms</div></div>
+                <div class="card"><div class="label">错误率</div><div class="value ${s.error_rate > 0 ? 'red' : 'green'}">${s.error_rate}%</div></div>
+            `;
+            document.getElementById('label-stats-tbody').innerHTML = (data.label_stats || []).map(l => `
+                <tr>
+                    <td>${l.label}</td><td>${l.count}</td>
+                    <td style="color:#2563eb;font-weight:500">${l.tps}</td>
+                    <td>${l.avg}ms</td>
+                    <td>${l.p50}ms</td><td>${l.p90}ms</td><td>${l.p99}ms</td>
+                    <td style="color:${l.error_rate > 0 ? '#dc2626' : '#16a34a'}">${l.error_rate}%</td>
+                </tr>
+            `).join('');
+        }
+
+        // 存储当前数据用于切换接口图表
+        let currentChartData = null;
+        let logPage = 0;
+        const logPageSize = 5;
+
+        function renderCharts(data) {
+            console.log('renderCharts called with data:', data);
+            Object.values(charts).forEach(c => c.dispose());
+            charts = {};
+            currentChartData = data;
+
+            const ts = data.time_series;
+            if (!ts || !ts.timestamps || ts.timestamps.length === 0) {
+                console.log('No time series data');
+                return;
+            }
+
+            const t = ts.timestamps.map(x => new Date(x).toLocaleTimeString());
+            const ax = { axisLabel: { color: '#666' }, axisLine: { lineStyle: { color: '#ddd' } }, splitLine: { lineStyle: { color: '#f0f0f0' } } };
+            const grid = { left: 60, right: 60, top: 40, bottom: 30 };
+
+            // ===== 场景总览：多曲线合并 =====
+            console.log('Rendering overview chart');
+            charts.overview = echarts.init(document.getElementById('chart-overview'));
+            charts.overview.setOption({
+                backgroundColor: 'transparent',
+                tooltip: {
+                    trigger: 'axis',
+                    axisPointer: { type: 'cross' },
+                    formatter: function(params) {
+                        let html = `<div style="font-size:12px;margin-bottom:4px;color:#888">${params[0].axisValue}</div>`;
+                        params.forEach(p => {
+                            html += `<div style="font-size:12px">${p.marker} ${p.seriesName}: <strong>${p.value}</strong>${p.seriesName.includes('RT') ? 'ms' : p.seriesName.includes('错误') ? '%' : p.seriesName.includes('并发') ? '' : '/s'}</div>`;
+                        });
+                        return html;
+                    }
+                },
+                legend: { data: ['并发线程数', 'TPS', '平均RT(ms)', '错误率(%)'], top: 0, textStyle: { fontSize: 12 } },
+                xAxis: { type: 'category', data: t, ...ax, boundaryGap: false },
+                yAxis: [
+                    { type: 'value', name: '数量', ...ax, position: 'left' },
+                    { type: 'value', name: 'ms / %', ...ax, position: 'right' }
+                ],
+                series: [
+                    {
+                        name: '并发线程数',
+                        type: 'line',
+                        data: ts.active_threads || t.map(() => 0),
+                        lineStyle: { width: 2, type: 'dashed' },
+                        itemStyle: { color: '#94a3b8' },
+                        symbol: 'none',
+                        yAxisIndex: 0,
+                    },
+                    {
+                        name: 'TPS',
+                        type: 'line',
+                        data: ts.tps,
+                        smooth: true,
+                        lineStyle: { width: 2.5, color: '#2563eb' },
+                        itemStyle: { color: '#2563eb' },
+                        symbol: 'circle',
+                        symbolSize: 4,
+                        areaStyle: { color: 'rgba(37,99,235,0.08)' },
+                        yAxisIndex: 0,
+                    },
+                    {
+                        name: '平均RT(ms)',
+                        type: 'line',
+                        data: ts.avg_rt,
+                        smooth: true,
+                        lineStyle: { width: 2.5, color: '#16a34a' },
+                        itemStyle: { color: '#16a34a' },
+                        symbol: 'circle',
+                        symbolSize: 4,
+                        areaStyle: { color: 'rgba(22,163,74,0.06)' },
+                        yAxisIndex: 1,
+                    },
+                    {
+                        name: '错误率(%)',
+                        type: 'line',
+                        data: ts.error_rate,
+                        smooth: true,
+                        lineStyle: { width: 2, color: '#dc2626' },
+                        itemStyle: { color: '#dc2626' },
+                        symbol: 'circle',
+                        symbolSize: 4,
+                        yAxisIndex: 1,
+                    }
+                ],
+                grid,
+            });
+
+            // ===== 响应时间分布 =====
+            const dist = data.distribution;
+            charts.distribution = echarts.init(document.getElementById('chart-distribution'));
+            charts.distribution.setOption({
+                backgroundColor: 'transparent',
+                tooltip: { trigger: 'axis', formatter: function(p) { return p[0].name + '<br/>' + p[0].marker + ' 请求数: <b>' + p[0].value + '</b>'; } },
+                xAxis: { type: 'category', data: dist.labels, ...ax, boundaryGap: false },
+                yAxis: { type: 'value', ...ax },
+                series: [{
+                    data: dist.values,
+                    type: 'line',
+                    smooth: true,
+                    lineStyle: { width: 2.5, color: '#2563eb' },
+                    itemStyle: { color: '#2563eb' },
+                    symbol: 'circle',
+                    symbolSize: 6,
+                    areaStyle: { color: 'rgba(37,99,235,0.1)' },
+                    label: { show: true, position: 'top', color: '#666', fontSize: 11 }
+                }],
+                grid,
+            });
+
+            // ===== 百分位 =====
+            const s = data.summary;
+            charts.percentiles = echarts.init(document.getElementById('chart-percentiles'));
+            charts.percentiles.setOption({
+                backgroundColor: 'transparent',
+                tooltip: { trigger: 'axis', formatter: function(p) { return p[0].name + '<br/>' + p[0].marker + ' 响应时间: <b>' + p[0].value + 'ms</b>'; } },
+                xAxis: { type: 'category', data: ['P50','P90','P95','P99'], ...ax, boundaryGap: false },
+                yAxis: { type: 'value', name: 'ms', ...ax },
+                series: [{
+                    data: [s.p50,s.p90,s.p95,s.p99],
+                    type: 'line',
+                    smooth: true,
+                    lineStyle: { width: 2.5, color: '#d97706' },
+                    itemStyle: { color: '#d97706' },
+                    symbol: 'circle',
+                    symbolSize: 8,
+                    areaStyle: { color: 'rgba(217,119,6,0.1)' },
+                    label: { show: true, position: 'top', color: '#333', formatter: '{c}ms' }
+                }],
+                grid,
+            });
+
+            // ===== 单接口图表 =====
+            const labelSelect = document.getElementById('label-select');
+            const labels = (data.label_stats || []).map(l => l.label);
+            labelSelect.innerHTML = labels.map((l, i) => `<option value="${i}">${l}</option>`).join('');
+            if (labels.length > 0) renderLabelChart(0);
+
+            window.addEventListener('resize', () => Object.values(charts).forEach(c => c.resize()));
+        }
+
+        function switchLabelChart() {
+            const idx = parseInt(document.getElementById('label-select').value);
+            renderLabelChart(idx);
+        }
+
+        function renderLabelChart(idx) {
+            if (!currentChartData) return;
+            const labelStats = currentChartData.label_stats || [];
+            if (!labelStats[idx]) return;
+
+            const label = labelStats[idx].label;
+            const samples = (currentChartData.time_series_data || []).filter(s => s.label === label);
+
+            if (charts.label) charts.label.dispose();
+
+            if (samples.length === 0) {
+                document.getElementById('chart-label').innerHTML = '<div style="text-align:center;padding:40px;color:#888">该接口无时序数据</div>';
+                return;
+            }
+
+            // 按秒聚合
+            const bucketSize = 1000;
+            const buckets = {};
+            samples.forEach(s => {
+                const key = Math.floor(s.timestamp / bucketSize) * bucketSize;
+                if (!buckets[key]) buckets[key] = { count: 0, errors: 0, total_rt: 0 };
+                buckets[key].count++;
+                buckets[key].total_rt += s.elapsed;
+                if (!s.success) buckets[key].errors++;
+            });
+
+            const sortedKeys = Object.keys(buckets).map(Number).sort();
+            const labels = sortedKeys.map(k => new Date(k).toLocaleTimeString());
+            const tps = sortedKeys.map(k => buckets[k].count);
+            const avgRt = sortedKeys.map(k => Math.round(buckets[k].total_rt / buckets[k].count));
+            const errRate = sortedKeys.map(k => buckets[k].count > 0 ? Math.round(buckets[k].errors / buckets[k].count * 100) : 0);
+
+            charts.label = echarts.init(document.getElementById('chart-label'));
+            charts.label.setOption({
+                backgroundColor: 'transparent',
+                tooltip: { trigger: 'axis', axisPointer: { type: 'cross' } },
+                legend: { data: ['TPS', '平均RT(ms)', '错误率(%)'], top: 0, textStyle: { fontSize: 12 } },
+                xAxis: { type: 'category', data: labels, ...{ axisLabel: { color: '#666' }, axisLine: { lineStyle: { color: '#ddd' } } }, boundaryGap: false },
+                yAxis: [
+                    { type: 'value', name: 'TPS', ...{ axisLabel: { color: '#666' }, splitLine: { lineStyle: { color: '#f0f0f0' } } } },
+                    { type: 'value', name: 'ms / %', ...{ axisLabel: { color: '#666' }, splitLine: { show: false } } }
+                ],
+                series: [
+                    { name: 'TPS', type: 'line', data: tps, smooth: true, lineStyle: { width: 2.5, color: '#2563eb' }, itemStyle: { color: '#2563eb' }, symbol: 'circle', symbolSize: 4, areaStyle: { color: 'rgba(37,99,235,0.08)' }, yAxisIndex: 0 },
+                    { name: '平均RT(ms)', type: 'line', data: avgRt, smooth: true, lineStyle: { width: 2.5, color: '#16a34a' }, itemStyle: { color: '#16a34a' }, symbol: 'circle', symbolSize: 4, areaStyle: { color: 'rgba(22,163,74,0.06)' }, yAxisIndex: 1 },
+                    { name: '错误率(%)', type: 'line', data: errRate, smooth: true, lineStyle: { width: 2, color: '#dc2626' }, itemStyle: { color: '#dc2626' }, symbol: 'circle', symbolSize: 4, yAxisIndex: 1 }
+                ],
+                grid: { left: 60, right: 60, top: 40, bottom: 30 },
+            });
+        }
+
+        // ===== 请求日志 =====
+        let logLoading = false;
+
+        async function loadRequestLogs(page = 0) {
+            if (logLoading) return;
+            logLoading = true;
+            logPage = page;
+            const taskId = document.getElementById('detail-task-id').textContent;
+            const label = document.getElementById('log-label-filter').value;
+            const errorsOnly = document.getElementById('log-errors-only').checked;
+            const offset = page * logPageSize;
+
+            const tbody = document.getElementById('request-log-tbody');
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:#888"><span class="dot" style="display:inline-block;width:8px;height:8px;background:#2563eb;border-radius:50%;animation:pulse 1s infinite;margin-right:6px"></span>加载中...</td></tr>';
+
+            try {
+                let url = `${API}/api/results/tasks/${taskId}/samples?offset=${offset}&limit=${logPageSize}`;
+                if (label) url += `&label=${encodeURIComponent(label)}`;
+                if (errorsOnly) url += `&errors_only=true`;
+
+                const res = await fetch(url);
+                const data = await res.json();
+
+                document.getElementById('log-page-info').textContent = `${offset + 1}-${Math.min(offset + logPageSize, data.total)} / ${data.total}`;
+
+                document.getElementById('log-prev-btn').disabled = page === 0;
+                document.getElementById('log-next-btn').disabled = offset + logPageSize >= data.total;
+
+                if (data.samples && data.samples.length > 0) {
+                    const times = data.samples.map(s => s.elapsed);
+                    const errors = data.samples.filter(s => !s.success).length;
+                    const avg = Math.round(times.reduce((a,b) => a+b, 0) / times.length);
+                    const min = Math.min(...times);
+                    const max = Math.max(...times);
+                    const sorted = [...times].sort((a,b) => a-b);
+                    const p50 = sorted[Math.floor(sorted.length * 0.5)];
+                    const p99 = sorted[Math.floor(sorted.length * 0.99)] || sorted[sorted.length - 1];
+                    document.getElementById('log-summary').innerHTML = `
+                        <span>总请求: <b>${data.total}</b></span>
+                        <span>成功: <b style="color:#16a34a">${data.total - errors}</b></span>
+                        <span>失败: <b style="color:#dc2626">${errors}</b></span>
+                        <span>平均: <b>${avg}ms</b></span>
+                        <span>P50: <b>${p50}ms</b></span>
+                        <span>P99: <b>${p99}ms</b></span>
+                        <span>最小/最大: <b>${min}/${max}ms</b></span>
+                    `;
+                }
+
+                tbody.innerHTML = data.samples.map(s => {
+                    const statusCls = s.success ? 'status-completed' : 'status-failed';
+                    const statusText = s.success ? '成功' : '失败';
+                    return `<tr style="${!s.success ? 'background:#fff5f5' : ''}">
+                        <td style="font-family:monospace;font-size:11px">${s.label}</td>
+                        <td><span class="status-badge ${statusCls}">${statusText}</span></td>
+                        <td>${s.elapsed}ms</td>
+                        <td>${s.response_code}</td>
+                        <td><button class="filter-btn" onclick="showRequestDetail(${s.index})">详情</button></td>
+                    </tr>`;
+                }).join('') || '<tr><td colspan="5" class="empty-tip">无数据</td></tr>';
+            } catch (e) {
+                tbody.innerHTML = '<tr><td colspan="5" class="empty-tip">加载失败，请重试</td></tr>';
+                console.error('loadRequestLogs error:', e);
+            } finally {
+                logLoading = false;
+            }
+        }
+
+        async function showRequestDetail(index) {
+            const taskId = document.getElementById('detail-task-id').textContent;
+            try {
+                const res = await fetch(`${API}/api/results/tasks/${taskId}/sample/${index}`);
+                const data = await res.json();
+                const s = data.sample;
+
+                const time = new Date(s.timestamp).toLocaleString();
+                const content = document.getElementById('request-detail-content');
+
+                const parseHeaders = (h) => {
+                    if (!h) return '<span style="color:#888">无</span>';
+                    return h.split('\n').filter(l => l.trim()).map(l => `<div style="padding:2px 0">${l}</div>`).join('');
+                };
+
+                content.innerHTML = `
+                    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px">
+                        <div style="background:#f8f9fa;padding:12px;border-radius:6px;text-align:center">
+                            <div style="font-size:12px;color:#888">接口</div>
+                            <div style="font-size:14px;font-weight:600;color:#2563eb;margin-top:4px">${s.label}</div>
+                        </div>
+                        <div style="background:#f8f9fa;padding:12px;border-radius:6px;text-align:center">
+                            <div style="font-size:12px;color:#888">耗时</div>
+                            <div style="font-size:14px;font-weight:600;color:${s.elapsed > 1000 ? '#dc2626' : '#16a34a'};margin-top:4px">${s.elapsed}ms</div>
+                        </div>
+                        <div style="background:#f8f9fa;padding:12px;border-radius:6px;text-align:center">
+                            <div style="font-size:12px;color:#888">状态</div>
+                            <div style="font-size:14px;font-weight:600;color:${s.success ? '#16a34a' : '#dc2626'};margin-top:4px">${s.success ? '成功' : '失败'}</div>
+                        </div>
+                        <div style="background:#f8f9fa;padding:12px;border-radius:6px;text-align:center">
+                            <div style="font-size:12px;color:#888">响应码</div>
+                            <div style="font-size:14px;font-weight:600;margin-top:4px">${s.response_code} ${s.response_message || ''}</div>
+                        </div>
+                    </div>
+
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+                        <div style="background:#f8f9fa;padding:12px;border-radius:6px">
+                            <div style="font-size:12px;color:#888;margin-bottom:4px">时间信息</div>
+                            <div style="font-size:13px">
+                                <div>时间: ${time}</div>
+                                <div>线程: ${s.thread_name}</div>
+                                <div>延迟: ${s.latency}ms | 连接: ${s.connect_time}ms</div>
+                            </div>
+                        </div>
+                        <div style="background:#f8f9fa;padding:12px;border-radius:6px">
+                            <div style="font-size:12px;color:#888;margin-bottom:4px">数据大小</div>
+                            <div style="font-size:13px">
+                                <div>接收: ${s.bytes} bytes</div>
+                                <div>发送: ${s.sent_bytes} bytes</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="background:#f8f9fa;padding:12px;border-radius:6px;margin-bottom:12px">
+                        <div style="font-size:12px;color:#888;margin-bottom:4px">请求 URL</div>
+                        <div style="font-family:monospace;font-size:12px;word-break:break-all;color:#1a1a1a">${s.url || '-'}</div>
+                    </div>
+
+                    ${!s.success && s.failure_message ? `
+                    <div style="background:#fff5f5;border:1px solid #fecaca;padding:12px;border-radius:6px;margin-bottom:12px">
+                        <div style="font-size:12px;color:#dc2626;margin-bottom:4px;font-weight:500">错误信息</div>
+                        <div style="font-family:monospace;font-size:12px;color:#dc2626">${s.failure_message}</div>
+                    </div>` : ''}
+
+                    <div style="margin-bottom:12px">
+                        <div style="font-size:13px;font-weight:500;margin-bottom:6px">请求 Headers</div>
+                        <div style="background:#1a1a1a;color:#d4d4d4;padding:12px;border-radius:6px;font-family:monospace;font-size:11px;line-height:1.6;max-height:150px;overflow:auto;white-space:pre-wrap">${parseHeaders(s.request_headers)}</div>
+                    </div>
+
+                    <div style="margin-bottom:12px">
+                        <div style="font-size:13px;font-weight:500;margin-bottom:6px">响应 Headers</div>
+                        <div style="background:#1a1a1a;color:#d4d4d4;padding:12px;border-radius:6px;font-family:monospace;font-size:11px;line-height:1.6;max-height:150px;overflow:auto;white-space:pre-wrap">${parseHeaders(s.response_headers)}</div>
+                    </div>
+
+                    <div style="margin-bottom:12px">
+                        <div style="font-size:13px;font-weight:500;margin-bottom:6px">请求体</div>
+                        <div style="background:#1a1a1a;color:#d4d4d4;padding:12px;border-radius:6px;font-family:monospace;font-size:11px;line-height:1.6;max-height:150px;overflow:auto;white-space:pre-wrap">${s.sampler_data || '<span style="color:#888">无</span>'}</div>
+                    </div>
+
+                    <div>
+                        <div style="font-size:13px;font-weight:500;margin-bottom:6px">响应体</div>
+                        <div style="background:#1a1a1a;color:#d4d4d4;padding:12px;border-radius:6px;font-family:monospace;font-size:11px;line-height:1.6;max-height:200px;overflow:auto;white-space:pre-wrap">${s.response_data || '<span style="color:#888">无</span>'}</div>
+                    </div>
+                `;
+
+                document.getElementById('request-detail-modal').style.display = 'flex';
+            } catch (e) { alert('加载请求详情失败'); }
+        }
+
+        function closeRequestDetail() {
+            document.getElementById('request-detail-modal').style.display = 'none';
+        }
+
+        // ===== 节点管理 =====
+        async function loadNodes() {
+            try {
+                const res = await fetch(`${API}/api/nodes/`);
+                const data = await res.json();
+                document.getElementById('nodes-tbody').innerHTML = (data.agents || []).map(a => `
+                    <tr>
+                        <td style="font-family:monospace;font-size:12px">${a.agent_id}</td>
+                        <td>${a.host}:${a.port}</td>
+                        <td><span class="status-badge ${a.status === 'online' ? 'status-completed' : 'status-failed'}">${a.status === 'online' ? '在线' : '离线'}</span></td>
+                        <td>${a.cpu_usage}%</td>
+                        <td>${a.memory_usage}%</td>
+                        <td style="font-size:12px">${a.current_task_id || '-'}</td>
+                    </tr>
+                `).join('') || '<tr><td colspan="6" class="empty-tip">暂无在线节点</td></tr>';
+            } catch (e) { console.error('loadNodes error:', e); }
+
+            loadRegistryNodes();
+            loadSlaveStatus();
+        }
+
+        // ===== 注册节点管理 =====
+        async function loadRegistryNodes() {
+            try {
+                const res = await fetch(`${API}/api/registry/`);
+                const data = await res.json();
+                const nodes = data.nodes || [];
+                const tbody = document.getElementById('registry-tbody');
+                const noReg = document.getElementById('no-registry');
+
+                if (nodes.length === 0) {
+                    tbody.innerHTML = '';
+                    noReg.style.display = 'block';
+                    return;
+                }
+                noReg.style.display = 'none';
+
+                tbody.innerHTML = nodes.map(n => {
+                    const statusMap = {
+                        verified: ['已验证', 'status-completed'],
+                        pending: ['待验证', 'status-pending'],
+                        failed: ['验证失败', 'status-failed'],
+                    };
+                    const [label, cls] = statusMap[n.status] || [n.status, 'status-pending'];
+                    const lastCheck = n.last_check ? new Date(n.last_check * 1000).toLocaleString() : '从未验证';
+                    return `<tr>
+                        <td>${n.name || n.node_id}</td>
+                        <td style="font-family:monospace;font-size:12px">${n.ip}:${n.port}</td>
+                        <td><span class="status-badge ${cls}">${label}</span></td>
+                        <td style="font-size:12px;color:#888">${lastCheck}</td>
+                        <td>
+                            <button class="btn-success btn-sm" onclick="verifyRegistryNode('${n.node_id}')">验证</button>
+                            <button class="btn-danger btn-sm" style="margin-left:4px" onclick="removeRegistryNode('${n.node_id}')">删除</button>
+                        </td>
+                    </tr>`;
+                }).join('');
+            } catch (e) { console.error('loadRegistryNodes error:', e); }
+        }
+
+        async function addRegistryNode() {
+            const ip = document.getElementById('reg-ip').value.trim();
+            const port = parseInt(document.getElementById('reg-port').value) || 1100;
+            const name = document.getElementById('reg-name').value.trim();
+
+            if (!ip) { alert('请输入 IP 地址'); return; }
+
+            try {
+                const res = await fetch(`${API}/api/registry/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ip, port, name: name || null }),
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    document.getElementById('reg-ip').value = '';
+                    document.getElementById('reg-name').value = '';
+                    loadRegistryNodes();
+                    alert(`节点已添加: ${ip}:${port}`);
+                } else {
+                    alert(data.detail || '添加失败');
+                }
+            } catch (e) { alert('添加失败: ' + e.message); }
+        }
+
+        async function verifyRegistryNode(nodeId) {
+            try {
+                const res = await fetch(`${API}/api/registry/${nodeId}/verify`, { method: 'POST' });
+                const data = await res.json();
+
+                const checks = data.checks.map(c => `${c.passed ? '✓' : '✗'} ${c.name}: ${c.detail}`).join('\n');
+                const msg = `验证结果: ${data.overall === 'verified' ? '通过' : '失败'}\n\n${checks}`;
+                alert(msg);
+
+                loadRegistryNodes();
+            } catch (e) { alert('验证失败: ' + e.message); }
+        }
+
+        async function verifyAllNodes() {
+            try {
+                const res = await fetch(`${API}/api/registry/verify-all`, { method: 'POST' });
+                const data = await res.json();
+                alert(`验证完成: ${data.passed}/${data.total} 通过`);
+                loadRegistryNodes();
+            } catch (e) { alert('验证失败: ' + e.message); }
+        }
+
+        async function removeRegistryNode(nodeId) {
+            if (!confirm('确定删除此节点？')) return;
+            try {
+                await fetch(`${API}/api/registry/${nodeId}`, { method: 'DELETE' });
+                loadRegistryNodes();
+            } catch (e) { alert('删除失败'); }
+        }
+
+        // ===== Slave 控制 =====
+        async function loadSlaveStatus() {
+            try {
+                const res = await fetch(`${API}/api/slave/status`);
+                const data = await res.json();
+            } catch (e) {}
+        }
+
+        async function startSlave() {
+            try {
+                const res = await fetch(`${API}/api/slave/start`, { method: 'POST' });
+                const data = await res.json();
+                if (data.status !== 'started' && data.status !== 'already_running') {
+                    alert('启动失败: ' + (data.message || data.status));
+                }
+            } catch (e) { alert('启动失败: ' + e.message); }
+        }
+
+        async function stopSlave() {
+            try {
+                await fetch(`${API}/api/slave/stop`, { method: 'POST' });
+            } catch (e) { alert('停止失败: ' + e.message); }
+        }
+
+        // ===== 资源监控 =====
+        let monitorTimer = null;
+
+        async function loadMonitor() {
+            try {
+                const res = await fetch(`${API}/api/monitor/overview`);
+                const data = await res.json();
+
+                const fmtSpeed = (b) => {
+                    if (b > 1024*1024) return (b/1024/1024).toFixed(1) + ' MB/s';
+                    if (b > 1024) return (b/1024).toFixed(1) + ' KB/s';
+                    return b + ' B/s';
+                };
+
+                const panel = document.getElementById('monitor-panel');
+                panel.innerHTML = `
+                    ${renderMonitorCard('CPU', data.cpu_percent, '%', data.cpu_percent > 80 ? 'red' : data.cpu_percent > 50 ? 'yellow' : 'green')}
+                    ${renderMonitorCard('CPU 负载', data.cpu_load, '', data.cpu_load > 10 ? 'red' : data.cpu_load > 5 ? 'yellow' : 'green')}
+                    ${renderMonitorCard('内存', data.memory_percent, '%', data.memory_percent > 80 ? 'red' : data.memory_percent > 50 ? 'yellow' : 'green')}
+                    ${renderMonitorCard('内存使用', data.memory_used_gb + ' / ' + data.memory_total_gb + ' GB', '', '')}
+                    ${renderMonitorCard('磁盘', data.disk_percent, '%', data.disk_percent > 90 ? 'red' : data.disk_percent > 70 ? 'yellow' : 'green')}
+                    ${renderMonitorCard('网络发送', fmtSpeed(data.net_sent_speed), '', 'blue')}
+                    ${renderMonitorCard('网络接收', fmtSpeed(data.net_recv_speed), '', 'blue')}
+                    ${renderMonitorCard('JMeter 进程', data.jmeter_count, '个', data.jmeter_count > 0 ? 'blue' : '')}
+                `;
+
+                const jmRes = await fetch(`${API}/api/monitor/jmeter`);
+                const jmData = await jmRes.json();
+                const jmEl = document.getElementById('monitor-jmeter');
+
+                if (jmData.processes.length > 0) {
+                    jmEl.innerHTML = `<h3 style="font-size:13px;color:#666;margin-bottom:8px;font-weight:500">JMeter 进程详情</h3>
+                    <table><thead><tr><th>PID</th><th>CPU</th><th>内存</th><th>线程数</th></tr></thead>
+                    <tbody>${jmData.processes.map(p => `<tr>
+                        <td>${p.pid}</td>
+                        <td>${p.cpu_percent}%</td>
+                        <td>${p.memory_percent}%</td>
+                        <td>${p.threads}</td>
+                    </tr>`).join('')}</tbody></table>`;
+                } else {
+                    jmEl.innerHTML = '';
+                }
+            } catch (e) { console.error('loadMonitor error:', e); }
+        }
+
+        function renderMonitorCard(label, value, unit, colorClass) {
+            return `<div style="background:#fafafa;border:1px solid #e0e0e0;border-radius:6px;padding:12px;">
+                <div style="font-size:12px;color:#888;margin-bottom:4px">${label}</div>
+                <div style="font-size:20px;font-weight:600;color:${colorClass === 'green' ? '#16a34a' : colorClass === 'yellow' ? '#d97706' : colorClass === 'red' ? '#dc2626' : colorClass === 'blue' ? '#2563eb' : '#1a1a1a'}">${value}${unit}</div>
+            </div>`;
+        }
+
+        function startMonitorAutoRefresh() {
+            if (monitorTimer) clearInterval(monitorTimer);
+            loadMonitor();
+            monitorTimer = setInterval(loadMonitor, 3000);
+        }
+
+        // ===== 变量管理 =====
+        async function loadVars() {
+            try {
+                const res = await fetch(`${API}/api/data/vars`);
+                const data = await res.json();
+                const tbody = document.getElementById('vars-tbody');
+                const noVars = document.getElementById('no-vars');
+
+                if (data.vars.length === 0) {
+                    tbody.innerHTML = '';
+                    noVars.style.display = 'block';
+                    return;
+                }
+                noVars.style.display = 'none';
+
+                tbody.innerHTML = data.vars.map(v => `
+                    <tr>
+                        <td style="font-family:monospace;color:#2563eb">${v.name}</td>
+                        <td style="font-family:monospace;font-size:12px">${v.value}</td>
+                        <td>${v.description || '-'}</td>
+                        <td style="font-size:12px;color:#888">${new Date(v.updated_at * 1000).toLocaleString()}</td>
+                        <td>
+                            <button class="btn-danger btn-sm" onclick="deleteVar('${v.id}')">删除</button>
+                        </td>
+                    </tr>
+                `).join('');
+            } catch (e) { console.error('loadVars error:', e); }
+        }
+
+        async function addVar() {
+            const name = document.getElementById('var-name').value.trim();
+            const value = document.getElementById('var-value').value.trim();
+            const desc = document.getElementById('var-desc').value.trim();
+
+            if (!name) { alert('请输入变量名'); return; }
+            if (!value) { alert('请输入变量值'); return; }
+
+            try {
+                const res = await fetch(`${API}/api/data/vars`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, value, description: desc }),
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    document.getElementById('var-name').value = '';
+                    document.getElementById('var-value').value = '';
+                    document.getElementById('var-desc').value = '';
+                    loadVars();
+                } else {
+                    alert(data.detail || '添加失败');
+                }
+            } catch (e) { alert('添加失败: ' + e.message); }
+        }
+
+        async function deleteVar(varId) {
+            if (!confirm('确定删除此变量？')) return;
+            try {
+                await fetch(`${API}/api/data/vars/${varId}`, { method: 'DELETE' });
+                loadVars();
+            } catch (e) { alert('删除失败'); }
+        }
+
+        // ===== CSV 管理 =====
+        async function loadCsvs() {
+            try {
+                const res = await fetch(`${API}/api/data/csv`);
+                const data = await res.json();
+                const tbody = document.getElementById('csvs-tbody');
+                const noCsvs = document.getElementById('no-csvs');
+
+                if (data.csvs.length === 0) {
+                    tbody.innerHTML = '';
+                    noCsvs.style.display = 'block';
+                    return;
+                }
+                noCsvs.style.display = 'none';
+
+                tbody.innerHTML = data.csvs.map(c => `
+                    <tr>
+                        <td style="font-family:monospace">${c.filename}</td>
+                        <td>${(c.headers || []).length}</td>
+                        <td>${c.row_count || 0}</td>
+                        <td>${(c.size / 1024).toFixed(1)} KB</td>
+                        <td><button class="filter-btn" onclick="previewCsv('${c.csv_id}','${c.filename}')">预览</button></td>
+                        <td><button class="btn-danger btn-sm" onclick="deleteCsv('${c.csv_id}')">删除</button></td>
+                    </tr>
+                `).join('');
+            } catch (e) { console.error('loadCsvs error:', e); }
+        }
+
+        async function uploadCsv() {
+            const input = document.getElementById('csv-upload');
+            if (!input.files.length) return;
+            const file = input.files[0];
+            const formData = new FormData();
+            formData.append('file', file);
+            try {
+                const res = await fetch(`${API}/api/data/csv/upload`, { method: 'POST', body: formData });
+                const data = await res.json();
+                if (res.ok) {
+                    input.value = '';
+                    loadCsvs();
+                    alert(`上传成功: ${data.csv.row_count} 行数据`);
+                } else {
+                    alert(data.detail || '上传失败');
+                }
+            } catch (e) { alert('上传失败: ' + e.message); }
+        }
+
+        async function deleteCsv(csvId) {
+            if (!confirm('确定删除此 CSV 文件？')) return;
+            try {
+                await fetch(`${API}/api/data/csv/${csvId}`, { method: 'DELETE' });
+                loadCsvs();
+            } catch (e) { alert('删除失败'); }
+        }
+
+        async function previewCsv(csvId, filename) {
+            try {
+                const res = await fetch(`${API}/api/data/csv/${csvId}/data?limit=20`);
+                const data = await res.json();
+
+                document.getElementById('csv-preview-title').textContent = `${filename} (共 ${data.total} 行)`;
+                let html = '<table style="width:100%;border-collapse:collapse;font-size:12px;">';
+                html += '<thead><tr>' + data.headers.map(h => `<th style="padding:6px 8px;border:1px solid #ddd;background:#f5f5f5;text-align:left">${h}</th>`).join('') + '</tr></thead>';
+                html += '<tbody>' + data.rows.map(row => '<tr>' + row.map(cell => `<td style="padding:6px 8px;border:1px solid #eee;font-family:monospace">${cell}</td>`).join('') + '</tr>').join('') + '</tbody></html>';
+                if (data.total > 20) html += `<p style="margin-top:8px;color:#888;font-size:12px">显示前 20 行，共 ${data.total} 行</p>`;
+
+                document.getElementById('csv-preview-content').innerHTML = html;
+                document.getElementById('csv-preview-modal').style.display = 'flex';
+            } catch (e) { alert('预览失败'); }
+        }
+
+        function closeCsvPreview() {
+            document.getElementById('csv-preview-modal').style.display = 'none';
+        }
+
+        // ===== 脚本管理 =====
+        let currentScriptId = null;
+        let wordWrap = false;
+
+        async function loadScripts() {
+            try {
+                const res = await fetch(`${API}/api/scripts/`);
+                const data = await res.json();
+                document.getElementById('scripts-tbody').innerHTML = (data.scripts || []).map(s => `
+                    <tr>
+                        <td style="font-family:monospace;font-size:12px">${s.script_id}</td>
+                        <td>${s.filename}</td>
+                        <td>${(s.size / 1024).toFixed(1)} KB</td>
+                        <td style="font-size:12px;color:#888">${new Date(s.modified_at * 1000).toLocaleString()}</td>
+                        <td>
+                            <button class="btn-success btn-sm" onclick="openEditor('${s.script_id}')">编辑</button>
+                            <button class="btn-danger btn-sm" style="margin-left:4px" onclick="deleteScript('${s.script_id}')">删除</button>
+                        </td>
+                    </tr>
+                `).join('') || '<tr><td colspan="5" class="empty-tip">暂无脚本，请上传 .jmx 文件或新建</td></tr>';
+            } catch (e) { console.error('loadScripts error:', e); }
+        }
+
+        async function uploadScript() {
+            const input = document.getElementById('script-upload');
+            if (!input.files.length) return;
+            const formData = new FormData();
+            formData.append('file', input.files[0]);
+            try {
+                await fetch(`${API}/api/scripts/upload`, { method: 'POST', body: formData });
+                input.value = '';
+                loadScripts();
+            } catch (e) { alert('上传失败'); }
+        }
+
+        async function deleteScript(id) {
+            if (!confirm('确定删除此脚本？')) return;
+            try {
+                await fetch(`${API}/api/scripts/${id}`, { method: 'DELETE' });
+                loadScripts();
+            } catch (e) { alert('删除失败'); }
+        }
+
+        // ===== 脚本编辑器 =====
+        async function openEditor(scriptId) {
+            currentScriptId = scriptId;
+            try {
+                const res = await fetch(`${API}/api/scripts/${scriptId}`);
+                const data = await res.json();
+
+                document.getElementById('editor-script-name').textContent = data.filename || scriptId;
+                document.getElementById('script-editor').value = data.content;
+                document.getElementById('editor-status').textContent = `文件大小: ${(data.size/1024).toFixed(1)} KB | 最后修改: ${new Date(data.modified_at*1000).toLocaleString()}`;
+
+                document.getElementById('scripts-list-view').classList.add('hidden');
+                document.getElementById('scripts-editor-view').classList.remove('hidden');
+                document.getElementById('exec-result').classList.add('hidden');
+            } catch (e) { alert('加载脚本失败: ' + e.message); }
+        }
+
+        function closeEditor() {
+            document.getElementById('scripts-list-view').classList.remove('hidden');
+            document.getElementById('scripts-editor-view').classList.add('hidden');
+            currentScriptId = null;
+        }
+
+        async function saveScript() {
+            if (!currentScriptId) return;
+            const content = document.getElementById('script-editor').value;
+            try {
+                const res = await fetch(`${API}/api/scripts/${currentScriptId}/save`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ content }),
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    document.getElementById('editor-status').textContent = '保存成功 ' + new Date().toLocaleTimeString();
+                } else {
+                    alert(data.detail || '保存失败');
+                }
+            } catch (e) { alert('保存失败: ' + e.message); }
+        }
+
+        async function runScript() {
+            if (!currentScriptId) return;
+            const threads = parseInt(document.getElementById('exec-threads').value) || 1;
+            const ramp = parseInt(document.getElementById('exec-ramp').value) || 1;
+            const duration = parseInt(document.getElementById('exec-duration').value) || 10;
+            const timeout = parseInt(document.getElementById('exec-timeout').value) || 300;
+            const distributed = document.getElementById('exec-distributed').checked;
+
+            const useCsv = document.getElementById('exec-use-csv') && document.getElementById('exec-use-csv').checked;
+            const csvFile = useCsv && document.getElementById('exec-csv-file') ? document.getElementById('exec-csv-file').value : null;
+            const csvVars = useCsv && document.getElementById('exec-csv-vars') ? document.getElementById('exec-csv-vars').value.trim() : null;
+
+            if (!confirm(`确认执行脚本？\n并发: ${threads} 线程\n持续: ${duration} 秒\n${distributed ? '分布式模式' : '单机模式'}${csvFile ? '\nCSV: ' + csvFile : ''}`)) return;
+
+            try {
+                const res = await fetch(`${API}/api/tasks/quick-run`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        script_id: currentScriptId,
+                        threads, ramp_time: ramp, duration, timeout, distributed,
+                        csv_file: csvFile || null,
+                        csv_variable_names: csvVars || null,
+                    }),
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    document.getElementById('exec-result').classList.remove('hidden');
+                    document.getElementById('exec-result-content').innerHTML = `<div style="padding:12px;color:#2563eb">任务已启动: ${data.task_id}，跳转到任务页面查看结果...</div>`;
+                    setTimeout(() => {
+                        if (confirm('跳转到任务页面查看结果？')) {
+                            showPage('tasks');
+                            setTimeout(() => loadTasks(), 500);
+                        }
+                    }, 1500);
+                } else {
+                    let msg = data.detail || '执行失败';
+                    if (msg.includes('正在执行其他任务')) {
+                        msg = 'Agent 正在执行其他任务，请等待当前任务完成后再试';
+                    } else if (msg.includes('没有注册')) {
+                        msg = '没有可用的 Agent 节点，请先在「施压节点」页面启动 Agent';
+                    } else if (msg.includes('不在线')) {
+                        msg = 'Agent 不在线，请检查 Agent 是否已启动';
+                    }
+                    alert('执行失败: ' + msg);
+                }
+            } catch (e) { alert('执行失败: ' + e.message); }
+        }
+
+        function viewExecResult() {
+            showPage('tasks');
+        }
+
+        function formatXml() {
+            const editor = document.getElementById('script-editor');
+            let xml = editor.value;
+            try {
+                let formatted = '';
+                let indent = '';
+                const tab = '  ';
+                xml.split(/>\s*</).forEach(function(node) {
+                    if (node.match(/^\/\w/)) indent = indent.substring(tab.length);
+                    formatted += indent + '<' + node + '>\n';
+                    if (node.match(/^<?\w[^>]*[^/]$/) && !node.startsWith('?')) indent += tab;
+                });
+                formatted = formatted.substring(1, formatted.length - 2);
+                editor.value = formatted;
+                document.getElementById('editor-status').textContent = '格式化完成';
+            } catch (e) {
+                document.getElementById('editor-status').textContent = '格式化失败: ' + e.message;
+            }
+        }
+
+        function toggleWordWrap() {
+            const editor = document.getElementById('script-editor');
+            wordWrap = !wordWrap;
+            editor.style.whiteSpace = wordWrap ? 'pre-wrap' : 'pre';
+            editor.style.overflowX = wordWrap ? 'hidden' : 'auto';
+        }
+
+        // ===== 新建脚本 =====
+        function createNewScript() {
+            document.getElementById('new-script-modal').style.display = 'flex';
+        }
+
+        function closeNewScriptModal() {
+            document.getElementById('new-script-modal').style.display = 'none';
+        }
+
+        async function confirmNewScript() {
+            const name = document.getElementById('new-script-name').value.trim();
+            const template = document.getElementById('new-script-template').value;
+
+            if (!name) { alert('请输入脚本名称'); return; }
+            if (!name.endsWith('.jmx')) { alert('脚本名称需以 .jmx 结尾'); return; }
+
+            let content = '';
+            if (template === 'blank') {
+                content = `<?xml version="1.0" encoding="UTF-8"?>
+<jmeterTestPlan version="1.2" properties="5.0" jmeter="5.6.3">
+  <hashTree>
+    <TestPlan guiclass="TestPlanGui" testclass="TestPlan" testname="${name.replace('.jmx','')}">
+      <elementProp name="TestPlan.user_defined_variables" elementType="Arguments" guiclass="ArgumentsPanel" testclass="Arguments"/>
+    </TestPlan>
+    <hashTree/>
+  </hashTree>
+</jmeterTestPlan>`;
+            } else if (template === 'http') {
+                content = `<?xml version="1.0" encoding="UTF-8"?>
+<jmeterTestPlan version="1.2" properties="5.0" jmeter="5.6.3">
+  <hashTree>
+    <TestPlan guiclass="TestPlanGui" testclass="TestPlan" testname="${name.replace('.jmx','')}">
+      <elementProp name="TestPlan.user_defined_variables" elementType="Arguments" guiclass="ArgumentsPanel" testclass="Arguments"/>
+    </TestPlan>
+    <hashTree>
+      <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="Thread Group">
+        <intProp name="ThreadGroup.num_threads">1</intProp>
+        <intProp name="ThreadGroup.ramp_time">1</intProp>
+        <boolProp name="ThreadGroup.scheduler">true</boolProp>
+        <stringProp name="ThreadGroup.duration">10</stringProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController">
+          <intProp name="LoopController.loops">-1</intProp>
+        </elementProp>
+      </ThreadGroup>
+      <hashTree>
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="HTTP Request">
+          <stringProp name="HTTPSampler.domain">example.com</stringProp>
+          <stringProp name="HTTPSampler.port">80</stringProp>
+          <stringProp name="HTTPSampler.path">/</stringProp>
+          <stringProp name="HTTPSampler.method">GET</stringProp>
+        </HTTPSamplerProxy>
+        <hashTree/>
+      </hashTree>
+    </hashTree>
+  </hashTree>
+</jmeterTestPlan>`;
+            } else {
+                content = `<?xml version="1.0" encoding="UTF-8"?>
+<jmeterTestPlan version="1.2" properties="5.0" jmeter="5.6.3">
+  <hashTree>
+    <TestPlan guiclass="TestPlanGui" testclass="TestPlan" testname="${name.replace('.jmx','')}">
+      <elementProp name="TestPlan.user_defined_variables" elementType="Arguments" guiclass="ArgumentsPanel" testclass="Arguments"/>
+    </TestPlan>
+    <hashTree>
+      <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="Stress Test">
+        <intProp name="ThreadGroup.num_threads">10</intProp>
+        <intProp name="ThreadGroup.ramp_time">5</intProp>
+        <boolProp name="ThreadGroup.scheduler">true</boolProp>
+        <stringProp name="ThreadGroup.duration">30</stringProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController">
+          <intProp name="LoopController.loops">-1</intProp>
+        </elementProp>
+      </ThreadGroup>
+      <hashTree>
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="HTTP Request">
+          <stringProp name="HTTPSampler.domain">example.com</stringProp>
+          <stringProp name="HTTPSampler.port">80</stringProp>
+          <stringProp name="HTTPSampler.path">/</stringProp>
+          <stringProp name="HTTPSampler.method">GET</stringProp>
+        </HTTPSamplerProxy>
+        <hashTree/>
+      </hashTree>
+    </hashTree>
+  </hashTree>
+</jmeterTestPlan>`;
+            }
+
+            try {
+                const res = await fetch(`${API}/api/scripts/create`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ content, name }),
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    closeNewScriptModal();
+                    document.getElementById('new-script-name').value = '';
+                    loadScripts();
+                    openEditor(data.script_id);
+                } else {
+                    alert(data.detail || '创建失败');
+                }
+            } catch (e) { alert('创建失败: ' + e.message); }
+        }
+
+        // ===== 模板管理 =====
+        async function loadTemplates() {
+            try {
+                const res = await fetch(`${API}/api/templates/`);
+                const data = await res.json();
+                const templates = data.templates || [];
+                const grid = document.getElementById('templates-grid');
+
+                const categoryColors = { '基础': '#2563eb', '进阶': '#d97706', '场景': '#16a34a', '自定义': '#9333ea' };
+
+                grid.innerHTML = templates.map(t => {
+                    const color = categoryColors[t.category] || '#666';
+                    const cfg = t.config || {};
+                    return `<div style="background:#fff;border:1px solid #e0e0e0;border-radius:8px;padding:16px;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                            <span style="font-size:14px;font-weight:600">${t.name}</span>
+                            <span style="font-size:11px;color:#fff;background:${color};padding:2px 8px;border-radius:10px">${t.category}</span>
+                        </div>
+                        <div style="font-size:12px;color:#666;margin-bottom:12px;line-height:1.5">${t.description || '-'}</div>
+                        <div style="font-size:12px;color:#888;margin-bottom:12px">
+                            并发: ${cfg.threads || '-'} | 预热: ${cfg.ramp_time || '-'}s | 持续: ${cfg.duration || '-'}s
+                        </div>
+                        <div style="display:flex;gap:8px">
+                            <button class="btn-primary btn-sm" onclick="useTemplate('${t.template_id}')">使用模板</button>
+                            ${!t.builtin ? `<button class="btn-danger btn-sm" onclick="deleteTemplate('${t.template_id}')">删除</button>` : ''}
+                        </div>
+                    </div>`;
+                }).join('') || '<div class="empty-tip" style="grid-column:1/-1">暂无模板</div>';
+            } catch (e) { console.error('loadTemplates error:', e); }
+        }
+
+        function useTemplate(templateId) {
+            fetch(`${API}/api/templates/${templateId}`)
+                .then(r => r.json())
+                .then(t => {
+                    const cfg = t.config || {};
+                    showPage('create');
+                    setTimeout(() => {
+                        if (cfg.threads) document.getElementById('create-threads').value = cfg.threads;
+                        if (cfg.ramp_time) document.getElementById('create-ramp').value = cfg.ramp_time;
+                        if (cfg.duration) document.getElementById('create-duration').value = cfg.duration;
+                        if (cfg.timeout) document.getElementById('create-timeout').value = cfg.timeout;
+                    }, 300);
+                });
+        }
+
+        function showCreateTemplate() {
+            document.getElementById('template-create-modal').style.display = 'flex';
+        }
+        function closeCreateTemplate() {
+            document.getElementById('template-create-modal').style.display = 'none';
+        }
+        async function submitTemplate() {
+            const name = document.getElementById('tpl-name').value.trim();
+            if (!name) { alert('请输入模板名称'); return; }
+            try {
+                await fetch(`${API}/api/templates/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name,
+                        description: document.getElementById('tpl-desc').value.trim(),
+                        category: document.getElementById('tpl-category').value.trim() || '自定义',
+                        config: {
+                            threads: parseInt(document.getElementById('tpl-threads').value) || 10,
+                            ramp_time: parseInt(document.getElementById('tpl-ramp').value) || 1,
+                            duration: parseInt(document.getElementById('tpl-duration').value) || 60,
+                        },
+                    }),
+                });
+                closeCreateTemplate();
+                loadTemplates();
+            } catch (e) { alert('创建失败: ' + e.message); }
+        }
+        async function deleteTemplate(id) {
+            if (!confirm('确定删除此模板？')) return;
+            try {
+                await fetch(`${API}/api/templates/${id}`, { method: 'DELETE' });
+                loadTemplates();
+            } catch (e) { alert('删除失败'); }
+        }
+
+        // ===== 定时调度 =====
+        async function loadSchedules() {
+            try {
+                const res = await fetch(`${API}/api/scheduler/`);
+                const data = await res.json();
+                const schedules = data.schedules || [];
+                const tbody = document.getElementById('schedule-tbody');
+                const noSchedules = document.getElementById('no-schedules');
+
+                if (schedules.length === 0) {
+                    tbody.innerHTML = '';
+                    noSchedules.style.display = 'block';
+                    return;
+                }
+                noSchedules.style.display = 'none';
+
+                tbody.innerHTML = schedules.map(s => {
+                    const interval = s.interval_seconds > 0 ? (s.interval_seconds >= 86400 ? Math.round(s.interval_seconds/86400)+'天' : s.interval_seconds >= 3600 ? Math.round(s.interval_seconds/3600)+'小时' : s.interval_seconds+'秒') : '单次';
+                    return `<tr>
+                        <td>${s.name}</td>
+                        <td style="font-family:monospace;font-size:12px">${s.script_id}</td>
+                        <td>${interval}</td>
+                        <td>${s.run_count || 0}</td>
+                        <td><span class="status-badge ${s.enabled ? 'status-completed' : 'status-stopped'}">${s.enabled ? '启用' : '禁用'}</span></td>
+                        <td>
+                            <button class="filter-btn btn-sm" onclick="toggleSchedule('${s.schedule_id}', ${!s.enabled})">${s.enabled ? '禁用' : '启用'}</button>
+                            <button class="btn-success btn-sm" style="margin-left:4px" onclick="runScheduleNow('${s.schedule_id}')">立即执行</button>
+                            <button class="btn-danger btn-sm" style="margin-left:4px" onclick="deleteSchedule('${s.schedule_id}')">删除</button>
+                        </td>
+                    </tr>`;
+                }).join('');
+            } catch (e) { console.error('loadSchedules error:', e); }
+        }
+
+        async function showCreateSchedule() {
+            document.getElementById('schedule-create-modal').style.display = 'flex';
+            try {
+                const res = await fetch(`${API}/api/scripts/`);
+                const data = await res.json();
+                document.getElementById('sch-script').innerHTML = (data.scripts || []).map(s =>
+                    `<option value="${s.script_id}">${s.filename}</option>`
+                ).join('') || '<option>暂无脚本</option>';
+            } catch (e) {}
+        }
+        function closeCreateSchedule() { document.getElementById('schedule-create-modal').style.display = 'none'; }
+        async function submitSchedule() {
+            const name = document.getElementById('sch-name').value.trim();
+            const scriptId = document.getElementById('sch-script').value;
+            if (!name || !scriptId) { alert('请填写名称并选择脚本'); return; }
+            const interval = parseInt(document.getElementById('sch-interval').value) || 0;
+            const runAt = document.getElementById('sch-runat').value ? parseFloat(document.getElementById('sch-runat').value) : null;
+            try {
+                await fetch(`${API}/api/scheduler/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name, script_id: scriptId,
+                        jmeter_args: {
+                            threads: String(parseInt(document.getElementById('sch-threads').value) || 10),
+                            duration: String(parseInt(document.getElementById('sch-duration').value) || 60),
+                        },
+                        timeout: parseInt(document.getElementById('sch-timeout').value) || 300,
+                        interval_seconds: interval,
+                        run_at: runAt,
+                    }),
+                });
+                closeCreateSchedule();
+                loadSchedules();
+            } catch (e) { alert('创建失败: ' + e.message); }
+        }
+        async function toggleSchedule(id, enabled) {
+            await fetch(`${API}/api/scheduler/${id}`, {
+                method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ enabled }),
+            });
+            loadSchedules();
+        }
+        async function runScheduleNow(id) {
+            try {
+                const res = await fetch(`${API}/api/scheduler/${id}/run-now`, { method: 'POST' });
+                const data = await res.json();
+                if (data.status === 'started') alert(`任务已启动: ${data.task_id}`);
+                else alert(data.message || '执行失败');
+                loadSchedules();
+            } catch (e) { alert('执行失败: ' + e.message); }
+        }
+        async function deleteSchedule(id) {
+            if (!confirm('确定删除此调度？')) return;
+            await fetch(`${API}/api/scheduler/${id}`, { method: 'DELETE' });
+            loadSchedules();
+        }
+
+        // ===== 通知设置 =====
+        async function loadNotifyConfig() {
+            try {
+                const res = await fetch(`${API}/api/notifications/config`);
+                const config = await res.json();
+                document.getElementById('notify-enabled').checked = config.enabled !== false;
+                const webhooks = config.webhooks || [];
+                const tbody = document.getElementById('webhook-tbody');
+                const noWebhooks = document.getElementById('no-webhooks');
+                if (webhooks.length === 0) {
+                    tbody.innerHTML = '';
+                    noWebhooks.style.display = 'block';
+                } else {
+                    noWebhooks.style.display = 'none';
+                    tbody.innerHTML = webhooks.map(url => `<tr>
+                        <td style="font-family:monospace;font-size:12px;word-break:break-all">${url}</td>
+                        <td><button class="btn-danger btn-sm" onclick="removeWebhook('${url}')">删除</button></td>
+                    </tr>`).join('');
+                }
+            } catch (e) { console.error('loadNotifyConfig error:', e); }
+        }
+        async function saveNotifyConfig() {
+            const enabled = document.getElementById('notify-enabled').checked;
+            await fetch(`${API}/api/notifications/config`, {
+                method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ enabled }),
+            });
+        }
+        function showAddWebhook() { document.getElementById('webhook-add-modal').style.display = 'flex'; }
+        function closeAddWebhook() { document.getElementById('webhook-add-modal').style.display = 'none'; }
+        async function submitWebhook() {
+            const url = document.getElementById('webhook-url').value.trim();
+            if (!url) { alert('请输入 URL'); return; }
+            try {
+                const res = await fetch(`${API}/api/notifications/webhook`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url }),
+                });
+                if (res.ok) { closeAddWebhook(); loadNotifyConfig(); }
+                else { const d = await res.json(); alert(d.detail || '添加失败'); }
+            } catch (e) { alert('添加失败: ' + e.message); }
+        }
+        async function testWebhook() {
+            const url = document.getElementById('webhook-url').value.trim();
+            if (!url) { alert('请输入 URL'); return; }
+            try {
+                const res = await fetch(`${API}/api/notifications/webhook/test`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url }),
+                });
+                const data = await res.json();
+                alert(data.status === 'success' ? '测试成功!' : '测试失败: ' + (data.error || ''));
+            } catch (e) { alert('测试失败: ' + e.message); }
+        }
+        async function removeWebhook(url) {
+            if (!confirm('确定删除此 Webhook？')) return;
+            await fetch(`${API}/api/notifications/webhook?url=${encodeURIComponent(url)}`, { method: 'DELETE' });
+            loadNotifyConfig();
+        }
+
+        // ===== 任务对比 =====
+        async function loadCompareForm() {
+            try {
+                const res = await fetch(`${API}/api/results/tasks`);
+                const data = await res.json();
+                const tasks = data.tasks || [];
+
+                const opts = tasks.map(t => `<option value="${t.task_id}">${t.task_id} (${new Date(t.modified_at * 1000).toLocaleString()})</option>`).join('');
+                document.getElementById('compare-task-1').innerHTML = '<option value="">选择任务 A</option>' + opts;
+                document.getElementById('compare-task-2').innerHTML = '<option value="">选择任务 B</option>' + opts;
+            } catch (e) { console.error('loadCompareForm error:', e); }
+        }
+
+        async function runCompare() {
+            const id1 = document.getElementById('compare-task-1').value;
+            const id2 = document.getElementById('compare-task-2').value;
+            if (!id1 || !id2) { alert('请选择两个任务'); return; }
+            if (id1 === id2) { alert('请选择不同的任务'); return; }
+
+            try {
+                const res = await fetch(`${API}/api/results/compare?task_ids=${id1},${id2}`);
+                if (!res.ok) { const d = await res.json(); alert(d.detail || '对比失败'); return; }
+                const data = await res.json();
+
+                document.getElementById('compare-result').classList.remove('hidden');
+                document.getElementById('compare-empty').classList.add('hidden');
+
+                const [t1, t2] = data.tasks;
+                const s1 = t1.summary, s2 = t2.summary;
+
+                const diff = (a, b) => {
+                    if (b === 0) return '-';
+                    const pct = ((a - b) / b * 100).toFixed(1);
+                    return (pct > 0 ? '+' : '') + pct + '%';
+                };
+                const diffColor = (a, b) => {
+                    if (b === 0) return '#888';
+                    return a > b ? '#dc2626' : a < b ? '#16a34a' : '#888';
+                };
+
+                document.getElementById('compare-cards').innerHTML = `
+                    <div class="card"><div class="label">指标</div><div class="value" style="font-size:14px">任务A / 任务B</div></div>
+                    <div class="card"><div class="label">总请求数</div><div class="value" style="font-size:16px">${s1.total_samples} / ${s2.total_samples}</div></div>
+                    <div class="card"><div class="label">平均RT (ms)</div><div class="value" style="font-size:16px">${s1.avg_response_time} / ${s2.avg_response_time}<br><span style="font-size:12px;color:${diffColor(s1.avg_response_time, s2.avg_response_time)}">${diff(s1.avg_response_time, s2.avg_response_time)}</span></div></div>
+                    <div class="card"><div class="label">P99 (ms)</div><div class="value" style="font-size:16px">${s1.p99} / ${s2.p99}<br><span style="font-size:12px;color:${diffColor(s1.p99, s2.p99)}">${diff(s1.p99, s2.p99)}</span></div></div>
+                    <div class="card"><div class="label">错误率 (%)</div><div class="value" style="font-size:16px">${s1.error_rate} / ${s2.error_rate}<br><span style="font-size:12px;color:${diffColor(s1.error_rate, s2.error_rate)}">${diff(s1.error_rate, s2.error_rate)}</span></div></div>
+                `;
+
+                // TPS comparison chart
+                if (charts.compareTps) charts.compareTps.dispose();
+                charts.compareTps = echarts.init(document.getElementById('chart-compare-tps'));
+                const t1tps = t1.time_series.tps || [];
+                const t2tps = t2.time_series.tps || [];
+                const maxLen = Math.max(t1tps.length, t2tps.length);
+                const tpsLabels = Array.from({length: maxLen}, (_, i) => i + 's');
+                charts.compareTps.setOption({
+                    tooltip: { trigger: 'axis' },
+                    legend: { data: ['任务A', '任务B'], top: 0 },
+                    xAxis: { type: 'category', data: tpsLabels },
+                    yAxis: { type: 'value', name: 'TPS' },
+                    series: [
+                        { name: '任务A', type: 'line', data: t1tps, smooth: true, lineStyle: { width: 2, color: '#2563eb' }, itemStyle: { color: '#2563eb' }, symbol: 'none' },
+                        { name: '任务B', type: 'line', data: t2tps, smooth: true, lineStyle: { width: 2, color: '#16a34a' }, itemStyle: { color: '#16a34a' }, symbol: 'none' }
+                    ],
+                    grid: { left: 50, right: 20, top: 30, bottom: 30 }
+                });
+
+                // RT comparison chart
+                if (charts.compareRt) charts.compareRt.dispose();
+                charts.compareRt = echarts.init(document.getElementById('chart-compare-rt'));
+                const t1rt = t1.time_series.avg_rt || [];
+                const t2rt = t2.time_series.avg_rt || [];
+                charts.compareRt.setOption({
+                    tooltip: { trigger: 'axis' },
+                    legend: { data: ['任务A', '任务B'], top: 0 },
+                    xAxis: { type: 'category', data: tpsLabels },
+                    yAxis: { type: 'value', name: 'ms' },
+                    series: [
+                        { name: '任务A', type: 'line', data: t1rt, smooth: true, lineStyle: { width: 2, color: '#2563eb' }, itemStyle: { color: '#2563eb' }, symbol: 'none' },
+                        { name: '任务B', type: 'line', data: t2rt, smooth: true, lineStyle: { width: 2, color: '#16a34a' }, itemStyle: { color: '#16a34a' }, symbol: 'none' }
+                    ],
+                    grid: { left: 50, right: 20, top: 30, bottom: 30 }
+                });
+
+                // Label comparison table
+                const l1Map = {};
+                (t1.label_stats || []).forEach(l => l1Map[l.label] = l);
+                const l2Map = {};
+                (t2.label_stats || []).forEach(l => l2Map[l.label] = l);
+                const allLabels = new Set([...Object.keys(l1Map), ...Object.keys(l2Map)]);
+
+                document.getElementById('compare-label-tbody').innerHTML = Array.from(allLabels).map(label => {
+                    const a = l1Map[label] || { avg: 0, error_rate: 0 };
+                    const b = l2Map[label] || { avg: 0, error_rate: 0 };
+                    return `<tr>
+                        <td>${label}</td>
+                        <td>${a.avg}ms</td><td>${b.avg}ms</td>
+                        <td style="color:${diffColor(a.avg, b.avg)}">${diff(a.avg, b.avg)}</td>
+                        <td>${a.error_rate}%</td><td>${b.error_rate}%</td>
+                        <td style="color:${diffColor(a.error_rate, b.error_rate)}">${diff(a.error_rate, b.error_rate)}</td>
+                    </tr>`;
+                }).join('');
+
+                window.addEventListener('resize', () => {
+                    if (charts.compareTps) charts.compareTps.resize();
+                    if (charts.compareRt) charts.compareRt.resize();
+                });
+            } catch (e) { alert('对比失败: ' + e.message); }
+        }
+
+        // ===== 初始化 =====
+        loadHomePage();
+    </script>
+</body>
+</html>
