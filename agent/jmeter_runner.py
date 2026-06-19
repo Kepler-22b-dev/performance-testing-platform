@@ -59,6 +59,39 @@ class JMeterRunner:
             print(f"CSV injection failed: {e}")
             return script_path
 
+    def _inject_thread_config(self, script_path: str, threads: int, ramp_time: int, duration: int) -> str:
+        try:
+            tree = ET.parse(script_path)
+            root = tree.getroot()
+
+            for thread_group in root.iter("ThreadGroup"):
+                num_threads = thread_group.find("intProp[@name='ThreadGroup.num_threads']")
+                if num_threads is not None:
+                    num_threads.text = str(threads)
+
+                ramp = thread_group.find("intProp[@name='ThreadGroup.ramp_time']")
+                if ramp is not None:
+                    ramp.text = str(ramp_time)
+
+                dur = thread_group.find("stringProp[@name='ThreadGroup.duration']")
+                if dur is not None:
+                    dur.text = str(duration)
+
+                sched = thread_group.find("boolProp[@name='ThreadGroup.scheduler']")
+                if sched is not None:
+                    sched.text = "true"
+
+                loop = thread_group.find(".//intProp[@name='LoopController.loops']")
+                if loop is not None:
+                    loop.text = "-1"
+
+            modified_path = script_path.replace(".jmx", "_exec.jmx")
+            tree.write(modified_path, encoding="UTF-8", xml_declaration=True)
+            return modified_path
+        except Exception as e:
+            print(f"Thread config injection failed: {e}")
+            return script_path
+
     def execute(
         self,
         script_path: str,
@@ -89,6 +122,14 @@ class JMeterRunner:
 
         jtl_path = os.path.join(result_dir, "result.xml")
         report_path = os.path.join(result_dir, "html-report")
+
+        if jmeter_args.get("threads") or jmeter_args.get("duration") or jmeter_args.get("ramp_time"):
+            script_path = self._inject_thread_config(
+                script_path,
+                threads=int(jmeter_args.get("threads", 10)),
+                ramp_time=int(jmeter_args.get("ramp_time", 1)),
+                duration=int(jmeter_args.get("duration", 60)),
+            )
 
         cmd = [
             self.jmeter_bin,
@@ -187,17 +228,50 @@ class JMeterRunner:
             return result
 
         try:
-            with open(jtl_path, "r") as f:
-                lines = f.readlines()
-                result["total_samples"] = len(lines) - 1 if lines else 0
-                for line in lines[1:]:
-                    parts = line.strip().split(",")
-                    if len(parts) >= 4:
-                        elapsed = int(parts[1])
-                        success = parts[3].strip() == "true"
-                        result["elapsed_times"].append(elapsed)
-                        if not success:
-                            result["error_count"] += 1
+            file_size = os.path.getsize(jtl_path)
+            if file_size == 0:
+                return result
+
+            with open(jtl_path, "r", encoding="utf-8", errors="replace") as f:
+                first_line = f.readline().strip()
+
+                if first_line.startswith("<?xml") or first_line.startswith("<testResults"):
+                    result["elapsed_times"] = []
+                    count = 0
+                    errors = 0
+                    for line in f:
+                        line = line.strip()
+                        if line.startswith("<httpSample ") or line.startswith("<sample "):
+                            count += 1
+                            t_start = line.find('t="')
+                            s_start = line.find(' s="')
+                            if t_start > 0 and s_start > 0:
+                                try:
+                                    t_val = int(line[t_start+3:line.find('"', t_start+3)])
+                                    result["elapsed_times"].append(t_val)
+                                except (ValueError, IndexError):
+                                    pass
+                                if ' s="false"' in line[s_start:s_start+10]:
+                                    errors += 1
+                    result["total_samples"] = count
+                    result["error_count"] = errors
+                else:
+                    lines = f.readlines()
+                    result["total_samples"] = len(lines) if lines else 0
+                    for line in lines:
+                        parts = line.strip().split(",")
+                        if len(parts) >= 4:
+                            try:
+                                elapsed = int(parts[1])
+                                success = parts[3].strip() == "true"
+                                result["elapsed_times"].append(elapsed)
+                                if not success:
+                                    result["error_count"] += 1
+                            except (ValueError, IndexError):
+                                pass
+                    if first_line:
+                        result["total_samples"] += 1
+
         except Exception:
             pass
 

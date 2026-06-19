@@ -99,15 +99,26 @@ class JMeterAgent:
         result_dir = os.path.join(REPORTS_DIR, command.task_id, self.agent_id)
         os.makedirs(result_dir, exist_ok=True)
 
+        last_total = 0
+        last_time = time.time()
+
         def on_progress(raw):
-            elapsed = int(time.time() - start_time)
+            nonlocal last_total, last_time
+            now = time.time()
+            elapsed = int(now - start_time)
             total = raw.get("total_samples", 0)
             errors = raw.get("error_count", 0)
             times = raw.get("elapsed_times", [])
 
-            avg_rt = sum(times) / len(times) if times else 0
-            error_rate = (errors / total * 100) if total > 0 else 0
-            throughput = total / elapsed if elapsed > 0 else 0
+            interval = now - last_time
+            interval_count = total - last_total if total >= last_total else total
+            current_tps = round(interval_count / interval, 2) if interval > 0 else 0
+
+            avg_rt = round(sum(times) / len(times), 2) if times else 0
+            error_rate = round(errors / total * 100, 2) if total > 0 else 0
+
+            last_total = total
+            last_time = now
 
             update = ProgressUpdate(
                 task_id=command.task_id,
@@ -115,9 +126,9 @@ class JMeterAgent:
                 timestamp=time.time(),
                 elapsed=elapsed,
                 active_threads=command.jmeter_args.get("threads", 0),
-                throughput=round(throughput, 2),
-                avg_response_time=round(avg_rt, 2),
-                error_rate=round(error_rate, 2),
+                throughput=current_tps,
+                avg_response_time=avg_rt,
+                error_rate=error_rate,
                 total_samples=total,
             )
             self.redis.publish(REDIS_CHANNEL_PROGRESS, update.to_json())

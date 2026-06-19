@@ -105,6 +105,12 @@ class TaskScheduler:
         task["start_time"] = time.time()
         self._sync_task(task)
 
+        script_path = os.path.join(SCRIPTS_DIR, f"{task['script_id']}.jmx")
+        script_content = None
+        if not task.get("csv_file") and os.path.exists(script_path):
+            with open(script_path, "r") as f:
+                script_content = f.read()
+
         for agent_id in task["target_agents"]:
             command = TaskCommand(
                 command=CommandType.EXECUTE,
