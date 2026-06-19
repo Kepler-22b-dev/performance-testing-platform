@@ -15,7 +15,6 @@ apache-jmeter-5.6.3/
 apache-jmeter-5.6.3-slave/
 apache-jmeter-5.6.3-slave2/
 apache-jmeter-5.6.3-slave3/
-*.jmx
 .env
 venv/
 .venv/

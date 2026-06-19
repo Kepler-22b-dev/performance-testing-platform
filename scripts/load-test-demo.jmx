@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jmeterTestPlan version="1.2" properties="5.0" jmeter="5.6.3">
+  <hashTree>
+    <TestPlan guiclass="TestPlanGui" testclass="TestPlan" testname="Load Test Demo">
+      <elementProp name="TestPlan.user_defined_variables" elementType="Arguments" guiclass="ArgumentsPanel" testclass="Arguments"/>
+    </TestPlan>
+    <hashTree>
+      <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="HTTP Load Test">
+        <intProp name="ThreadGroup.num_threads">10</intProp>
+        <intProp name="ThreadGroup.ramp_time">5</intProp>
+        <boolProp name="ThreadGroup.scheduler">true</boolProp>
+        <stringProp name="ThreadGroup.duration">300</stringProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController">
+          <intProp name="LoopController.loops">-1</intProp>
+        </elementProp>
+      </ThreadGroup>
+      <hashTree>
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="GET - Hello World">
+          <stringProp name="HTTPSampler.domain">127.0.0.1</stringProp>
+          <stringProp name="HTTPSampler.port">9998</stringProp>
+          <stringProp name="HTTPSampler.path">/</stringProp>
+          <stringProp name="HTTPSampler.method">GET</stringProp>
+        </HTTPSamplerProxy>
+        <hashTree/>
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="GET - Users API">
+          <stringProp name="HTTPSampler.domain">127.0.0.1</stringProp>
+          <stringProp name="HTTPSampler.port">9998</stringProp>
+          <stringProp name="HTTPSampler.path">/api/users</stringProp>
+          <stringProp name="HTTPSampler.method">GET</stringProp>
+        </HTTPSamplerProxy>
+        <hashTree/>
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="GET - Products API">
+          <stringProp name="HTTPSampler.domain">127.0.0.1</stringProp>
+          <stringProp name="HTTPSampler.port">9998</stringProp>
+          <stringProp name="HTTPSampler.path">/api/products</stringProp>
+          <stringProp name="HTTPSampler.method">GET</stringProp>
+        </HTTPSamplerProxy>
+        <hashTree/>
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="GET - Slow API">
+          <stringProp name="HTTPSampler.domain">127.0.0.1</stringProp>
+          <stringProp name="HTTPSampler.port">9998</stringProp>
+          <stringProp name="HTTPSampler.path">/api/slow</stringProp>
+          <stringProp name="HTTPSampler.method">GET</stringProp>
+        </HTTPSamplerProxy>
+        <hashTree/>
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="GET - Health Check">
+          <stringProp name="HTTPSampler.domain">127.0.0.1</stringProp>
+          <stringProp name="HTTPSampler.port">9998</stringProp>
+          <stringProp name="HTTPSampler.path">/health</stringProp>
+          <stringProp name="HTTPSampler.method">GET</stringProp>
+        </HTTPSamplerProxy>
+        <hashTree/>
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="POST - Login">
+          <stringProp name="HTTPSampler.domain">127.0.0.1</stringProp>
+          <stringProp name="HTTPSampler.port">9998</stringProp>
+          <stringProp name="HTTPSampler.path">/api/login</stringProp>
+          <stringProp name="HTTPSampler.method">POST</stringProp>
+          <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
+          <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+            <elementProp name="" elementType="HTTPArgument">
+              <stringProp name="Argument.value">{"username":"admin","password":"123456"}</stringProp>
+              <stringProp name="Argument.metadata">=</stringProp>
+            </elementProp>
+          </elementProp>
+          <stringProp name="HTTPSampler.headerManagerFactory">HeaderManager</stringProp>
+        </HTTPSamplerProxy>
+        <hashTree>
+          <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="HTTP Header Manager">
+            <collectionProp name="HeaderManager.headers">
+              <elementProp name="" elementType="Header">
+                <stringProp name="Header.name">Content-Type</stringProp>
+                <stringProp name="Header.value">application/json</stringProp>
+              </elementProp>
+            </collectionProp>
+          </HeaderManager>
+          <hashTree/>
+        </hashTree>
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="POST - Create Order">
+          <stringProp name="HTTPSampler.domain">127.0.0.1</stringProp>
+          <stringProp name="HTTPSampler.port">9998</stringProp>
+          <stringProp name="HTTPSampler.path">/api/orders</stringProp>
+          <stringProp name="HTTPSampler.method">POST</stringProp>
+          <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
+          <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+            <elementProp name="" elementType="HTTPArgument">
+              <stringProp name="Argument.value">{"product_id":1,"quantity":2}</stringProp>
+              <stringProp name="Argument.metadata">=</stringProp>
+            </elementProp>
+          </elementProp>
+          <stringProp name="HTTPSampler.headerManagerFactory">HeaderManager</stringProp>
+        </HTTPSamplerProxy>
+        <hashTree>
+          <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="HTTP Header Manager">
+            <collectionProp name="HeaderManager.headers">
+              <elementProp name="" elementType="Header">
+                <stringProp name="Header.name">Content-Type</stringProp>
+                <stringProp name="Header.value">application/json</stringProp>
+              </elementProp>
+            </collectionProp>
+          </HeaderManager>
+          <hashTree/>
+        </hashTree>
+      </hashTree>
+    </hashTree>
+  </hashTree>
+</jmeterTestPlan>

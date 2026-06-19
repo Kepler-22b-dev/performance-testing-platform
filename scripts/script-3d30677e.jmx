@@ -1,0 +1,1593 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jmeterTestPlan version="1.2" properties="5.0" jmeter="5.6.3">
+  <hashTree>
+    <TestPlan guiclass="TestPlanGui" testclass="TestPlan" testname="测试计划">
+      <boolProp name="TestPlan.tearDown_on_shutdown">true</boolProp>
+      <elementProp name="TestPlan.user_defined_variables" elementType="Arguments" guiclass="ArgumentsPanel" testclass="Arguments" testname="用户定义的变量">
+        <collectionProp name="Arguments.arguments"/>
+      </elementProp>
+      <boolProp name="TestPlan.functional_mode">false</boolProp>
+      <boolProp name="TestPlan.serialize_threadgroups">false</boolProp>
+    </TestPlan>
+    <hashTree>
+      <kg.apc.jmeter.threads.SteppingThreadGroup guiclass="kg.apc.jmeter.threads.SteppingThreadGroupGui" testclass="kg.apc.jmeter.threads.SteppingThreadGroup" testname="jp@gc - Stepping Thread Group">
+        <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
+        <stringProp name="ThreadGroup.num_threads">150</stringProp>
+        <stringProp name="Threads initial delay">0</stringProp>
+        <stringProp name="Start users count">5</stringProp>
+        <stringProp name="Start users count burst">0</stringProp>
+        <stringProp name="Start users period">8</stringProp>
+        <stringProp name="Stop users count">5</stringProp>
+        <stringProp name="Stop users period">1</stringProp>
+        <stringProp name="flighttime">60</stringProp>
+        <stringProp name="rampUp">5</stringProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="循环控制器">
+          <intProp name="LoopController.loops">-1</intProp>
+          <boolProp name="LoopController.continue_forever">false</boolProp>
+        </elementProp>
+      </kg.apc.jmeter.threads.SteppingThreadGroup>
+      <hashTree>
+        <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="HTTP信息头管理器">
+          <collectionProp name="HeaderManager.headers">
+            <elementProp name="" elementType="Header">
+              <stringProp name="Header.name">Content-Type</stringProp>
+              <stringProp name="Header.value">application/x-www-form-urlencoded</stringProp>
+            </elementProp>
+          </collectionProp>
+        </HeaderManager>
+        <hashTree/>
+        <CSVDataSet guiclass="TestBeanGUI" testclass="CSVDataSet" testname="CSV Data Set Config">
+          <stringProp name="filename">order_id.csv</stringProp>
+          <stringProp name="fileEncoding">UTF-8</stringProp>
+          <stringProp name="variableNames">order_id</stringProp>
+          <boolProp name="ignoreFirstLine">false</boolProp>
+          <stringProp name="delimiter">,</stringProp>
+          <boolProp name="quotedData">false</boolProp>
+          <boolProp name="recycle">true</boolProp>
+          <boolProp name="stopThread">false</boolProp>
+          <stringProp name="shareMode">shareMode.all</stringProp>
+        </CSVDataSet>
+        <hashTree/>
+        <ConfigTestElement guiclass="HttpDefaultsGui" testclass="ConfigTestElement" testname="HTTP请求默认值">
+          <stringProp name="HTTPSampler.domain">sss-stage-callback.tastientech.com</stringProp>
+          <stringProp name="HTTPSampler.port">443</stringProp>
+          <stringProp name="HTTPSampler.protocol">https</stringProp>
+          <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables">
+            <collectionProp name="Arguments.arguments"/>
+          </elementProp>
+          <stringProp name="HTTPSampler.implementation"></stringProp>
+        </ConfigTestElement>
+        <hashTree/>
+        <JSR223PreProcessor guiclass="TestBeanGUI" testclass="JSR223PreProcessor" testname="JSR223 PreProcessor" enabled="false">
+          <stringProp name="scriptLanguage">groovy</stringProp>
+          <stringProp name="parameters"></stringProp>
+          <stringProp name="filename"></stringProp>
+          <stringProp name="cacheKey">true</stringProp>
+          <stringProp name="script">import org.apache.commons.codec.digest.DigestUtils;
+
+String timestamp = vars.get(&quot;timestamp&quot;); 
+String fixedKey = &quot;keyxxx&quot;;
+String rawString = timestamp + fixedKey;
+
+// 4. 生成MD5（小写）
+String sign = DigestUtils.md5Hex(rawString);
+
+vars.put(&quot;sign&quot;, sign);</stringProp>
+        </JSR223PreProcessor>
+        <hashTree/>
+        <ResultCollector guiclass="ViewResultsFullVisualizer" testclass="ResultCollector" testname="察看结果树" enabled="false">
+          <boolProp name="ResultCollector.error_logging">false</boolProp>
+          <objProp>
+            <name>saveConfig</name>
+            <value class="SampleSaveConfiguration">
+              <time>true</time>
+              <latency>true</latency>
+              <timestamp>true</timestamp>
+              <success>true</success>
+              <label>true</label>
+              <code>true</code>
+              <message>true</message>
+              <threadName>true</threadName>
+              <dataType>true</dataType>
+              <encoding>false</encoding>
+              <assertions>true</assertions>
+              <subresults>true</subresults>
+              <responseData>false</responseData>
+              <samplerData>false</samplerData>
+              <xml>false</xml>
+              <fieldNames>true</fieldNames>
+              <responseHeaders>false</responseHeaders>
+              <requestHeaders>false</requestHeaders>
+              <responseDataOnError>false</responseDataOnError>
+              <saveAssertionResultsFailureMessage>true</saveAssertionResultsFailureMessage>
+              <assertionsResultsToSave>0</assertionsResultsToSave>
+              <bytes>true</bytes>
+              <sentBytes>true</sentBytes>
+              <url>true</url>
+              <threadCounts>true</threadCounts>
+              <idleTime>true</idleTime>
+              <connectTime>true</connectTime>
+            </value>
+          </objProp>
+          <stringProp name="filename"></stringProp>
+        </ResultCollector>
+        <hashTree/>
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="orderCreate" enabled="false">
+          <stringProp name="HTTPSampler.contentEncoding">utf-8</stringProp>
+          <stringProp name="HTTPSampler.path">/intelligence-order-listener/mtjbp/brand/order/create</stringProp>
+          <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+          <stringProp name="HTTPSampler.method">POST</stringProp>
+          <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+          <boolProp name="HTTPSampler.BROWSER_COMPATIBLE_MULTIPART">true</boolProp>
+          <boolProp name="HTTPSampler.postBodyRaw">false</boolProp>
+          <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables">
+            <collectionProp name="Arguments.arguments">
+              <elementProp name="original_price" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">0.02</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">original_price</stringProp>
+              </elementProp>
+              <elementProp name="is_pre_sale_order" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">false</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">is_pre_sale_order</stringProp>
+              </elementProp>
+              <elementProp name="orderEntranceType" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">0</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">orderEntranceType</stringProp>
+              </elementProp>
+              <elementProp name="channel" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value"></stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">channel</stringProp>
+              </elementProp>
+              <elementProp name="delivery_time" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">0</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">delivery_time</stringProp>
+              </elementProp>
+              <elementProp name="delivery_available" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">0</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">delivery_available</stringProp>
+              </elementProp>
+              <elementProp name="avg_send_time" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">10810.0</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">avg_send_time</stringProp>
+              </elementProp>
+              <elementProp name="openUid" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">9203133549</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">openUid</stringProp>
+              </elementProp>
+              <elementProp name="ctime" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">1752731799</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">ctime</stringProp>
+              </elementProp>
+              <elementProp name="app_id" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">9038</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">app_id</stringProp>
+              </elementProp>
+              <elementProp name="longitude" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">95.369272</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">longitude</stringProp>
+              </elementProp>
+              <elementProp name="sqtNeedInvoice" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">0</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">sqtNeedInvoice</stringProp>
+              </elementProp>
+              <elementProp name="package_bag_money" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">0</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">package_bag_money</stringProp>
+              </elementProp>
+              <elementProp name="shipper_phone" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value"></stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">shipper_phone</stringProp>
+              </elementProp>
+              <elementProp name="logistics_code" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">0000</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">logistics_code</stringProp>
+              </elementProp>
+              <elementProp name="package_bag_money_yuan" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">0.00</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">package_bag_money_yuan</stringProp>
+              </elementProp>
+              <elementProp name="shipping_fee" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">0.01</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">shipping_fee</stringProp>
+              </elementProp>
+              <elementProp name="wm_poi_id" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">2698095</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">wm_poi_id</stringProp>
+              </elementProp>
+              <elementProp name="poi_receive_detail" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">{   &quot;actOrderChargeByConsumer&quot;: [{     &quot;comment&quot;: &quot;减配送费4.0元&quot;,     &quot;feeTypeDesc&quot;: &quot;活动款&quot;,     &quot;feeTypeId&quot;: 10019,     &quot;moneyCent&quot;: 0   }],   &quot;actOrderChargeByMt&quot;: [{     &quot;comment&quot;: &quot;活动款&quot;,     &quot;feeTypeDesc&quot;: &quot;活动款&quot;,     &quot;feeTypeId&quot;: 10019,     &quot;moneyCent&quot;: 0   }],   &quot;actOrderChargeByPoi&quot;: [{     &quot;comment&quot;: &quot;减配送费4.0元&quot;,     &quot;feeTypeDesc&quot;: &quot;活动款&quot;,     &quot;feeTypeId&quot;: 10019,     &quot;moneyCent&quot;: 1   }],   &quot;foodShareFeeChargeByPoi&quot;: 0,   &quot;logisticsFee&quot;: 1,   &quot;onlinePayment&quot;: 1,   &quot;reconciliationExtras&quot;: &quot;{\&quot;chargeMode\&quot;:1,\&quot;performanceServiceFee\&quot;:0.0,\&quot;commissionAllowanceFee\&quot;:0.0,\&quot;pdbChargeFee\&quot;:0.0}&quot;,   &quot;wmPoiReceiveCent&quot;: 1 }</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">poi_receive_detail</stringProp>
+              </elementProp>
+              <elementProp name="detail" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">[{   &quot;actual_price&quot;: 0.01,   &quot;app_food_code&quot;: &quot;SH18798756079&quot;,   &quot;attr_counts&quot;: &quot;1&quot;,   &quot;attr_names&quot;: &quot;份量&quot;,   &quot;box_num&quot;: 1.0,   &quot;box_price&quot;: 0.0,   &quot;cart_id&quot;: 0,   &quot;detail_extra&quot;: {},   &quot;detail_id&quot;: 6837016858965,   &quot;food_discount&quot;: 1.0,   &quot;food_name&quot;: &quot;郑-单品0&quot;,   &quot;food_property&quot;: &quot;1人份&quot;,   &quot;isSharpShooter&quot;: false,   &quot;mt_sku_id&quot;: 25223369288,   &quot;mt_spu_id&quot;: 29900701178,   &quot;mt_tag_id&quot;: 12184731003,   &quot;original_price&quot;: 0.01,   &quot;price&quot;: 0.01,   &quot;quantity&quot;: 1,   &quot;single_increase_amount&quot;: 0.0,   &quot;sku_id&quot;: &quot;31292141405&quot;,   &quot;spec&quot;: &quot;&quot;,   &quot;sub_detail_list&quot;: [],   &quot;unit&quot;: &quot;1人份&quot;,   &quot;weight&quot;: -2 }]</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">detail</stringProp>
+              </elementProp>
+              <elementProp name="incmp_modules" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">[]</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">incmp_modules</stringProp>
+              </elementProp>
+              <elementProp name="recipient_name" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">林先生</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">recipient_name</stringProp>
+              </elementProp>
+              <elementProp name="pdbOrder" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">false</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">pdbOrder</stringProp>
+              </elementProp>
+              <elementProp name="order_id" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">${__Random(2401688951794000001,2401688951794500001,)}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">order_id</stringProp>
+              </elementProp>
+              <elementProp name="wm_poi_phone" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">4009208801</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">wm_poi_phone</stringProp>
+              </elementProp>
+              <elementProp name="recipient_phone" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">13123313102</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">recipient_phone</stringProp>
+              </elementProp>
+              <elementProp name="status" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">2</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">status</stringProp>
+              </elementProp>
+              <elementProp name="city_id" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">999999</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">city_id</stringProp>
+              </elementProp>
+              <elementProp name="wmPoiReceiveCent" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">1</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">wmPoiReceiveCent</stringProp>
+              </elementProp>
+              <elementProp name="incmp_code" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">0</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">incmp_code</stringProp>
+              </elementProp>
+              <elementProp name="wm_poi_name" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">t_uy6lZyDLRt</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">wm_poi_name</stringProp>
+              </elementProp>
+              <elementProp name="backup_recipient_phone" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">[]</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">backup_recipient_phone</stringProp>
+              </elementProp>
+              <elementProp name="pick_type" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">0</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">pick_type</stringProp>
+              </elementProp>
+              <elementProp name="order_tag_list" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">[]</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">order_tag_list</stringProp>
+              </elementProp>
+              <elementProp name="invoice_title" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value"></stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">invoice_title</stringProp>
+              </elementProp>
+              <elementProp name="latitude" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">29.774491</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">latitude</stringProp>
+              </elementProp>
+              <elementProp name="extras" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">[{   &quot;consumer_prepay&quot;: 0.0,   &quot;mt_charge&quot;: 0.0,   &quot;poi_charge&quot;: 0.01,   &quot;reduce_fee&quot;: 0.01,   &quot;remark&quot;: &quot;减配送费4.0元&quot;,   &quot;type&quot;: 25 }, {}]</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">extras</stringProp>
+              </elementProp>
+              <elementProp name="phf_ssf" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">0.0</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">phf_ssf</stringProp>
+              </elementProp>
+              <elementProp name="is_poi_first_order" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">false</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">is_poi_first_order</stringProp>
+              </elementProp>
+              <elementProp name="total_weight" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">0</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">total_weight</stringProp>
+              </elementProp>
+              <elementProp name="sqtOrder" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">2</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">sqtOrder</stringProp>
+              </elementProp>
+              <elementProp name="sig" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">${sign}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">sig</stringProp>
+              </elementProp>
+              <elementProp name="total" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">0.01</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">total</stringProp>
+              </elementProp>
+              <elementProp name="pay_type" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">2</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">pay_type</stringProp>
+              </elementProp>
+              <elementProp name="dinners_number" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">0</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">dinners_number</stringProp>
+              </elementProp>
+              <elementProp name="caution" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value"></stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">caution</stringProp>
+              </elementProp>
+              <elementProp name="order_phone_number" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value"></stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">order_phone_number</stringProp>
+              </elementProp>
+              <elementProp name="timestamp" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">1752731810</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">timestamp</stringProp>
+              </elementProp>
+              <elementProp name="recipient_address_desensitization" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">尤克里里（1号楼）</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">recipient_address_desensitization</stringProp>
+              </elementProp>
+              <elementProp name="estimate_arrival_time" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">1752742609</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">estimate_arrival_time</stringProp>
+              </elementProp>
+              <elementProp name="utime" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">1752731799</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">utime</stringProp>
+              </elementProp>
+              <elementProp name="is_third_shipping" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">0</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">is_third_shipping</stringProp>
+              </elementProp>
+              <elementProp name="recipient_address" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">尤克里里 (1号楼)@#西藏自治区林芝市墨脱县甘登乡色金拉</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">recipient_address</stringProp>
+              </elementProp>
+              <elementProp name="poi_receive_detail_yuan" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">{   &quot;actOrderChargeByConsumer&quot;: [{     &quot;comment&quot;: &quot;减配送费4.0元&quot;,     &quot;feeTypeDesc&quot;: &quot;活动款&quot;,     &quot;feeTypeId&quot;: 10019,     &quot;money&quot;: &quot;0.00&quot;   }],   &quot;actOrderChargeByMt&quot;: [{     &quot;comment&quot;: &quot;活动款&quot;,     &quot;feeTypeDesc&quot;: &quot;活动款&quot;,     &quot;feeTypeId&quot;: 10019,     &quot;money&quot;: &quot;0.00&quot;   }],   &quot;actOrderChargeByPoi&quot;: [{     &quot;comment&quot;: &quot;减配送费4.0元&quot;,     &quot;feeTypeDesc&quot;: &quot;活动款&quot;,     &quot;feeTypeId&quot;: 10019,     &quot;money&quot;: &quot;0.01&quot;   }],   &quot;foodShareFeeChargeByPoi&quot;: &quot;0.00&quot;,   &quot;logisticsFee&quot;: &quot;0.01&quot;,   &quot;onlinePayment&quot;: &quot;0.01&quot;,   &quot;poiReceive&quot;: &quot;0.01&quot;,   &quot;reconciliationExtras&quot;: &quot;{\&quot;chargeMode\&quot;:1,\&quot;performanceServiceFee\&quot;:\&quot;0.00\&quot;,\&quot;commissionAllowanceFee\&quot;:0.0,\&quot;pdbChargeFee\&quot;:0.0}&quot; }</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">poi_receive_detail_yuan</stringProp>
+              </elementProp>
+              <elementProp name="app_poi_code" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">t_uy6lZyDLRt</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">app_poi_code</stringProp>
+              </elementProp>
+              <elementProp name="invMakeType" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">0</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">invMakeType</stringProp>
+              </elementProp>
+              <elementProp name="is_favorites" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">true</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">is_favorites</stringProp>
+              </elementProp>
+              <elementProp name="has_invoiced" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">0</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">has_invoiced</stringProp>
+              </elementProp>
+              <elementProp name="day_seq" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">2</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">day_seq</stringProp>
+              </elementProp>
+              <elementProp name="taxpayer_id" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value"></stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">taxpayer_id</stringProp>
+              </elementProp>
+              <elementProp name="lowincome_order" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">0</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">lowincome_order</stringProp>
+              </elementProp>
+              <elementProp name="wm_poi_address" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">南极站4号站</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">wm_poi_address</stringProp>
+              </elementProp>
+              <elementProp name="wm_order_id_view" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">2401689951794752172</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">wm_order_id_view</stringProp>
+              </elementProp>
+            </collectionProp>
+          </elementProp>
+        </HTTPSamplerProxy>
+        <hashTree/>
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="orderConfirmed" enabled="false">
+          <stringProp name="HTTPSampler.contentEncoding">utf-8</stringProp>
+          <stringProp name="HTTPSampler.path">/intelligence-order-listener/mtjbp/brand/order/confirmed</stringProp>
+          <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+          <stringProp name="HTTPSampler.method">POST</stringProp>
+          <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+          <boolProp name="HTTPSampler.postBodyRaw">false</boolProp>
+          <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables">
+            <collectionProp name="Arguments.arguments">
+              <elementProp name="original_price" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">0.02</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">original_price</stringProp>
+              </elementProp>
+              <elementProp name="is_pre_sale_order" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">false</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">is_pre_sale_order</stringProp>
+              </elementProp>
+              <elementProp name="order_entrance_type" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">0</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">order_entrance_type</stringProp>
+              </elementProp>
+              <elementProp name="channel" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value"></stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">channel</stringProp>
+              </elementProp>
+              <elementProp name="delivery_time" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">0</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">delivery_time</stringProp>
+              </elementProp>
+              <elementProp name="delivery_available" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">0</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">delivery_available</stringProp>
+              </elementProp>
+              <elementProp name="avg_send_time" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">10803.0</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">avg_send_time</stringProp>
+              </elementProp>
+              <elementProp name="open_uid" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">9203133549</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">open_uid</stringProp>
+              </elementProp>
+              <elementProp name="ctime" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">1752735637</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">ctime</stringProp>
+              </elementProp>
+              <elementProp name="app_id" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">9038</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">app_id</stringProp>
+              </elementProp>
+              <elementProp name="longitude" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">95.369272</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">longitude</stringProp>
+              </elementProp>
+              <elementProp name="sqt_need_invoice" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">0</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">sqt_need_invoice</stringProp>
+              </elementProp>
+              <elementProp name="package_bag_money" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">0</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">package_bag_money</stringProp>
+              </elementProp>
+              <elementProp name="shipper_phone" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value"></stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">shipper_phone</stringProp>
+              </elementProp>
+              <elementProp name="logistics_code" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">0000</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">logistics_code</stringProp>
+              </elementProp>
+              <elementProp name="package_bag_money_yuan" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">0.00</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">package_bag_money_yuan</stringProp>
+              </elementProp>
+              <elementProp name="shipping_fee" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">0.01</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">shipping_fee</stringProp>
+              </elementProp>
+              <elementProp name="wm_poi_id" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">2698095</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">wm_poi_id</stringProp>
+              </elementProp>
+              <elementProp name="poi_receive_detail" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">{     &quot;act_order_charge_by_consumer&quot;: [       {         &quot;comment&quot;: &quot;减配送费4.0元&quot;,         &quot;fee_type_desc&quot;: &quot;活动款&quot;,         &quot;fee_type_id&quot;: 10019,         &quot;money_cent&quot;: 0       }     ],     &quot;act_order_charge_by_mt&quot;: [       {         &quot;comment&quot;: &quot;活动款&quot;,         &quot;fee_type_desc&quot;: &quot;活动款&quot;,         &quot;fee_type_id&quot;: 10019,         &quot;money_cent&quot;: 0       }     ],     &quot;act_order_charge_by_poi&quot;: [       {         &quot;comment&quot;: &quot;减配送费4.0元&quot;,         &quot;fee_type_desc&quot;: &quot;活动款&quot;,         &quot;fee_type_id&quot;: 10019,         &quot;money_cent&quot;: 1       }     ],     &quot;food_share_fee_charge_by_poi&quot;: 0,     &quot;logistics_fee&quot;: 1,     &quot;online_payment&quot;: 1,     &quot;reconciliation_extras&quot;: &quot;{\&quot;chargeMode\&quot;:1,\&quot;performanceServiceFee\&quot;:0.0,\&quot;commissionAllowanceFee\&quot;:0.0,\&quot;pdbChargeFee\&quot;:0.0}&quot;,     &quot;wm_poi_receive_cent&quot;: 1   }</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">poi_receive_detail</stringProp>
+              </elementProp>
+              <elementProp name="detail" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">[     {       &quot;actual_price&quot;: 0.01,       &quot;app_food_code&quot;: &quot;SH18798756079&quot;,       &quot;attr_counts&quot;: &quot;1&quot;,       &quot;attr_names&quot;: &quot;份量&quot;,       &quot;box_num&quot;: 1.0,       &quot;box_price&quot;: 0.0,       &quot;cart_id&quot;: 0,       &quot;detail_extra&quot;: {},       &quot;detail_id&quot;: 6837569169941,       &quot;food_discount&quot;: 1.0,       &quot;food_name&quot;: &quot;郑-单品0&quot;,       &quot;food_property&quot;: &quot;1人份&quot;,       &quot;is_sharp_shooter&quot;: false,       &quot;mt_sku_id&quot;: 25223369288,       &quot;mt_spu_id&quot;: 29900701178,       &quot;mt_tag_id&quot;: 12184731003,       &quot;original_price&quot;: 0.01,       &quot;price&quot;: 0.01,       &quot;quantity&quot;: 1,       &quot;single_increase_amount&quot;: 0.0,       &quot;sku_id&quot;: &quot;31292141405&quot;,       &quot;spec&quot;: &quot;&quot;,       &quot;sub_detail_list&quot;: [],       &quot;unit&quot;: &quot;1人份&quot;,       &quot;weight&quot;: -2     }   ]</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">detail</stringProp>
+              </elementProp>
+              <elementProp name="incmp_modules" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">[]</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">incmp_modules</stringProp>
+              </elementProp>
+              <elementProp name="recipient_name" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">林先生</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">recipient_name</stringProp>
+              </elementProp>
+              <elementProp name="pdb_order" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">false</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">pdb_order</stringProp>
+              </elementProp>
+              <elementProp name="order_id" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">${order_id}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">order_id</stringProp>
+              </elementProp>
+              <elementProp name="wm_poi_phone" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">4009208801</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">wm_poi_phone</stringProp>
+              </elementProp>
+              <elementProp name="recipient_phone" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">13123313102</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">recipient_phone</stringProp>
+              </elementProp>
+              <elementProp name="status" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">4</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">status</stringProp>
+              </elementProp>
+              <elementProp name="city_id" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">999999</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">city_id</stringProp>
+              </elementProp>
+              <elementProp name="wm_poi_receive_cent" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">1</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">wm_poi_receive_cent</stringProp>
+              </elementProp>
+              <elementProp name="incmp_code" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">0</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">incmp_code</stringProp>
+              </elementProp>
+              <elementProp name="wm_poi_name" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">t_uy6lZyDLRt</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">wm_poi_name</stringProp>
+              </elementProp>
+              <elementProp name="backup_recipient_phone" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">[]</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">backup_recipient_phone</stringProp>
+              </elementProp>
+              <elementProp name="pick_type" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">0</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">pick_type</stringProp>
+              </elementProp>
+              <elementProp name="order_tag_list" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">[]</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">order_tag_list</stringProp>
+              </elementProp>
+              <elementProp name="invoice_title" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value"></stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">invoice_title</stringProp>
+              </elementProp>
+              <elementProp name="latitude" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">29.774491</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">latitude</stringProp>
+              </elementProp>
+              <elementProp name="extras" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">[     {       &quot;consumer_prepay&quot;: 0.0,       &quot;mt_charge&quot;: 0.0,       &quot;poi_charge&quot;: 0.01,       &quot;reduce_fee&quot;: 0.01,       &quot;remark&quot;: &quot;减配送费4.0元&quot;,       &quot;type&quot;: 25     },     {}   ]</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">extras</stringProp>
+              </elementProp>
+              <elementProp name="phf_ssf" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">0.0</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">phf_ssf</stringProp>
+              </elementProp>
+              <elementProp name="is_poi_first_order" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">false</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">is_poi_first_order</stringProp>
+              </elementProp>
+              <elementProp name="total_weight" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">0</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">total_weight</stringProp>
+              </elementProp>
+              <elementProp name="sqt_order" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">2</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">sqt_order</stringProp>
+              </elementProp>
+              <elementProp name="sig" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">c724512814aad127f6661c548aed0e6e</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">sig</stringProp>
+              </elementProp>
+              <elementProp name="total" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">0.01</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">total</stringProp>
+              </elementProp>
+              <elementProp name="pay_type" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">2</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">pay_type</stringProp>
+              </elementProp>
+              <elementProp name="dinners_number" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">0</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">dinners_number</stringProp>
+              </elementProp>
+              <elementProp name="caution" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value"></stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">caution</stringProp>
+              </elementProp>
+              <elementProp name="order_phone_number" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value"></stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">order_phone_number</stringProp>
+              </elementProp>
+              <elementProp name="timestamp" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">1752735643</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">timestamp</stringProp>
+              </elementProp>
+              <elementProp name="recipient_address_desensitization" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">尤克里里(1号楼)</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">recipient_address_desensitization</stringProp>
+              </elementProp>
+              <elementProp name="estimate_arrival_time" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">1752746440</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">estimate_arrival_time</stringProp>
+              </elementProp>
+              <elementProp name="utime" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">1752735641</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">utime</stringProp>
+              </elementProp>
+              <elementProp name="is_third_shipping" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">0</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">is_third_shipping</stringProp>
+              </elementProp>
+              <elementProp name="recipient_address" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">尤克里里+(1号楼)@#西藏自治区林芝市墨脱县甘登乡色金拉</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">recipient_address</stringProp>
+              </elementProp>
+              <elementProp name="poi_receive_detail_yuan" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">{     &quot;act_order_charge_by_consumer&quot;: [       {         &quot;comment&quot;: &quot;减配送费4.0元&quot;,         &quot;fee_type_desc&quot;: &quot;活动款&quot;,         &quot;fee_type_id&quot;: 10019,         &quot;money&quot;: &quot;0.00&quot;       }     ],     &quot;act_order_charge_by_mt&quot;: [       {         &quot;comment&quot;: &quot;活动款&quot;,         &quot;fee_type_desc&quot;: &quot;活动款&quot;,         &quot;fee_type_id&quot;: 10019,         &quot;money&quot;: &quot;0.00&quot;       }     ],     &quot;act_order_charge_by_poi&quot;: [       {         &quot;comment&quot;: &quot;减配送费4.0元&quot;,         &quot;fee_type_desc&quot;: &quot;活动款&quot;,         &quot;fee_type_id&quot;: 10019,         &quot;money&quot;: &quot;0.01&quot;       }     ],     &quot;food_share_fee_charge_by_poi&quot;: &quot;0.00&quot;,     &quot;logistics_fee&quot;: &quot;0.01&quot;,     &quot;online_payment&quot;: &quot;0.01&quot;,     &quot;poi_receive&quot;: &quot;0.01&quot;,     &quot;reconciliation_extras&quot;: &quot;{\&quot;chargeMode\&quot;:1,\&quot;performanceServiceFee\&quot;:\&quot;0.00\&quot;,\&quot;commissionAllowanceFee\&quot;:0.0,\&quot;pdbChargeFee\&quot;:0.0}&quot;   }</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">poi_receive_detail_yuan</stringProp>
+              </elementProp>
+              <elementProp name="app_poi_code" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">t_uy6lZyDLRt</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">app_poi_code</stringProp>
+              </elementProp>
+              <elementProp name="inv_make_type" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">0</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">inv_make_type</stringProp>
+              </elementProp>
+              <elementProp name="is_favorites" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">true</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">is_favorites</stringProp>
+              </elementProp>
+              <elementProp name="has_invoiced" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">0</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">has_invoiced</stringProp>
+              </elementProp>
+              <elementProp name="day_seq" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">3</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">day_seq</stringProp>
+              </elementProp>
+              <elementProp name="taxpayer_id" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value"></stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">taxpayer_id</stringProp>
+              </elementProp>
+              <elementProp name="lowincome_order" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">0</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">lowincome_order</stringProp>
+              </elementProp>
+              <elementProp name="wm_poi_address" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">南极站4号站</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">wm_poi_address</stringProp>
+              </elementProp>
+              <elementProp name="wm_order_id_view" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">2401690020050238686</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">wm_order_id_view</stringProp>
+              </elementProp>
+            </collectionProp>
+          </elementProp>
+        </HTTPSamplerProxy>
+        <hashTree/>
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="orderDeliverStatus" enabled="false">
+          <stringProp name="HTTPSampler.contentEncoding">utf-8</stringProp>
+          <stringProp name="HTTPSampler.path">/intelligence-order-listener/mtjbp/brand/order/deliverStatus</stringProp>
+          <stringProp name="HTTPSampler.method">POST</stringProp>
+          <boolProp name="HTTPSampler.postBodyRaw">false</boolProp>
+          <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables">
+            <collectionProp name="Arguments.arguments">
+              <elementProp name="app_id" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">9038</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">app_id</stringProp>
+              </elementProp>
+              <elementProp name="logistics_status" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">0</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">logistics_status</stringProp>
+              </elementProp>
+              <elementProp name="order_id" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">${order_id}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">order_id</stringProp>
+              </elementProp>
+              <elementProp name="order_tag_list" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">[16]</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">order_tag_list</stringProp>
+                <stringProp name="HTTPArgument.content_type">text/plain</stringProp>
+              </elementProp>
+              <elementProp name="sig" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">bec833518d38c4b4eb939725c41e6709</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">sig</stringProp>
+              </elementProp>
+              <elementProp name="time" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">1750262400</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">time</stringProp>
+              </elementProp>
+              <elementProp name="timestamp" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">1750262400</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">timestamp</stringProp>
+              </elementProp>
+              <elementProp name="dispatcher_mobile" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value"></stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">dispatcher_mobile</stringProp>
+              </elementProp>
+              <elementProp name="dispatcher_name" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value"></stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">dispatcher_name</stringProp>
+              </elementProp>
+            </collectionProp>
+          </elementProp>
+        </HTTPSamplerProxy>
+        <hashTree/>
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="orderCompleted">
+          <stringProp name="HTTPSampler.contentEncoding">utf-8</stringProp>
+          <stringProp name="HTTPSampler.path">/intelligence-order-listener/mtjbp/brand/order/completed</stringProp>
+          <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+          <stringProp name="HTTPSampler.method">POST</stringProp>
+          <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+          <boolProp name="HTTPSampler.postBodyRaw">false</boolProp>
+          <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables">
+            <collectionProp name="Arguments.arguments">
+              <elementProp name="original_price" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">0.02</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">original_price</stringProp>
+              </elementProp>
+              <elementProp name="is_pre_sale_order" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">false</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">is_pre_sale_order</stringProp>
+              </elementProp>
+              <elementProp name="order_entrance_type" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">0</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">order_entrance_type</stringProp>
+              </elementProp>
+              <elementProp name="channel" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value"></stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">channel</stringProp>
+              </elementProp>
+              <elementProp name="delivery_time" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">0</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">delivery_time</stringProp>
+              </elementProp>
+              <elementProp name="delivery_available" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">0</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">delivery_available</stringProp>
+              </elementProp>
+              <elementProp name="avg_send_time" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">10810.0</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">avg_send_time</stringProp>
+              </elementProp>
+              <elementProp name="open_uid" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">9203133549</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">open_uid</stringProp>
+              </elementProp>
+              <elementProp name="ctime" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">1752731799</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">ctime</stringProp>
+              </elementProp>
+              <elementProp name="app_id" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">9038</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">app_id</stringProp>
+              </elementProp>
+              <elementProp name="longitude" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">95.369272</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">longitude</stringProp>
+              </elementProp>
+              <elementProp name="sqt_need_invoice" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">0</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">sqt_need_invoice</stringProp>
+              </elementProp>
+              <elementProp name="package_bag_money" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">0</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">package_bag_money</stringProp>
+              </elementProp>
+              <elementProp name="shipper_phone" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value"></stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">shipper_phone</stringProp>
+              </elementProp>
+              <elementProp name="logistics_code" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">0000</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">logistics_code</stringProp>
+              </elementProp>
+              <elementProp name="package_bag_money_yuan" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">0.00</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">package_bag_money_yuan</stringProp>
+              </elementProp>
+              <elementProp name="shipping_fee" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">0.01</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">shipping_fee</stringProp>
+              </elementProp>
+              <elementProp name="wm_poi_id" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">2698095</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">wm_poi_id</stringProp>
+              </elementProp>
+              <elementProp name="poi_receive_detail" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">{     &quot;act_order_charge_by_consumer&quot;: [       {         &quot;comment&quot;: &quot;减配送费4.0元&quot;,         &quot;fee_type_desc&quot;: &quot;活动款&quot;,         &quot;fee_type_id&quot;: 10019,         &quot;money_cent&quot;: 0       }     ],     &quot;act_order_charge_by_mt&quot;: [       {         &quot;comment&quot;: &quot;活动款&quot;,         &quot;fee_type_desc&quot;: &quot;活动款&quot;,         &quot;fee_type_id&quot;: 10019,         &quot;money_cent&quot;: 0       }     ],     &quot;act_order_charge_by_poi&quot;: [       {         &quot;comment&quot;: &quot;减配送费4.0元&quot;,         &quot;fee_type_desc&quot;: &quot;活动款&quot;,         &quot;fee_type_id&quot;: 10019,         &quot;money_cent&quot;: 1       }     ],     &quot;food_share_fee_charge_by_poi&quot;: 0,     &quot;logistics_fee&quot;: 1,     &quot;online_payment&quot;: 1,     &quot;reconciliation_extras&quot;: &quot;{\&quot;chargeMode\&quot;:1,\&quot;performanceServiceFee\&quot;:0.0,\&quot;commissionAllowanceFee\&quot;:0.0,\&quot;pdbChargeFee\&quot;:0.0}&quot;,     &quot;wm_poi_receive_cent&quot;: 1   }</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">poi_receive_detail</stringProp>
+              </elementProp>
+              <elementProp name="detail" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">[     {       &quot;actual_price&quot;: 0.01,       &quot;app_food_code&quot;: &quot;SH18798756079&quot;,       &quot;attr_counts&quot;: &quot;1&quot;,       &quot;attr_names&quot;: &quot;份量&quot;,       &quot;box_num&quot;: 1.0,       &quot;box_price&quot;: 0.0,       &quot;cart_id&quot;: 0,       &quot;detail_extra&quot;: {},       &quot;detail_id&quot;: 6837016858965,       &quot;food_discount&quot;: 1.0,       &quot;food_name&quot;: &quot;郑-单品0&quot;,       &quot;food_property&quot;: &quot;1人份&quot;,       &quot;is_sharp_shooter&quot;: false,       &quot;mt_sku_id&quot;: 25223369288,       &quot;mt_spu_id&quot;: 29900701178,       &quot;mt_tag_id&quot;: 12184731003,       &quot;original_price&quot;: 0.01,       &quot;price&quot;: 0.01,       &quot;quantity&quot;: 1,       &quot;single_increase_amount&quot;: 0.0,       &quot;sku_id&quot;: &quot;31292141405&quot;,       &quot;spec&quot;: &quot;&quot;,       &quot;sub_detail_list&quot;: [],       &quot;unit&quot;: &quot;1人份&quot;,       &quot;weight&quot;: -2     }   ]</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">detail</stringProp>
+              </elementProp>
+              <elementProp name="incmp_modules" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">[]</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">incmp_modules</stringProp>
+              </elementProp>
+              <elementProp name="recipient_name" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">林先生</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">recipient_name</stringProp>
+              </elementProp>
+              <elementProp name="pdb_order" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">false</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">pdb_order</stringProp>
+              </elementProp>
+              <elementProp name="order_id" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">${order_id}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">order_id</stringProp>
+              </elementProp>
+              <elementProp name="wm_poi_phone" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">4009208801</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">wm_poi_phone</stringProp>
+              </elementProp>
+              <elementProp name="recipient_phone" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">13123313102</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">recipient_phone</stringProp>
+              </elementProp>
+              <elementProp name="status" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">8</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">status</stringProp>
+              </elementProp>
+              <elementProp name="city_id" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">999999</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">city_id</stringProp>
+              </elementProp>
+              <elementProp name="wm_poi_receive_cent" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">1</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">wm_poi_receive_cent</stringProp>
+              </elementProp>
+              <elementProp name="incmp_code" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">0</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">incmp_code</stringProp>
+              </elementProp>
+              <elementProp name="wm_poi_name" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">t_uy6lZyDLRt</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">wm_poi_name</stringProp>
+              </elementProp>
+              <elementProp name="backup_recipient_phone" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">[]</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">backup_recipient_phone</stringProp>
+              </elementProp>
+              <elementProp name="pick_type" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">0</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">pick_type</stringProp>
+              </elementProp>
+              <elementProp name="order_tag_list" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">[]</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">order_tag_list</stringProp>
+              </elementProp>
+              <elementProp name="invoice_title" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value"></stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">invoice_title</stringProp>
+              </elementProp>
+              <elementProp name="latitude" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">29.774491</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">latitude</stringProp>
+              </elementProp>
+              <elementProp name="extras" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">[     {       &quot;consumer_prepay&quot;: 0.0,       &quot;mt_charge&quot;: 0.0,       &quot;poi_charge&quot;: 0.01,       &quot;reduce_fee&quot;: 0.01,       &quot;remark&quot;: &quot;减配送费4.0元&quot;,       &quot;type&quot;: 25     },     {}   ]</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">extras</stringProp>
+              </elementProp>
+              <elementProp name="phf_ssf" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">0.0</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">phf_ssf</stringProp>
+              </elementProp>
+              <elementProp name="is_poi_first_order" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">false</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">is_poi_first_order</stringProp>
+              </elementProp>
+              <elementProp name="total_weight" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">0</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">total_weight</stringProp>
+              </elementProp>
+              <elementProp name="sqt_order" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">2</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">sqt_order</stringProp>
+              </elementProp>
+              <elementProp name="sig" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">e6646394bd8b6e2114797024e4c45c04</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">sig</stringProp>
+              </elementProp>
+              <elementProp name="total" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">0.01</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">total</stringProp>
+              </elementProp>
+              <elementProp name="pay_type" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">2</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">pay_type</stringProp>
+              </elementProp>
+              <elementProp name="dinners_number" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">0</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">dinners_number</stringProp>
+              </elementProp>
+              <elementProp name="caution" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value"></stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">caution</stringProp>
+              </elementProp>
+              <elementProp name="order_phone_number" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value"></stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">order_phone_number</stringProp>
+              </elementProp>
+              <elementProp name="timestamp" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">1752735664</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">timestamp</stringProp>
+              </elementProp>
+              <elementProp name="recipient_address_desensitization" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">尤克里里(1号楼)</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">recipient_address_desensitization</stringProp>
+              </elementProp>
+              <elementProp name="estimate_arrival_time" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">1752742609</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">estimate_arrival_time</stringProp>
+              </elementProp>
+              <elementProp name="utime" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">1752735663</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">utime</stringProp>
+              </elementProp>
+              <elementProp name="is_third_shipping" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">0</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">is_third_shipping</stringProp>
+              </elementProp>
+              <elementProp name="recipient_address" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">尤克里里+(1号楼)@#西藏自治区林芝市墨脱县甘登乡色金拉</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">recipient_address</stringProp>
+              </elementProp>
+              <elementProp name="poi_receive_detail_yuan" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">{     &quot;act_order_charge_by_consumer&quot;: [       {         &quot;comment&quot;: &quot;减配送费4.0元&quot;,         &quot;fee_type_desc&quot;: &quot;活动款&quot;,         &quot;fee_type_id&quot;: 10019,         &quot;money&quot;: &quot;0.00&quot;       }     ],     &quot;act_order_charge_by_mt&quot;: [       {         &quot;comment&quot;: &quot;活动款&quot;,         &quot;fee_type_desc&quot;: &quot;活动款&quot;,         &quot;fee_type_id&quot;: 10019,         &quot;money&quot;: &quot;0.00&quot;       }     ],     &quot;act_order_charge_by_poi&quot;: [       {         &quot;comment&quot;: &quot;减配送费4.0元&quot;,         &quot;fee_type_desc&quot;: &quot;活动款&quot;,         &quot;fee_type_id&quot;: 10019,         &quot;money&quot;: &quot;0.01&quot;       }     ],     &quot;food_share_fee_charge_by_poi&quot;: &quot;0.00&quot;,     &quot;logistics_fee&quot;: &quot;0.01&quot;,     &quot;online_payment&quot;: &quot;0.01&quot;,     &quot;poi_receive&quot;: &quot;0.01&quot;,     &quot;reconciliation_extras&quot;: &quot;{\&quot;chargeMode\&quot;:1,\&quot;performanceServiceFee\&quot;:\&quot;0.00\&quot;,\&quot;commissionAllowanceFee\&quot;:0.0,\&quot;pdbChargeFee\&quot;:0.0}&quot;   }</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">poi_receive_detail_yuan</stringProp>
+              </elementProp>
+              <elementProp name="app_poi_code" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">t_uy6lZyDLRt</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">app_poi_code</stringProp>
+              </elementProp>
+              <elementProp name="inv_make_type" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">0</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">inv_make_type</stringProp>
+              </elementProp>
+              <elementProp name="is_favorites" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">true</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">is_favorites</stringProp>
+              </elementProp>
+              <elementProp name="has_invoiced" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">0</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">has_invoiced</stringProp>
+              </elementProp>
+              <elementProp name="day_seq" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">2</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">day_seq</stringProp>
+              </elementProp>
+              <elementProp name="taxpayer_id" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value"></stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">taxpayer_id</stringProp>
+              </elementProp>
+              <elementProp name="lowincome_order" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">0</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">lowincome_order</stringProp>
+              </elementProp>
+              <elementProp name="wm_poi_address" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">南极站4号站</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">wm_poi_address</stringProp>
+              </elementProp>
+              <elementProp name="wm_order_id_view" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">2401689951794752172</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">wm_order_id_view</stringProp>
+              </elementProp>
+            </collectionProp>
+          </elementProp>
+        </HTTPSamplerProxy>
+        <hashTree/>
+        <ResultCollector guiclass="SummaryReport" testclass="ResultCollector" testname="Summary Report" enabled="false">
+          <boolProp name="ResultCollector.error_logging">false</boolProp>
+          <objProp>
+            <name>saveConfig</name>
+            <value class="SampleSaveConfiguration">
+              <time>true</time>
+              <latency>true</latency>
+              <timestamp>true</timestamp>
+              <success>true</success>
+              <label>true</label>
+              <code>true</code>
+              <message>true</message>
+              <threadName>true</threadName>
+              <dataType>true</dataType>
+              <encoding>false</encoding>
+              <assertions>true</assertions>
+              <subresults>true</subresults>
+              <responseData>false</responseData>
+              <samplerData>false</samplerData>
+              <xml>false</xml>
+              <fieldNames>true</fieldNames>
+              <responseHeaders>false</responseHeaders>
+              <requestHeaders>false</requestHeaders>
+              <responseDataOnError>false</responseDataOnError>
+              <saveAssertionResultsFailureMessage>true</saveAssertionResultsFailureMessage>
+              <assertionsResultsToSave>0</assertionsResultsToSave>
+              <bytes>true</bytes>
+              <sentBytes>true</sentBytes>
+              <url>true</url>
+              <threadCounts>true</threadCounts>
+              <idleTime>true</idleTime>
+              <connectTime>true</connectTime>
+            </value>
+          </objProp>
+          <stringProp name="filename"></stringProp>
+        </ResultCollector>
+        <hashTree/>
+      </hashTree>
+    </hashTree>
+  </hashTree>
+</jmeterTestPlan>
