@@ -76,12 +76,12 @@
         .log-box .log-warn { color: #dcdcaa; }
         .log-box .log-error { color: #f44747; }
         .log-loading { text-align: center; padding: 16px; color: #888; font-size: 12px; }
-        .form-group { margin-bottom: 14px; }
+        .form-group { margin-bottom: 16px; }
         .form-group label { display: block; font-size: 13px; color: #555; margin-bottom: 6px; font-weight: 500; }
-        .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 8px 12px; border: 1px solid #d0d0d0; border-radius: 4px; font-size: 13px; color: #333; background: #fff; outline: none; transition: border 0.2s; box-sizing: border-box; }
-        .form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: #2563eb; }
+        .form-group input, .form-group select { width: 100%; padding: 8px 12px; border: 1px solid #d0d0d0; border-radius: 4px; font-size: 13px; color: #333; background: #fff; outline: none; transition: border 0.2s; }
+        .form-group input:focus, .form-group select:focus { border-color: #2563eb; }
         .form-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
-        .form-actions { display: flex; gap: 8px; margin-top: 16px; padding-top: 16px; border-top: 1px solid #e0e0e0; }
+        .form-actions { display: flex; gap: 8px; margin-top: 20px; }
         .live-bar { display: flex; gap: 16px; padding: 12px 16px; background: #f0f7ff; border: 1px solid #bfdbfe; border-radius: 6px; margin-bottom: 16px; font-size: 13px; }
         .live-bar .item { display: flex; align-items: center; gap: 6px; }
         .live-bar .dot { width: 8px; height: 8px; border-radius: 50%; background: #2563eb; animation: pulse 1.5s infinite; }
@@ -103,7 +103,6 @@
             <button onclick="showPage('data')">数据管理</button>
             <button onclick="showPage('nodes')">施压节点</button>
             <button onclick="showPage('compare')">任务对比</button>
-            <button onclick="showPage('jtl')">JTL 对比</button>
             <button onclick="showPage('templates')">模板管理</button>
             <button onclick="showPage('schedule')">定时调度</button>
             <button onclick="showPage('notify')">通知设置</button>
@@ -380,182 +379,100 @@
 
         <!-- 创建任务 -->
         <div id="page-create" class="hidden">
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:1300px;align-items:start;">
-                <!-- 左侧：配置表单 -->
-                <div class="task-list" style="overflow-y:auto;max-height:calc(100vh - 100px);">
-                    <h3>创建测试任务</h3>
-                    <div class="form-group">
-                        <label>选择脚本</label>
-                        <select id="create-script"></select>
-                    </div>
-                    <div class="form-group">
-                        <label>施压节点</label>
-                        <select id="create-nodes"></select>
-                    </div>
-
-                    <!-- 并发场景选择 -->
-                    <div class="form-group">
-                        <label>压测场景</label>
-                        <select id="create-scenario" onchange="onScenarioChange()">
-                            <option value="custom">自定义配置</option>
-                            <option value="smoke">冒烟测试 - 极低并发快速验证</option>
-                            <option value="load">负载测试 - 模拟正常业务负载</option>
-                            <option value="stress">压力测试 - 逐步加压找瓶颈</option>
-                            <option value="spike">尖刺测试 - 模拟秒杀/抢购突发流量</option>
-                            <option value="step">阶梯加压 - 分步递增观察趋势</option>
-                            <option value="peak">峰值测试 - 高并发持续压力</option>
-                            <option value="endurance">稳定性测试 - 长时间运行检测泄漏</option>
-                            <option value="spike-recovery">尖刺恢复 - 冲击后观察恢复能力</option>
-                            <option value="ramp-hold-cool">加压-保持-冷却 - 模拟真实业务波峰</option>
-                            <option value="double-peak">双峰测试 - 两个连续业务高峰</option>
-                        </select>
-                    </div>
-
-                    <!-- 历史场景记录 -->
-                    <div id="script-history" style="display:none;border:1px solid #e8f0fe;border-radius:6px;padding:10px 12px;background:#f8fbff;margin-bottom:12px;">
-                        <div style="font-size:12px;font-weight:500;color:#2563eb;margin-bottom:6px;">📋 该脚本的历史压测记录</div>
-                        <div id="script-history-content" style="font-size:12px;color:#666;line-height:1.8;"></div>
-                    </div>
-
-                    <div class="form-row">
+            <div class="task-list" style="margin-bottom:16px;">
+                <h3>创建测试任务</h3>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+                    <div>
                         <div class="form-group">
-                            <label>最大并发数</label>
-                            <input type="number" id="create-threads" value="10" min="1" max="10000" oninput="updateScenarioPreview()">
+                            <label>选择脚本</label>
+                            <select id="create-script"></select>
                         </div>
                         <div class="form-group">
-                            <label>预热时间（秒）</label>
-                            <input type="number" id="create-ramp" value="10" min="0" oninput="updateScenarioPreview()">
+                            <label>施压节点</label>
+                            <select id="create-nodes"></select>
                         </div>
                         <div class="form-group">
-                            <label>持续时间（秒）</label>
-                            <input type="number" id="create-duration" value="60" min="1" oninput="updateScenarioPreview()">
+                            <label>压测场景</label>
+                            <select id="create-scenario" onchange="onScenarioChange()">
+                                <option value="custom">自定义配置</option>
+                                <option value="smoke">冒烟测试 - 5并发/1分钟</option>
+                                <option value="load">负载测试 - 100并发/10分钟</option>
+                                <option value="stress">压力测试 - 500并发/15分钟</option>
+                                <option value="spike">尖刺测试 - 1000并发/2分钟</option>
+                                <option value="step">阶梯加压 - 200并发/10分钟</option>
+                                <option value="peak">峰值测试 - 300并发/30分钟</option>
+                                <option value="endurance">稳定性测试 - 80并发/2小时</option>
+                                <option value="spike-recovery">尖刺恢复 - 800并发/5分钟</option>
+                                <option value="ramp-hold-cool">加压-保持-冷却 - 200并发/10分钟</option>
+                                <option value="double-peak">双峰测试 - 300并发/10分钟</option>
+                            </select>
                         </div>
-                    </div>
-
-                    <!-- 高级场景参数 -->
-                    <div id="scenario-advanced" style="display:none;border-top:1px solid #e0e0e0;padding-top:12px;margin-top:8px;">
-                        <div style="font-size:12px;color:#888;margin-bottom:8px;">场景高级参数</div>
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label>阶梯数</label>
-                                <input type="number" id="create-steps" value="5" min="2" max="20" oninput="updateScenarioPreview()">
+                        <div style="border:1px solid #e0e0e0;border-radius:6px;padding:12px;background:#fafafa;">
+                            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;">
+                                <div style="text-align:center;">
+                                    <div style="font-size:11px;color:#888;margin-bottom:4px;">并发数</div>
+                                    <input type="number" id="create-threads" value="10" min="1" max="10000" oninput="updateScenarioPreview()" style="width:100%;padding:8px;border:1px solid #d0d0d0;border-radius:4px;font-size:16px;font-weight:bold;text-align:center;">
+                                </div>
+                                <div style="text-align:center;">
+                                    <div style="font-size:11px;color:#888;margin-bottom:4px;">预热(s)</div>
+                                    <input type="number" id="create-ramp" value="10" min="0" oninput="updateScenarioPreview()" style="width:100%;padding:8px;border:1px solid #d0d0d0;border-radius:4px;font-size:16px;font-weight:bold;text-align:center;">
+                                </div>
+                                <div style="text-align:center;">
+                                    <div style="font-size:11px;color:#888;margin-bottom:4px;">持续(s)</div>
+                                    <input type="number" id="create-duration" value="60" min="1" oninput="updateScenarioPreview()" style="width:100%;padding:8px;border:1px solid #d0d0d0;border-radius:4px;font-size:16px;font-weight:bold;text-align:center;">
+                                </div>
+                                <div style="text-align:center;">
+                                    <div style="font-size:11px;color:#888;margin-bottom:4px;">超时(s)</div>
+                                    <input type="number" id="create-timeout" value="300" min="10" style="width:100%;padding:8px;border:1px solid #d0d0d0;border-radius:4px;font-size:16px;font-weight:bold;text-align:center;">
+                                </div>
                             </div>
-                            <div class="form-group">
-                                <label>每阶梯持续（秒）</label>
-                                <input type="number" id="create-step-duration" value="30" min="5" oninput="updateScenarioPreview()">
-                            </div>
-                            <div class="form-group">
-                                <label>峰值持续（秒）</label>
-                                <input type="number" id="create-peak-duration" value="10" min="1" oninput="updateScenarioPreview()">
-                            </div>
+                            <div id="scenario-desc" style="font-size:12px;color:#666;margin-top:10px;padding-top:10px;border-top:1px solid #e0e0e0;">选择场景后显示说明</div>
                         </div>
-                        <div class="form-group">
-                            <label>自定义阶梯配置（JSON 格式，可选）</label>
-                            <textarea id="create-custom-steps" style="width:100%;height:80px;font-family:monospace;font-size:11px;border:1px solid #d0d0d0;border-radius:4px;padding:8px;" placeholder='[{"threads":10,"duration":30},{"threads":50,"duration":60},{"threads":100,"duration":120}]' oninput="updateScenarioPreview()"></textarea>
-                            <div style="font-size:11px;color:#888;margin-top:4px">格式: [{"threads":线程数,"duration":持续秒数}, ...]</div>
-                        </div>
-                    </div>
-
-                    <!-- 自定义场景构建器 -->
-                    <div id="custom-scenario-builder" style="display:none;border-top:1px solid #e0e0e0;padding-top:12px;margin-top:8px;">
-                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-                            <div style="font-size:12px;color:#888;">自定义阶段配置</div>
-                            <button class="btn-success btn-sm" onclick="addCustomStep()">+ 添加阶段</button>
-                        </div>
-                        <div id="custom-steps-list"></div>
-                        <div style="font-size:11px;color:#888;margin-top:8px;">
-                            每个阶段配置：目标并发数 + 持续时间（秒）。阶段之间会自动平滑过渡。
-                        </div>
-                    </div>
-
-                    <div class="form-group">
-                        <label>超时时间（秒）</label>
-                        <input type="number" id="create-timeout" value="300" min="10">
-                    </div>
-                    <div class="form-group" style="display:flex;align-items:center;gap:12px;flex-wrap:nowrap;">
-                        <label style="margin-bottom:0;display:inline-flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap;">
-                            <input type="checkbox" id="create-distributed"> 分布式模式
-                        </label>
-                        <input type="text" id="create-remote-hosts" placeholder="留空则使用配置的所有 Slave，或指定 IP:端口" style="flex:1;padding:6px 10px;border:1px solid #d0d0d0;border-radius:4px;font-size:12px;display:none">
-                    </div>
-
-                    <!-- CSV 参数化 -->
-                    <div style="border-top:1px solid #e0e0e0;margin-top:12px;padding-top:12px;">
-                        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-                            <input type="checkbox" id="create-use-csv" onchange="toggleCsvOptions()">
-                            <label style="margin-bottom:0;font-weight:500;white-space:nowrap;">使用 CSV 参数化数据</label>
-                        </div>
-                    <div id="csv-options" style="display:none;">
-                        <div class="form-group">
-                            <label style="display:flex;justify-content:space-between;align-items:center;">
-                                <span>选择 CSV 文件</span>
-                                <button class="filter-btn" style="font-size:11px;padding:2px 8px;" onclick="clearCsvSelection()">清空选择</button>
+                        <div style="margin-top:10px;">
+                            <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;">
+                                <input type="checkbox" id="create-distributed"> 分布式模式
                             </label>
-                            <select id="create-csv-file" onchange="previewSelectedCsv()"><option value="">不使用 CSV</option></select>
-                            <div style="font-size:11px;color:#888;margin-top:4px">CSV 文件中的列名将作为 JMeter 变量名，格式: ${变量名}</div>
                         </div>
-                        <div class="form-group">
-                            <label>变量名（可选，留空则使用 CSV 表头）</label>
-                            <input type="text" id="create-csv-vars" placeholder="username,password,email">
-                            <div style="font-size:11px;color:#888;margin-top:4px">多个变量名用逗号分隔，顺序需与 CSV 列一致</div>
+                    </div>
+                    <div>
+                        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+                            <input type="checkbox" id="create-use-csv" onchange="toggleCsvOptions()">
+                            <label style="margin-bottom:0;font-weight:500;">CSV 参数化</label>
                         </div>
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label>分隔符</label>
-                                <input type="text" id="create-csv-delimiter" value=",">
-                            </div>
-                            <div class="form-group">
-                                <label style="display:inline-flex;align-items:center;gap:6px;white-space:nowrap;">
-                                    <input type="checkbox" id="create-csv-recycle" checked> 循环读取
-                                </label>
-                            </div>
-                            <div class="form-group">
-                                <label style="display:inline-flex;align-items:center;gap:6px;white-space:nowrap;">
-                                    <input type="checkbox" id="create-csv-stop"> 读完停止
-                                </label>
+                        <div id="csv-options" style="display:none;">
+                            <div class="form-group"><label>选择 CSV 文件</label><select id="create-csv-file" onchange="previewSelectedCsv()"><option value="">不使用</option></select></div>
+                            <div class="form-group"><label>变量名（可选）</label><input type="text" id="create-csv-vars" placeholder="username,password"></div>
+                            <div id="csv-preview-section" style="display:none;margin-top:8px;">
+                                <div style="font-size:12px;font-weight:500;margin-bottom:6px;">数据预览</div>
+                                <div id="csv-preview-content" style="border:1px solid #d0d0d0;border-radius:6px;overflow:auto;height:200px;background:#fff;"></div>
+                                <div id="csv-preview-info" style="font-size:11px;color:#888;margin-top:4px;"></div>
                             </div>
                         </div>
-                        <!-- CSV 数据预览 -->
-                        <div id="csv-preview-section" style="display:none;margin-top:8px;">
-                            <div style="font-size:12px;font-weight:500;margin-bottom:6px;color:#555;">数据预览</div>
-                            <div id="csv-preview-content" style="border:1px solid #e0e0e0;border-radius:6px;overflow:auto;max-height:200px;">
+                        <div id="script-history" style="display:none;border:1px solid #e8f0fe;border-radius:6px;padding:10px;margin-top:10px;background:#f8fbff;">
+                            <div style="font-size:12px;font-weight:500;color:#2563eb;margin-bottom:4px;">📋 历史压测记录</div>
+                            <div id="script-history-content" style="font-size:12px;color:#666;"></div>
+                        </div>
+                        <div id="scenario-advanced" style="display:none;border:1px solid #e0e0e0;border-radius:6px;padding:10px;margin-top:10px;">
+                            <div style="font-size:12px;color:#888;margin-bottom:4px;">高级参数</div>
+                            <div style="display:flex;gap:8px;">
+                                <div class="form-group" style="flex:1;"><label>阶梯数</label><input type="number" id="create-steps" value="5" min="2" oninput="updateScenarioPreview()"></div>
+                                <div class="form-group" style="flex:1;"><label>每阶梯(s)</label><input type="number" id="create-step-duration" value="30" min="5" oninput="updateScenarioPreview()"></div>
                             </div>
-                            <div id="csv-preview-info" style="font-size:11px;color:#888;margin-top:4px;"></div>
+                        </div>
+                        <div id="custom-scenario-builder" style="display:none;border:1px solid #e0e0e0;border-radius:6px;padding:10px;margin-top:10px;">
+                            <div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span style="font-size:12px;color:#888;">自定义阶段</span><button class="btn-success btn-sm" onclick="addCustomStep()">+ 添加</button></div>
+                            <div id="custom-steps-list"></div>
                         </div>
                     </div>
                 </div>
-
-                <div class="form-actions">
-                    <button class="btn-primary" onclick="submitTask()">启动压测</button>
+                <div style="display:flex;gap:8px;margin-top:16px;padding-top:16px;border-top:1px solid #e0e0e0;">
+                    <button class="btn-primary" onclick="submitTask()" style="padding:10px 24px;">启动压测</button>
                     <button class="filter-btn" onclick="showPage('tasks')">取消</button>
                 </div>
-                </div>
-
-                <!-- 右侧：场景预览图表 -->
-                <div class="task-list" style="position:sticky;top:20px;">
-                    <h3>并发用户曲线预览</h3>
-                    <div id="scenario-preview-chart" style="height:400px;"></div>
-                    <div id="scenario-info" style="margin-top:12px;padding:12px;background:#f8f9fa;border-radius:6px;font-size:12px;color:#666;">
-                        <div style="font-weight:500;margin-bottom:8px;">场景说明</div>
-                        <div id="scenario-desc">选择压测场景后，这里会显示场景说明和参数建议。</div>
-                    </div>
-                    <div style="margin-top:12px;">
-                        <div style="font-size:12px;font-weight:500;margin-bottom:8px;">预设场景说明</div>
-                        <div style="font-size:11px;color:#888;line-height:1.8;">
-                            <div><b style="color:#2563eb">冒烟测试</b>：上线前快速健康检查，验证接口基本可用</div>
-                            <div><b style="color:#16a34a">负载测试</b>：模拟正常业务负载，评估系统容量</div>
-                            <div><b style="color:#d97706">压力测试</b>：逐步加压找到系统瓶颈和极限</div>
-                            <div><b style="color:#dc2626">尖刺测试</b>：模拟秒杀/抢购等突发流量冲击</div>
-                            <div><b style="color:#9333ea">阶梯加压</b>：分步递增观察性能拐点</div>
-                            <div><b style="color:#0891b2">峰值测试</b>：高并发持续压力测试极限</div>
-                            <div><b style="color:#059669">稳定性测试</b>：长时间运行检测内存泄漏</div>
-                            <div><b style="color:#ea580c">尖刺恢复</b>：冲击后观察系统恢复能力</div>
-                            <div><b style="color:#6366f1">加压-保持-冷却</b>：模拟真实业务波峰</div>
-                            <div><b style="color:#be185d">双峰测试</b>：两个连续业务高峰</div>
-                        </div>
-                    </div>
-                    </div>
-                </div>
+            </div>
+            <div class="task-list">
+                <h3>并发用户曲线预览</h3>
+                <div id="scenario-preview-chart" style="height:350px;"></div>
             </div>
         </div>
 
@@ -675,7 +592,7 @@
                         <h3 style="font-size:16px" id="csv-preview-title"></h3>
                         <button class="filter-btn" onclick="closeCsvPreview()">关闭</button>
                     </div>
-                    <div id="csv-preview-content"></div>
+                    <div id="csv-preview-modal-content"></div>
                 </div>
             </div>
         </div>
@@ -781,81 +698,6 @@
                         <button class="filter-btn" onclick="closeAddWebhook()">取消</button>
                         <button class="filter-btn" onclick="testWebhook()">测试</button>
                         <button class="btn-primary" onclick="submitWebhook()">添加</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- JTL 文件对比 -->
-        <div id="page-jtl" class="hidden">
-            <div class="task-list" style="margin-bottom:12px;">
-                <div class="toolbar">
-                    <h3>JTL 文件对比分析</h3>
-                    <div style="display:flex;gap:8px;align-items:center;">
-                        <span style="font-size:12px;color:#888;">上传 2 个以上 JTL 文件进行性能对比</span>
-                    </div>
-                </div>
-                <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;">
-                    <div style="flex:1;min-width:200px;">
-                        <label style="font-size:12px;color:#666;margin-bottom:4px;display:block;">选择 JTL 文件（可多选）</label>
-                        <input type="file" id="jtl-file-input" accept=".jtl,.xml,.csv" multiple onchange="handleJtlUpload()" style="width:100%;padding:8px;border:1px solid #d0d0d0;border-radius:4px;font-size:12px;">
-                    </div>
-                    <button class="btn-primary" onclick="handleJtlUpload()">上传并分析</button>
-                </div>
-                <div id="jtl-upload-status" style="margin-top:8px;font-size:12px;color:#888;"></div>
-            </div>
-
-            <!-- 对比结果 -->
-            <div id="jtl-compare-result" class="hidden">
-                <!-- 汇总对比卡片 -->
-                <div class="task-list" style="margin-bottom:12px;">
-                    <h3>汇总对比</h3>
-                    <div id="jtl-summary-cards" style="overflow-x:auto;"></div>
-                </div>
-
-                <!-- 接口选择 -->
-                <div class="task-list" style="margin-bottom:12px;">
-                    <div class="toolbar">
-                        <h3>接口对比</h3>
-                        <div style="display:flex;gap:8px;align-items:center;">
-                            <label style="font-size:12px;">选择接口:</label>
-                            <select id="jtl-label-select" onchange="updateJtlCharts()" style="padding:4px 8px;border:1px solid #d0d0d0;border-radius:4px;font-size:12px;min-width:200px;">
-                                <option value="__all__">全部接口</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <!-- 图表区域 -->
-                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-                        <div class="chart-box">
-                            <h3>TPS 对比</h3>
-                            <div id="chart-jtl-tps" style="height:300px;"></div>
-                        </div>
-                        <div class="chart-box">
-                            <h3>平均响应时间对比</h3>
-                            <div id="chart-jtl-rt" style="height:300px;"></div>
-                        </div>
-                    </div>
-                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;">
-                        <div class="chart-box">
-                            <h3>P99 响应时间对比</h3>
-                            <div id="chart-jtl-p99" style="height:300px;"></div>
-                        </div>
-                        <div class="chart-box">
-                            <h3>错误率对比</h3>
-                            <div id="chart-jtl-error" style="height:300px;"></div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 接口统计表 -->
-                <div class="task-list">
-                    <h3>接口统计详情</h3>
-                    <div style="overflow-x:auto;">
-                        <table id="jtl-label-table">
-                            <thead id="jtl-label-thead"></thead>
-                            <tbody id="jtl-label-tbody"></tbody>
-                        </table>
                     </div>
                 </div>
             </div>
@@ -1265,7 +1107,6 @@
                     (page === 'data' && b.textContent === '数据管理') ||
                     (page === 'nodes' && b.textContent === '施压节点') ||
                     (page === 'compare' && b.textContent === '任务对比') ||
-                    (page === 'jtl' && b.textContent === 'JTL 对比') ||
                     (page === 'templates' && b.textContent === '模板管理') ||
                     (page === 'schedule' && b.textContent === '定时调度') ||
                     (page === 'notify' && b.textContent === '通知设置') ||
@@ -1290,7 +1131,6 @@
             if (page === 'schedule') loadSchedules();
             if (page === 'notify') loadNotifyConfig();
             if (page === 'compare') loadCompareForm();
-            if (page === 'jtl') initJtlCompare();
             if (page === 'trend') loadTrend();
             if (page === 'alerts') loadAlerts();
             if (page === 'envs') loadEnvs();
@@ -1620,62 +1460,21 @@
 
         // ===== 并发场景配置 =====
         const scenarioPresets = {
-            custom: {
-                threads: 10, ramp: 10, duration: 60,
-                desc: '自定义配置：自由设置并发参数，适用于特殊测试需求。',
-                advanced: false
-            },
-            smoke: {
-                threads: 5, ramp: 5, duration: 60,
-                desc: '冒烟测试：极低并发快速验证接口基本功能。通常用于上线前的快速健康检查。',
-                advanced: false
-            },
-            load: {
-                threads: 100, ramp: 30, duration: 600,
-                desc: '负载测试：模拟正常业务负载，持续运行观察系统表现。并发数应接近预期日均峰值用户数的 10%-20%。',
-                advanced: false
-            },
-            stress: {
-                threads: 500, ramp: 120, duration: 900,
-                desc: '压力测试：逐步加压直到系统出现瓶颈或崩溃，找到系统极限承载能力。',
-                advanced: false
-            },
-            spike: {
-                threads: 1000, ramp: 5, duration: 120,
-                desc: '尖刺测试：模拟秒杀、抢购等突发流量场景。瞬间将并发拉到峰值，测试系统抗冲击能力。',
-                advanced: false
-            },
-            step: {
-                threads: 200, ramp: 10, duration: 600,
-                desc: '阶梯加压：分 5 步逐步增加并发（如 20→50→100→150→200），每步保持一段时间观察性能变化趋势，便于找到性能拐点。',
-                advanced: true
-            },
-            peak: {
-                threads: 300, ramp: 60, duration: 1800,
-                desc: '峰值测试：高并发持续 30 分钟压力，模拟业务高峰期持续负载，测试系统稳定性。',
-                advanced: false
-            },
-            endurance: {
-                threads: 80, ramp: 30, duration: 7200,
-                desc: '稳定性测试：中等并发持续 2 小时运行，检测内存泄漏、连接池耗尽、性能衰退等问题。',
-                advanced: false
-            },
-            'spike-recovery': {
-                threads: 800, ramp: 3, duration: 300,
-                desc: '尖刺恢复：模拟突发流量冲击后系统恢复能力。瞬间拉到峰值 → 保持 30s → 逐步回落到 20% 基线，观察恢复时间。',
-                advanced: false
-            },
-            'ramp-hold-cool': {
-                threads: 200, ramp: 60, duration: 600,
-                desc: '加压-保持-冷却：模拟真实业务波峰。线性加压到峰值 → 保持 5 分钟 → 逐步降到基线，观察系统在不同负载下的表现。',
-                advanced: false
-            },
-            'double-peak': {
-                threads: 300, ramp: 30, duration: 600,
-                desc: '双峰测试：模拟两个连续的业务高峰（如午高峰+晚高峰），测试系统在反复加压下的表现。',
-                advanced: false
-            },
+            custom: { threads: 10, ramp: 10, duration: 60, desc: '自定义配置：自由设置并发参数。', advanced: false },
+            smoke: { threads: 5, ramp: 5, duration: 60, desc: '冒烟测试：极低并发快速验证接口基本功能。', advanced: false },
+            load: { threads: 100, ramp: 30, duration: 600, desc: '负载测试：模拟正常业务负载，持续运行观察系统表现。', advanced: false },
+            stress: { threads: 500, ramp: 120, duration: 900, desc: '压力测试：逐步加压直到系统出现瓶颈或崩溃。', advanced: false },
+            spike: { threads: 1000, ramp: 5, duration: 120, desc: '尖刺测试：模拟秒杀、抢购等突发流量场景。', advanced: false },
+            step: { threads: 200, ramp: 10, duration: 600, desc: '阶梯加压：分 5 步逐步增加并发，观察性能变化趋势。', advanced: true },
+            peak: { threads: 300, ramp: 60, duration: 1800, desc: '峰值测试：高并发持续 30 分钟压力。', advanced: false },
+            endurance: { threads: 80, ramp: 30, duration: 7200, desc: '稳定性测试：中等并发持续 2 小时运行。', advanced: false },
+            'spike-recovery': { threads: 800, ramp: 3, duration: 300, desc: '尖刺恢复：瞬间冲击后系统恢复能力。', advanced: false },
+            'ramp-hold-cool': { threads: 200, ramp: 60, duration: 600, desc: '加压-保持-冷却：模拟真实业务波峰。', advanced: false },
+            'double-peak': { threads: 300, ramp: 30, duration: 600, desc: '双峰测试：模拟两个连续的业务高峰。', advanced: false },
         };
+
+        let customSteps = [];
+        let stepIdCounter = 0;
 
         function onScenarioChange() {
             const scenario = document.getElementById('create-scenario').value;
@@ -1695,9 +1494,6 @@
             }
             updateScenarioPreview();
         }
-
-        let customSteps = [];
-        let stepIdCounter = 0;
 
         function addCustomStep() {
             stepIdCounter++;
@@ -1748,146 +1544,71 @@
             const maxThreads = parseInt(document.getElementById('create-threads').value) || 10;
             const rampTime = parseInt(document.getElementById('create-ramp').value) || 10;
             const duration = parseInt(document.getElementById('create-duration').value) || 60;
-            const steps = parseInt(document.getElementById('create-steps').value) || 5;
-            const stepDuration = parseInt(document.getElementById('create-step-duration').value) || 30;
-            const peakDuration = parseInt(document.getElementById('create-peak-duration')?.value) || 10;
+            const steps = parseInt(document.getElementById('create-steps')?.value) || 5;
 
-            // 自定义场景使用构建器数据
             if (scenario === 'custom' && customSteps.length > 0) {
                 return generateCustomStepsData(customSteps);
-            }
-
-            const customStepsText = document.getElementById('create-custom-steps')?.value?.trim();
-            if (customStepsText && scenario === 'step') {
-                try {
-                    const customSteps = JSON.parse(customStepsText);
-                    return generateCustomStepsData(customSteps);
-                } catch (e) {}
             }
 
             const data = [];
             const interval = Math.max(1, Math.floor(duration / 200));
 
             if (scenario === 'smoke' || scenario === 'load' || scenario === 'peak' || scenario === 'endurance') {
-                // 线性递增然后保持
                 for (let t = 0; t <= duration; t += interval) {
-                    let threads;
-                    if (t < rampTime) {
-                        threads = Math.round((t / rampTime) * maxThreads);
-                    } else {
-                        threads = maxThreads;
-                    }
+                    let threads = t < rampTime ? Math.round((t / rampTime) * maxThreads) : maxThreads;
                     data.push({ time: t, threads: threads });
                 }
             } else if (scenario === 'stress') {
-                // 线性递增到峰值
                 for (let t = 0; t <= duration; t += interval) {
-                    const threads = Math.round((t / duration) * maxThreads);
-                    data.push({ time: t, threads: threads });
-                }
-            } else if (scenario === 'spike') {
-                // 瞬间达到峰值然后保持
-                for (let t = 0; t <= duration; t += interval) {
-                    let threads;
-                    if (t < rampTime) {
-                        threads = Math.round((t / rampTime) * maxThreads);
-                    } else {
-                        threads = maxThreads;
-                    }
-                    data.push({ time: t, threads: threads });
+                    data.push({ time: t, threads: Math.round((t / duration) * maxThreads) });
                 }
             } else if (scenario === 'step') {
-                // 阶梯递增
                 const stepThreads = Math.floor(maxThreads / steps);
                 const stepDur = Math.floor(duration / steps);
                 for (let s = 0; s < steps; s++) {
-                    const startThreads = s * stepThreads;
                     for (let t = 0; t < stepDur; t += interval) {
-                        const progress = t / stepDur;
-                        const threads = Math.round(startThreads + progress * stepThreads);
-                        data.push({ time: s * stepDur + t, threads: threads });
+                        data.push({ time: s * stepDur + t, threads: Math.round(s * stepThreads + (t / stepDur) * stepThreads) });
                     }
                 }
             } else if (scenario === 'spike-recovery') {
-                // 尖刺后恢复：峰值 → 保持 → 逐步回落到基线
                 const spikeHold = 30;
                 const recoveryTime = Math.floor(duration * 0.4);
-                const baselineTime = duration - rampTime - spikeHold - recoveryTime;
                 for (let t = 0; t <= duration; t += interval) {
                     let threads;
-                    if (t < rampTime) {
-                        // 加压阶段
-                        threads = Math.round((t / rampTime) * maxThreads);
-                    } else if (t < rampTime + spikeHold) {
-                        // 峰值保持阶段
-                        threads = maxThreads;
-                    } else if (t < rampTime + spikeHold + recoveryTime) {
-                        // 恢复阶段：从峰值降到 20% 基线
-                        const recoveryProgress = (t - rampTime - spikeHold) / recoveryTime;
-                        threads = Math.round(maxThreads * (1 - recoveryProgress * 0.8));
-                    } else {
-                        // 基线保持阶段
-                        threads = Math.round(maxThreads * 0.2);
-                    }
+                    if (t < rampTime) threads = Math.round((t / rampTime) * maxThreads);
+                    else if (t < rampTime + spikeHold) threads = maxThreads;
+                    else if (t < rampTime + spikeHold + recoveryTime) threads = Math.round(maxThreads * (1 - (t - rampTime - spikeHold) / recoveryTime * 0.8));
+                    else threads = Math.round(maxThreads * 0.2);
                     data.push({ time: t, threads: Math.max(1, threads) });
                 }
             } else if (scenario === 'ramp-hold-cool') {
-                // 加压-保持-冷却：模拟真实业务波峰
                 const holdDuration = Math.floor(duration * 0.5);
                 const coolDuration = duration - rampTime - holdDuration;
                 for (let t = 0; t <= duration; t += interval) {
                     let threads;
-                    if (t < rampTime) {
-                        // 加压阶段
-                        threads = Math.round((t / rampTime) * maxThreads);
-                    } else if (t < rampTime + holdDuration) {
-                        // 保持阶段：轻微波动
-                        const波动 = Math.sin((t - rampTime) * 0.1) * maxThreads * 0.05;
-                        threads = Math.round(maxThreads + 波动);
-                    } else {
-                        // 冷却阶段
-                        const coolProgress = (t - rampTime - holdDuration) / coolDuration;
-                        threads = Math.round(maxThreads * (1 - coolProgress * 0.8));
-                    }
+                    if (t < rampTime) threads = Math.round((t / rampTime) * maxThreads);
+                    else if (t < rampTime + holdDuration) threads = Math.round(maxThreads + Math.sin((t - rampTime) * 0.1) * maxThreads * 0.05);
+                    else threads = Math.round(maxThreads * (1 - (t - rampTime - holdDuration) / coolDuration * 0.8));
                     data.push({ time: t, threads: Math.max(1, threads) });
                 }
             } else if (scenario === 'double-peak') {
-                // 双峰测试：两个连续的业务高峰
                 const peak1End = Math.floor(duration * 0.4);
                 const valleyEnd = Math.floor(duration * 0.6);
-                const peak1Ramp = Math.floor(rampTime * 0.8);
                 const peak2Ramp = Math.floor(rampTime * 0.6);
                 for (let t = 0; t <= duration; t += interval) {
                     let threads;
-                    if (t < peak1Ramp) {
-                        // 第一个峰加压
-                        threads = Math.round((t / peak1Ramp) * maxThreads);
-                    } else if (t < peak1End) {
-                        // 第一个峰保持
-                        threads = maxThreads;
-                    } else if (t < valleyEnd) {
-                        // 低谷期
-                        const valleyProgress = (t - peak1End) / (valleyEnd - peak1End);
-                        threads = Math.round(maxThreads * (0.3 + 0.1 * Math.sin(valleyProgress * Math.PI)));
-                    } else if (t < valleyEnd + peak2Ramp) {
-                        // 第二个峰加压
-                        const p2Progress = (t - valleyEnd) / peak2Ramp;
-                        threads = Math.round(maxThreads * (0.3 + p2Progress * 0.7));
-                    } else {
-                        // 第二个峰保持并缓慢下降
-                        const endProgress = (t - valleyEnd - peak2Ramp) / (duration - valleyEnd - peak2Ramp);
-                        threads = Math.round(maxThreads * (1 - endProgress * 0.3));
-                    }
+                    if (t < rampTime) threads = Math.round((t / rampTime) * maxThreads);
+                    else if (t < peak1End) threads = maxThreads;
+                    else if (t < valleyEnd) threads = Math.round(maxThreads * (0.3 + 0.1 * Math.sin((t - peak1End) / (valleyEnd - peak1End) * Math.PI)));
+                    else if (t < valleyEnd + peak2Ramp) threads = Math.round(maxThreads * (0.3 + (t - valleyEnd) / peak2Ramp * 0.7));
+                    else threads = Math.round(maxThreads * (1 - (t - valleyEnd - peak2Ramp) / (duration - valleyEnd - peak2Ramp) * 0.3));
                     data.push({ time: t, threads: Math.max(1, threads) });
                 }
             } else {
-                // 默认线性
                 for (let t = 0; t <= duration; t += interval) {
-                    const threads = Math.min(Math.round((t / Math.max(rampTime, 1)) * maxThreads), maxThreads);
-                    data.push({ time: t, threads: threads });
+                    data.push({ time: t, threads: Math.min(Math.round((t / Math.max(rampTime, 1)) * maxThreads), maxThreads) });
                 }
             }
-
             return data;
         }
 
@@ -1895,206 +1616,50 @@
             const data = [];
             let currentTime = 0;
             let lastThreads = 0;
-
             for (const step of steps) {
                 const targetThreads = step.threads || 10;
                 const stepDuration = step.duration || 30;
                 const rampInStep = Math.min(5, stepDuration);
-
                 for (let t = 0; t < stepDuration; t++) {
-                    let threads;
-                    if (t < rampInStep) {
-                        threads = Math.round(lastThreads + (t / rampInStep) * (targetThreads - lastThreads));
-                    } else {
-                        threads = targetThreads;
-                    }
+                    let threads = t < rampInStep ? Math.round(lastThreads + (t / rampInStep) * (targetThreads - lastThreads)) : targetThreads;
                     data.push({ time: currentTime + t, threads: threads });
                 }
                 lastThreads = targetThreads;
                 currentTime += stepDuration;
             }
-
             return data;
         }
 
         function formatTimeAxis(seconds) {
             if (seconds < 60) return seconds + 's';
             if (seconds < 3600) return Math.round(seconds / 60) + 'm';
-            const h = Math.floor(seconds / 3600);
-            const m = Math.round((seconds % 3600) / 60);
+            var h = Math.floor(seconds / 3600);
+            var m = Math.round((seconds % 3600) / 60);
             return m > 0 ? h + 'h' + m + 'm' : h + 'h';
         }
 
         function updateScenarioPreview() {
-            const chartDom = document.getElementById('scenario-preview-chart');
+            var chartDom = document.getElementById('scenario-preview-chart');
             if (!chartDom) return;
-
-            if (charts.scenarioPreview) {
-                charts.scenarioPreview.dispose();
-            }
-
-            const data = generateScenarioData();
+            if (charts.scenarioPreview) charts.scenarioPreview.dispose();
+            var data = generateScenarioData();
             if (data.length === 0) return;
-
             charts.scenarioPreview = echarts.init(chartDom);
             charts.scenarioPreview.setOption({
                 backgroundColor: 'transparent',
-                tooltip: {
-                    trigger: 'axis',
-                    formatter: function(params) {
-                        const p = params[0];
-                        const timeSec = parseInt(p.data[0]);
-                        return `<div style="font-size:14px"><b>时间:</b> ${formatTimeAxis(timeSec)}<br/><b>并发用户:</b> ${p.data[1]}</div>`;
-                    },
-                    textStyle: { fontSize: 13 }
-                },
-                xAxis: {
-                    type: 'category',
-                    data: data.map(d => formatTimeAxis(d.time)),
-                    axisLabel: { color: '#666', fontSize: 13, fontWeight: 'bold' },
-                    axisLine: { lineStyle: { color: '#ddd' } },
-                    name: '时间',
-                    nameTextStyle: { fontSize: 13, color: '#666', fontWeight: 'bold' }
-                },
-                yAxis: {
-                    type: 'value',
-                    name: '并发用户数',
-                    nameTextStyle: { fontSize: 13, color: '#666', fontWeight: 'bold' },
-                    axisLabel: { color: '#666', fontSize: 13, fontWeight: 'bold' },
-                    axisLine: { lineStyle: { color: '#ddd' } },
-                    splitLine: { lineStyle: { color: '#f0f0f0' } }
-                },
-                series: [{
-                    type: 'line',
-                    data: data.map(d => [formatTimeAxis(d.time), d.threads]),
-                    smooth: true,
-                    lineStyle: { width: 2.5, color: '#2563eb' },
-                    itemStyle: { color: '#2563eb' },
-                    symbol: 'none',
-                    areaStyle: {
-                        color: {
-                            type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
-                            colorStops: [
-                                { offset: 0, color: 'rgba(37,99,235,0.3)' },
-                                { offset: 1, color: 'rgba(37,99,235,0.02)' }
-                            ]
-                        }
-                    },
-                    markPoint: {
-                        data: [
-                            { type: 'max', name: '最大并发' }
-                        ],
-                        symbolSize: 50,
-                        label: { fontSize: 13, fontWeight: 'bold' }
-                    }
-                }],
+                tooltip: { trigger: 'axis', textStyle: { fontSize: 13 }, formatter: function(params) {
+                    var p = params[0];
+                    return '<div style="font-size:14px"><b>时间:</b> ' + formatTimeAxis(parseInt(p.data[0])) + '<br/><b>并发用户:</b> ' + p.data[1] + '</div>';
+                }},
+                xAxis: { type: 'category', data: data.map(function(d) { return formatTimeAxis(d.time); }), axisLabel: { color: '#666', fontSize: 13, fontWeight: 'bold' }, axisLine: { lineStyle: { color: '#ddd' } }, name: '时间', nameTextStyle: { fontSize: 13, color: '#666', fontWeight: 'bold' } },
+                yAxis: { type: 'value', name: '并发用户数', nameTextStyle: { fontSize: 13, color: '#666', fontWeight: 'bold' }, axisLabel: { color: '#666', fontSize: 13, fontWeight: 'bold' }, axisLine: { lineStyle: { color: '#ddd' } }, splitLine: { lineStyle: { color: '#f0f0f0' } } },
+                series: [{ type: 'line', data: data.map(function(d) { return [formatTimeAxis(d.time), d.threads]; }), smooth: true, lineStyle: { width: 2.5, color: '#2563eb' }, itemStyle: { color: '#2563eb' }, symbol: 'none', areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: 'rgba(37,99,235,0.3)' }, { offset: 1, color: 'rgba(37,99,235,0.02)' }] } }, markPoint: { data: [{ type: 'max', name: '最大并发' }], symbolSize: 50, label: { fontSize: 13, fontWeight: 'bold' } } }],
                 grid: { left: 60, right: 20, top: 40, bottom: 40 }
             });
-
-            window.addEventListener('resize', function() {
-                if (charts.scenarioPreview) charts.scenarioPreview.resize();
-            });
+            window.addEventListener('resize', function() { if (charts.scenarioPreview) charts.scenarioPreview.resize(); });
         }
 
         // ===== 创建任务 =====
-        async function loadScriptHistory(scriptId) {
-            const historyDiv = document.getElementById('script-history');
-            const contentDiv = document.getElementById('script-history-content');
-
-            if (!scriptId) {
-                historyDiv.style.display = 'none';
-                return;
-            }
-
-            try {
-                const scriptRes = await fetch(`${API}/api/scripts/${scriptId}`);
-                const scriptData = await scriptRes.json();
-
-                const tasksRes = await fetch(`${API}/api/tasks/`);
-                const data = await tasksRes.json();
-                const allTasks = data.tasks || [];
-
-                const oldIds = scriptData.old_ids || [];
-                const tasks = allTasks.filter(t => {
-                    if (t.script_id === scriptId) return true;
-                    if (oldIds.includes(t.script_id)) return true;
-                    return false;
-                }).filter(t => t.status === 'completed' || t.status === 'failed');
-
-                if (tasks.length === 0) {
-                    historyDiv.style.display = 'none';
-                    return;
-                }
-
-                tasks.sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
-                const recent = tasks.slice(0, 5);
-
-                let html = '';
-                recent.forEach((t, idx) => {
-                    const args = t.jmeter_args || {};
-                    const time = t.created_at ? new Date(t.created_at * 1000).toLocaleString() : '-';
-                    const status = t.status === 'completed' ? '✅' : '❌';
-                    let samples = '-', avgRt = '-';
-                    for (const [agent, r] of Object.entries(t.results || {})) {
-                        if (r.summary && r.summary.total_samples) {
-                            samples = r.summary.total_samples;
-                            avgRt = r.summary.avg_response_time + 'ms';
-                            break;
-                        }
-                    }
-                    html += `<div style="padding:6px 0;border-bottom:1px solid #e8f0fe;cursor:pointer;" onclick="applyHistoryConfig(${JSON.stringify(args).replace(/"/g, '&quot;')})">
-                        <div style="display:flex;justify-content:space-between;align-items:center;">
-                            <span>${status} <b>${time}</b></span>
-                            <span style="color:#888;font-size:11px;">点击查看配置</span>
-                        </div>
-                        <div style="display:flex;gap:12px;margin-top:4px;font-size:12px;color:#666;">
-                            <span>并发: <b style="color:#2563eb">${args.threads || '-'}</b></span>
-                            <span>预热: <b>${args.ramp_time || '-'}s</b></span>
-                            <span>持续: <b>${args.duration || '-'}s</b></span>
-                            <span>${samples} 请求, ${avgRt}</span>
-                        </div>
-                    </div>`;
-                });
-
-                contentDiv.innerHTML = html;
-                historyDiv.style.display = 'block';
-            } catch (e) {
-                historyDiv.style.display = 'none';
-            }
-        }
-
-        function applyHistoryConfig(args) {
-            if (!args) return;
-
-            const threads = parseInt(args.threads) || 10;
-            const ramp = parseInt(args.ramp_time) || 10;
-            const duration = parseInt(args.duration) || 60;
-
-            document.getElementById('create-threads').value = threads;
-            document.getElementById('create-ramp').value = ramp;
-            document.getElementById('create-duration').value = duration;
-
-            // 尝试匹配预设场景
-            const matched = Object.entries(scenarioPresets).find(([key, preset]) => {
-                return key !== 'custom' &&
-                    Math.abs(preset.threads - threads) / Math.max(preset.threads, 1) < 0.3 &&
-                    Math.abs(preset.duration - duration) / Math.max(preset.duration, 1) < 0.3;
-            });
-
-            if (matched) {
-                document.getElementById('create-scenario').value = matched[0];
-            } else {
-                document.getElementById('create-scenario').value = 'custom';
-            }
-            onScenarioChange();
-
-            // 恢复实际值（onScenarioChange 会覆盖）
-            document.getElementById('create-threads').value = threads;
-            document.getElementById('create-ramp').value = ramp;
-            document.getElementById('create-duration').value = duration;
-            updateScenarioPreview();
-        }
-
         async function loadCreateForm() {
             try {
                 const [scriptsRes, nodesRes, csvsRes] = await Promise.all([
@@ -2110,7 +1675,6 @@
                 scriptSel.innerHTML = scripts.scripts.map(s =>
                     `<option value="${s.script_id}">${s.filename} (${(s.size/1024).toFixed(1)}KB)</option>`
                 ).join('') || '<option>暂无脚本，请先上传</option>';
-                scriptSel.onchange = function() { loadScriptHistory(this.value); };
 
                 const nodeSel = document.getElementById('create-nodes');
                 nodeSel.innerHTML = nodes.agents.map(a =>
@@ -2122,14 +1686,13 @@
                     (csvs.csvs || []).map(c =>
                         `<option value="${c.csv_id}">${c.filename} (${c.row_count} 行, ${(c.size/1024).toFixed(1)}KB)</option>`
                     ).join('');
-                csvSel.onchange = function() { previewSelectedCsv(); };
 
                 document.getElementById('create-distributed').onchange = function() {
                     document.getElementById('create-remote-hosts').style.display = this.checked ? 'block' : 'none';
                 };
 
                 // 初始化场景预览
-                setTimeout(function() { updateScenarioPreview(); }, 100);
+                setTimeout(function() { updateScenarioPreview(); }, 200);
             } catch (e) {
                 console.error('loadCreateForm error:', e);
             }
@@ -2138,9 +1701,7 @@
         function toggleCsvOptions() {
             const checked = document.getElementById('create-use-csv').checked;
             document.getElementById('csv-options').style.display = checked ? 'block' : 'none';
-            if (!checked) {
-                document.getElementById('csv-preview-section').style.display = 'none';
-            }
+            if (!checked) document.getElementById('csv-preview-section').style.display = 'none';
         }
 
         function clearCsvSelection() {
@@ -2149,43 +1710,30 @@
         }
 
         async function previewSelectedCsv() {
-            const csvSelect = document.getElementById('create-csv-file');
-            const csvId = csvSelect.value;
+            const csvId = document.getElementById('create-csv-file').value;
             const previewSection = document.getElementById('csv-preview-section');
             const previewContent = document.getElementById('csv-preview-content');
             const previewInfo = document.getElementById('csv-preview-info');
-
-            if (!csvId) {
-                previewSection.style.display = 'none';
-                return;
-            }
-
+            if (!csvId) { previewSection.style.display = 'none'; return; }
             previewSection.style.display = 'block';
-            previewContent.innerHTML = '<div style="padding:16px;text-align:center;color:#888;font-size:12px;">加载中...</div>';
-
+            previewContent.innerHTML = '<div style="padding:20px;text-align:center;color:#888;font-size:12px;">加载中...</div>';
             try {
-                const res = await fetch(`${API}/api/data/csv/${csvId}/data?limit=10`);
+                const res = await fetch(`${API}/api/data/csv/${csvId}/data?limit=20`);
                 const data = await res.json();
-
                 let html = '<table style="width:100%;border-collapse:collapse;font-size:12px;">';
-                html += '<thead><tr>';
-                (data.headers || []).forEach(h => {
-                    html += `<th style="padding:6px 8px;background:#f5f5f5;border:1px solid #e0e0e0;text-align:left;font-weight:500;white-space:nowrap;">${h}</th>`;
-                });
+                html += '<thead><tr style="background:#f0f0f0;">';
+                (data.headers || []).forEach(h => { html += `<th style="padding:8px;border:1px solid #ddd;text-align:left;white-space:nowrap;font-weight:500;">${h}</th>`; });
                 html += '</tr></thead><tbody>';
-                (data.rows || []).forEach(row => {
-                    html += '<tr>';
-                    row.forEach(cell => {
-                        html += `<td style="padding:5px 8px;border:1px solid #f0f0f0;font-family:monospace;font-size:11px;white-space:nowrap;">${cell}</td>`;
-                    });
+                (data.rows || []).forEach((row, idx) => {
+                    html += `<tr style="background:${idx % 2 === 0 ? '#fff' : '#f9f9f9'};">`;
+                    row.forEach(cell => { html += `<td style="padding:6px 8px;border:1px solid #eee;font-family:monospace;font-size:11px;">${cell}</td>`; });
                     html += '</tr>';
                 });
                 html += '</tbody></table>';
-
                 previewContent.innerHTML = html;
-                previewInfo.textContent = `显示前 ${Math.min(10, data.total)} 行，共 ${data.total} 行数据 | ${(data.headers || []).length} 列`;
+                previewInfo.textContent = `显示前 ${Math.min(20, data.total)} 行，共 ${data.total} 行数据 | ${(data.headers || []).length} 列`;
             } catch (e) {
-                previewContent.innerHTML = '<div style="padding:16px;text-align:center;color:#dc2626;font-size:12px;">预览失败</div>';
+                previewContent.innerHTML = '<div style="padding:20px;text-align:center;color:#dc2626;font-size:12px;">预览失败</div>';
             }
         }
 
@@ -2198,7 +1746,6 @@
             const timeout = parseInt(document.getElementById('create-timeout').value) || 300;
             const distributed = document.getElementById('create-distributed').checked;
             const remoteHosts = document.getElementById('create-remote-hosts').value.trim() || null;
-            const scenario = document.getElementById('create-scenario').value;
 
             if (!scriptId) { alert('请选择脚本'); return; }
             if (!nodeId) { alert('请选择施压节点'); return; }
@@ -2211,29 +1758,6 @@
             const csvStop = document.getElementById('create-csv-stop').checked;
 
             if (useCsv && !csvFile) { alert('请选择 CSV 文件或取消参数化'); return; }
-
-            // 构建场景配置
-            const scenarioConfig = {
-                type: scenario,
-                threads: threads,
-                ramp_time: ramp,
-                duration: duration,
-            };
-
-            // 自定义场景使用构建器数据
-            if (scenario === 'custom' && customSteps.length > 0) {
-                scenarioConfig.custom_steps = customSteps.map(s => ({ threads: s.threads, duration: s.duration }));
-            }
-
-            // 如果是阶梯场景，添加阶梯参数
-            if (scenario === 'step') {
-                scenarioConfig.steps = parseInt(document.getElementById('create-steps').value) || 5;
-                scenarioConfig.step_duration = parseInt(document.getElementById('create-step-duration').value) || 30;
-                const customStepsText = document.getElementById('create-custom-steps')?.value?.trim();
-                if (customStepsText) {
-                    try { scenarioConfig.custom_steps = JSON.parse(customStepsText); } catch (e) {}
-                }
-            }
 
             try {
                 const res = await fetch(`${API}/api/tasks/quick-run`, {
@@ -2249,7 +1773,6 @@
                         csv_delimiter: csvDelimiter,
                         csv_recycle: csvRecycle,
                         csv_stop_on_eof: csvStop,
-                        scenario: scenarioConfig,
                     }),
                 });
                 const data = await res.json();
@@ -2980,7 +2503,7 @@
                 html += '<tbody>' + data.rows.map(row => '<tr>' + row.map(cell => `<td style="padding:6px 8px;border:1px solid #eee;font-family:monospace">${cell}</td>`).join('') + '</tr>').join('') + '</tbody></table>';
                 if (data.total > 20) html += `<p style="margin-top:8px;color:#888;font-size:12px">显示前 20 行，共 ${data.total} 行</p>`;
 
-                document.getElementById('csv-preview-content').innerHTML = html;
+                document.getElementById('csv-preview-modal-content').innerHTML = html;
                 document.getElementById('csv-preview-modal').style.display = 'flex';
             } catch (e) { alert('预览失败'); }
         }
@@ -3645,200 +3168,6 @@
                 });
                 window.addEventListener('resize', () => { if (charts.trend) charts.trend.resize(); });
             } catch (e) { console.error('loadTrend error:', e); }
-        }
-
-        // ===== JTL 文件对比 =====
-        let jtlDataFiles = [];
-
-        function initJtlCompare() {
-            document.getElementById('jtl-file-input').value = '';
-            document.getElementById('jtl-compare-result').classList.add('hidden');
-            document.getElementById('jtl-upload-status').textContent = '';
-            jtlDataFiles = [];
-        }
-
-        async function handleJtlUpload() {
-            const input = document.getElementById('jtl-file-input');
-            const status = document.getElementById('jtl-upload-status');
-
-            if (!input.files || input.files.length === 0) {
-                status.textContent = '请选择 JTL 文件';
-                return;
-            }
-
-            status.textContent = '上传中...';
-
-            try {
-                let data;
-                if (input.files.length === 1) {
-                    // 单文件上传
-                    const formData = new FormData();
-                    formData.append('file', input.files[0]);
-                    const res = await fetch(`${API}/api/jtl/upload`, { method: 'POST', body: formData });
-                    data = await res.json();
-                    if (data.detail) { status.textContent = '错误: ' + (typeof data.detail === 'object' ? JSON.stringify(data.detail) : data.detail); return; }
-                    jtlDataFiles = [data];
-                } else {
-                    // 多文件上传
-                    const formData = new FormData();
-                    for (const file of input.files) {
-                        formData.append('files', file);
-                    }
-                    const res = await fetch(`${API}/api/jtl/compare`, { method: 'POST', body: formData });
-                    data = await res.json();
-                    if (data.detail) { status.textContent = '错误: ' + (typeof data.detail === 'object' ? JSON.stringify(data.detail) : data.detail); return; }
-                    jtlDataFiles = data.files || [];
-                }
-
-                if (jtlDataFiles.length === 0) {
-                    status.textContent = '未解析到有效数据';
-                    return;
-                }
-
-                status.textContent = `已加载 ${jtlDataFiles.length} 个文件`;
-                renderJtlCompare();
-            } catch (e) {
-                status.textContent = '上传失败: ' + e.message;
-            }
-        }
-
-        function renderJtlCompare() {
-            if (jtlDataFiles.length === 0) return;
-            document.getElementById('jtl-compare-result').classList.remove('hidden');
-
-            const colors = ['#2563eb', '#16a34a', '#d97706', '#dc2626', '#9333ea', '#0891b2'];
-
-            // 渲染汇总卡片
-            let cardsHtml = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;">';
-            jtlDataFiles.forEach((f, idx) => {
-                const s = f.summary || {};
-                cardsHtml += `<div style="border-left:4px solid ${colors[idx % colors.length]};background:#fff;padding:12px;border-radius:0 6px 6px 0;">
-                    <div style="font-size:12px;color:#888;margin-bottom:8px;">${f.filename}</div>
-                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:12px;">
-                        <span>请求数: <b>${s.total_samples || 0}</b></span>
-                        <span>TPS: <b>${s.tps || 0}</b></span>
-                        <span>平均RT: <b>${s.avg_response_time || 0}ms</b></span>
-                        <span>P99: <b>${s.p99 || 0}ms</b></span>
-                        <span>错误率: <b style="color:${(s.error_rate || 0) > 0 ? '#dc2626' : '#16a34a'}">${s.error_rate || 0}%</b></span>
-                        <span>时长: <b>${s.duration || 0}s</b></span>
-                    </div>
-                </div>`;
-            });
-            cardsHtml += '</div>';
-            document.getElementById('jtl-summary-cards').innerHTML = cardsHtml;
-
-            // 收集所有接口名称
-            const allLabels = new Set();
-            jtlDataFiles.forEach(f => {
-                (f.labels || []).forEach(l => allLabels.add(l.label));
-            });
-
-            const labelSelect = document.getElementById('jtl-label-select');
-            labelSelect.innerHTML = '<option value="__all__">全部接口</option>' +
-                Array.from(allLabels).sort().map(l => `<option value="${l}">${l}</option>`).join('');
-
-            updateJtlCharts();
-        }
-
-        function updateJtlCharts() {
-            if (jtlDataFiles.length === 0) return;
-
-            const colors = ['#2563eb', '#16a34a', '#d97706', '#dc2626', '#9333ea', '#0891b2'];
-            const selectedLabel = document.getElementById('jtl-label-select').value;
-
-            // 过滤接口数据
-            const filteredData = jtlDataFiles.map(f => {
-                if (selectedLabel === '__all__') return f;
-                const filteredLabels = (f.labels || []).filter(l => l.label === selectedLabel);
-                const summary = filteredLabels.length > 0 ? {
-                    total_samples: filteredLabels.reduce((a, b) => a + b.count, 0),
-                    tps: filteredLabels.reduce((a, b) => a + b.tps, 0),
-                    avg_response_time: Math.round(filteredLabels.reduce((a, b) => a + b.avg, 0) / filteredLabels.length),
-                    p99: Math.max(...filteredLabels.map(l => l.p99)),
-                    error_rate: filteredLabels.reduce((a, b) => a + b.errors, 0) / Math.max(filteredLabels.reduce((a, b) => a + b.count, 0), 1) * 100,
-                } : {};
-                return { ...f, summary, labels: filteredLabels };
-            });
-
-            // TPS 对比
-            renderJtlChart('chart-jtl-tps', 'TPS', filteredData, 'tps', '/s');
-            // 响应时间对比
-            renderJtlChart('chart-jtl-rt', '平均RT', filteredData, 'avg_response_time', 'ms');
-            // P99 对比
-            renderJtlChart('chart-jtl-p99', 'P99', filteredData, 'p99', 'ms');
-            // 错误率对比
-            renderJtlChart('chart-jtl-error', '错误率', filteredData, 'error_rate', '%');
-
-            // 接口统计表
-            renderJtlLabelTable(filteredData);
-        }
-
-        function renderJtlChart(chartId, label, data, field, unit) {
-            const chartDom = document.getElementById(chartId);
-            if (!chartDom) return;
-            if (charts[chartId]) charts[chartId].dispose();
-
-            const colors = ['#2563eb', '#16a34a', '#d97706', '#dc2626', '#9333ea', '#0891b2'];
-            const categories = data.map((f, i) => f.filename.replace(/\.[^.]+$/, '').substring(0, 15));
-            const values = data.map(f => f.summary[field] || 0);
-
-            charts[chartId] = echarts.init(chartDom);
-            charts[chartId].setOption({
-                backgroundColor: 'transparent',
-                tooltip: { trigger: 'axis', textStyle: { fontSize: 13 } },
-                xAxis: { type: 'category', data: categories, axisLabel: { fontSize: 11, rotate: 15 } },
-                yAxis: { type: 'value', name: label + ' (' + unit + ')' },
-                series: [{
-                    type: 'bar',
-                    data: values.map((v, i) => ({
-                        value: v,
-                        itemStyle: { color: colors[i % colors.length], borderRadius: [4, 4, 0, 0] }
-                    })),
-                    barMaxWidth: 60,
-                    label: { show: true, position: 'top', fontSize: 12, fontWeight: 'bold', formatter: '{c}' + unit }
-                }],
-                grid: { left: 60, right: 20, top: 40, bottom: 50 }
-            });
-
-            window.addEventListener('resize', () => { if (charts[chartId]) charts[chartId].resize(); });
-        }
-
-        function renderJtlLabelTable(data) {
-            const colors = ['#2563eb', '#16a34a', '#d97706', '#dc2626', '#9333ea', '#0891b2'];
-            const thead = document.getElementById('jtl-label-thead');
-            const tbody = document.getElementById('jtl-label-tbody');
-
-            let headerHtml = '<tr><th>接口</th>';
-            data.forEach((f, i) => {
-                headerHtml += `<th style="color:${colors[i % colors.length]}">${f.filename.replace(/\.[^.]+$/, '').substring(0, 20)}</th>`;
-            });
-            headerHtml += '</tr>';
-            thead.innerHTML = headerHtml;
-
-            // 收集所有接口
-            const allLabels = new Set();
-            data.forEach(f => (f.labels || []).forEach(l => allLabels.add(l.label)));
-
-            let bodyHtml = '';
-            Array.from(allLabels).sort().forEach(label => {
-                bodyHtml += `<tr><td style="font-weight:500;">${label}</td>`;
-                data.forEach(f => {
-                    const l = (f.labels || []).find(x => x.label === label);
-                    if (l) {
-                        const rtChange = '';
-                        bodyHtml += `<td>
-                            <div>请求数: <b>${l.count}</b> | TPS: <b>${l.tps}</b></div>
-                            <div>平均: ${l.avg}ms | P99: ${l.p99}ms</div>
-                            <div>错误率: <span style="color:${l.error_rate > 0 ? '#dc2626' : '#16a34a'}">${l.error_rate}%</span></div>
-                        </td>`;
-                    } else {
-                        bodyHtml += '<td style="color:#ccc">-</td>';
-                    }
-                });
-                bodyHtml += '</tr>';
-            });
-
-            tbody.innerHTML = bodyHtml || '<tr><td colspan="10" class="empty-tip">无数据</td></tr>';
         }
 
         // ===== 告警规则 =====

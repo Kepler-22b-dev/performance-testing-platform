@@ -98,7 +98,7 @@ class JMeterAgent:
         try:
             data = message["data"]
             command = TaskCommand.from_json(data)
-            self.logger.debug(f"收到命令: {command.command.value} for task {command.task_id}")
+            self.logger.debug(f"收到命令: {command.command} for task {command.task_id}")
 
             if command.command == CommandType.EXECUTE:
                 self._handle_execute(command)
