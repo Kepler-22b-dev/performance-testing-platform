@@ -1,3 +1,9 @@
+"""通知管理 API 模块。
+
+提供 Webhook 通知的配置管理、添加、删除和测试接口，
+用于在压测任务完成或触发告警时向外部系统发送通知。
+"""
+
 import sys
 import os
 import json
@@ -14,6 +20,7 @@ router = APIRouter(prefix="/api/notifications", tags=["notifications"])
 
 
 def _get_redis():
+    """获取 Redis 连接实例。"""
     return redis.Redis(
         host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB,
         decode_responses=True,
@@ -21,6 +28,7 @@ def _get_redis():
 
 
 def _load_config() -> dict:
+    """从 Redis 加载通知配置。"""
     r = _get_redis()
     data = r.hget("jmeter:config", "notifications")
     if data:
@@ -29,6 +37,7 @@ def _load_config() -> dict:
 
 
 def _save_config(config: dict):
+    """将通知配置保存到 Redis。"""
     r = _get_redis()
     r.hset("jmeter:config", "notifications", json.dumps(config, ensure_ascii=False))
 
@@ -45,11 +54,13 @@ class NotificationConfigRequest(BaseModel):
 
 @router.get("/config")
 def get_notification_config():
+    """获取当前通知配置，包含启用状态和 Webhook 列表。"""
     return _load_config()
 
 
 @router.put("/config")
 def update_notification_config(req: NotificationConfigRequest):
+    """更新通知配置，可修改启用状态和 Webhook 列表。"""
     config = _load_config()
     if req.enabled is not None:
         config["enabled"] = req.enabled
@@ -61,6 +72,7 @@ def update_notification_config(req: NotificationConfigRequest):
 
 @router.post("/webhook")
 def add_webhook(req: WebhookAddRequest):
+    """添加一个新的 Webhook 通知地址。"""
     config = _load_config()
     if req.url in config["webhooks"]:
         raise HTTPException(status_code=400, detail="Webhook URL 已存在")
@@ -71,6 +83,7 @@ def add_webhook(req: WebhookAddRequest):
 
 @router.delete("/webhook")
 def remove_webhook(url: str):
+    """删除指定的 Webhook 通知地址。"""
     config = _load_config()
     if url not in config["webhooks"]:
         raise HTTPException(status_code=404, detail="Webhook 不存在")
@@ -81,6 +94,7 @@ def remove_webhook(url: str):
 
 @router.post("/webhook/test")
 def test_webhook(req: WebhookAddRequest):
+    """发送测试通知到指定 Webhook 地址以验证连通性。"""
     import urllib.request
     try:
         payload = json.dumps({

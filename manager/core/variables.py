@@ -1,3 +1,9 @@
+"""变量与 CSV 数据文件管理模块。
+
+提供 JMeter 测试脚本中使用的用户自定义变量和 CSV 数据文件的
+增删查改功能。变量和 CSV 元数据以 JSON 格式持久化存储。
+"""
+
 import sys
 import os
 import json
@@ -22,11 +28,13 @@ CSV_DIR = os.path.join(
 
 
 def _ensure_dirs():
+    """确保变量和 CSV 配置目录存在。"""
     os.makedirs(os.path.dirname(VARS_FILE), exist_ok=True)
     os.makedirs(CSV_DIR, exist_ok=True)
 
 
 def _load_vars() -> list:
+    """从 JSON 文件加载变量列表。"""
     if not os.path.exists(VARS_FILE):
         return []
     with open(VARS_FILE, "r") as f:
@@ -34,6 +42,7 @@ def _load_vars() -> list:
 
 
 def _save_vars(vars_list: list):
+    """将变量列表持久化到 JSON 文件。"""
     _ensure_dirs()
     with open(VARS_FILE, "w") as f:
         json.dump(vars_list, f, indent=2, ensure_ascii=False)
@@ -42,10 +51,12 @@ def _save_vars(vars_list: list):
 # ===== 变量管理 =====
 
 def get_all_vars() -> list:
+    """获取所有已定义的变量列表。"""
     return _load_vars()
 
 
 def add_var(name: str, value: str, description: str = "", scope: str = "global") -> dict:
+    """添加一个新的用户变量。"""
     vars_list = _load_vars()
 
     for v in vars_list:
@@ -68,6 +79,7 @@ def add_var(name: str, value: str, description: str = "", scope: str = "global")
 
 
 def update_var(var_id: str, name: str = None, value: str = None, description: str = None) -> dict:
+    """更新指定变量的属性。"""
     vars_list = _load_vars()
 
     for v in vars_list:
@@ -86,6 +98,7 @@ def update_var(var_id: str, name: str = None, value: str = None, description: st
 
 
 def delete_var(var_id: str) -> dict:
+    """删除指定变量。"""
     vars_list = _load_vars()
     original_len = len(vars_list)
     vars_list = [v for v in vars_list if v["id"] != var_id]
@@ -98,6 +111,7 @@ def delete_var(var_id: str) -> dict:
 
 
 def get_vars_dict() -> dict:
+    """获取变量字典（名称: 值），用于注入到 JMeter 脚本中。"""
     vars_list = _load_vars()
     return {v["name"]: v["value"] for v in vars_list}
 
@@ -105,6 +119,7 @@ def get_vars_dict() -> dict:
 # ===== CSV 数据文件管理 =====
 
 def upload_csv(filename: str, content: bytes) -> dict:
+    """上传 CSV 数据文件并解析其元数据（表头、行数、预览）。"""
     _ensure_dirs()
 
     csv_id = f"csv-{int(time.time()*1000)}"
@@ -153,6 +168,7 @@ def upload_csv(filename: str, content: bytes) -> dict:
 
 
 def get_all_csvs() -> list:
+    """获取所有已上传的 CSV 文件元数据列表。"""
     _ensure_dirs()
     csvs = []
     for f in os.listdir(CSV_DIR):
@@ -170,6 +186,7 @@ def get_all_csvs() -> list:
 
 
 def get_csv(csv_id: str) -> Optional[dict]:
+    """根据 CSV ID 获取单个 CSV 文件的元数据。"""
     meta_path = os.path.join(CSV_DIR, f"{csv_id}.json")
     if not os.path.exists(meta_path):
         return None
@@ -178,6 +195,7 @@ def get_csv(csv_id: str) -> Optional[dict]:
 
 
 def get_csv_data(csv_id: str, offset: int = 0, limit: int = 100) -> Optional[dict]:
+    """获取 CSV 文件的数据行（支持分页）。"""
     meta = get_csv(csv_id)
     if not meta:
         return None
@@ -231,6 +249,7 @@ def get_csv_data(csv_id: str, offset: int = 0, limit: int = 100) -> Optional[dic
 
 
 def delete_csv(csv_id: str) -> dict:
+    """删除指定 CSV 文件及其元数据。"""
     meta = get_csv(csv_id)
     if not meta:
         return {"status": "error", "message": f"CSV不存在: {csv_id}"}
@@ -247,6 +266,7 @@ def delete_csv(csv_id: str) -> dict:
 
 
 def get_csv_preview(csv_id: str) -> Optional[dict]:
+    """获取 CSV 文件的预览信息（表头和前几行数据）。"""
     meta = get_csv(csv_id)
     if not meta:
         return None

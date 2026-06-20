@@ -1,3 +1,9 @@
+"""JMeter 脚本管理 API 模块。
+
+提供 JMeter 脚本的上传、列表、搜索、查看、编辑、保存、删除以及
+脚本结构解析和元素排序等接口，支持 .jmx 格式的性能测试脚本管理。
+"""
+
 import sys
 import os
 import time
@@ -26,6 +32,7 @@ class ScriptSaveRequest(BaseModel):
 
 
 def _get_next_script_id() -> int:
+    """生成下一个自增的脚本 ID。"""
     os.makedirs(os.path.dirname(COUNTER_FILE), exist_ok=True)
     if os.path.exists(COUNTER_FILE):
         with open(COUNTER_FILE, "r") as f:
@@ -40,6 +47,7 @@ def _get_next_script_id() -> int:
 
 @router.post("/upload")
 async def upload_script(file: UploadFile = File(...), name: Optional[str] = None):
+    """上传 JMeter 脚本文件（.jmx），自动生成脚本 ID 并保存元数据。"""
     if not file.filename.endswith(".jmx"):
         raise HTTPException(status_code=400, detail="Only .jmx files are supported")
 
@@ -75,6 +83,7 @@ async def upload_script(file: UploadFile = File(...), name: Optional[str] = None
 
 @router.get("/")
 def list_scripts():
+    """获取所有已上传脚本的列表，按修改时间倒序排列。"""
     scripts = []
     if os.path.exists(SCRIPTS_DIR):
         for f in os.listdir(SCRIPTS_DIR):
@@ -104,6 +113,7 @@ def list_scripts():
 
 @router.get("/search")
 def search_scripts(q: str = ""):
+    """根据关键词搜索脚本，支持文件名匹配和内容匹配。"""
     if not q:
         return {"results": []}
 
@@ -161,6 +171,7 @@ def search_scripts(q: str = ""):
 
 @router.get("/{script_id}")
 def get_script(script_id: str):
+    """获取指定脚本的完整内容和元数据。"""
     filepath = os.path.join(SCRIPTS_DIR, f"{script_id}.jmx")
     if not os.path.exists(filepath):
         raise HTTPException(status_code=404, detail="Script not found")
@@ -190,6 +201,7 @@ def get_script(script_id: str):
 
 @router.get("/{script_id}/structure")
 def get_script_structure(script_id: str):
+    """解析并返回 JMX 脚本的元素结构树。"""
     filepath = os.path.join(SCRIPTS_DIR, f"{script_id}.jmx")
     if not os.path.exists(filepath):
         raise HTTPException(status_code=404, detail="Script not found")
@@ -207,6 +219,7 @@ def get_script_structure(script_id: str):
 
 
 def _parse_jmx_tree(element, elements, depth):
+    """递归解析 JMX XML 元素树，提取测试组件信息。"""
     tag = element.tag
     attrs = element.attrib
 
@@ -259,6 +272,13 @@ def _parse_jmx_tree(element, elements, depth):
                         if sub_text:
                             sub_name = sub.get("name", sub.tag)
                             item_props[sub_name] = sub_text
+                        elif sub.tag == "elementProp":
+                            sub_name = sub.get("name", "")
+                            for subsub in sub:
+                                subsub_text = subsub.text or ""
+                                if subsub_text:
+                                    subsub_name = subsub.get("name", subsub.tag)
+                                    item_props[f"{sub_name}.{subsub_name}" if sub_name else subsub_name] = subsub_text
                     items.append(item_props)
                 if items:
                     props[coll_name.split(".")[-1] if "." in coll_name else coll_name] = items
@@ -268,10 +288,26 @@ def _parse_jmx_tree(element, elements, depth):
                 if name:
                     sub_items = {}
                     for sub in child:
-                        sub_text = sub.text or ""
+                        sub_text = (sub.text or "").strip()
                         if sub_text:
                             sub_name = sub.get("name", sub.tag)
                             sub_items[sub_name] = sub_text
+                        elif sub.tag == "elementProp":
+                            inner_name = sub.get("name", "")
+                            for subsub in sub:
+                                subsub_text = (subsub.text or "").strip()
+                                if subsub_text:
+                                    subsub_name = subsub.get("name", subsub.tag)
+                                    key = f"{inner_name}.{subsub_name}" if inner_name else subsub_name
+                                    sub_items[key] = subsub_text
+                                elif subsub.tag == "elementProp":
+                                    inner2_name = subsub.get("name", "")
+                                    for subsubsub in subsub:
+                                        sss_text = (subsubsub.text or "").strip()
+                                        if sss_text:
+                                            sss_name = subsubsub.get("name", subsubsub.tag)
+                                            key2 = f"{inner2_name}.{sss_name}" if inner2_name else sss_name
+                                            sub_items[key2] = sss_text
                     if sub_items:
                         props[name] = sub_items
                     elif child_text:
@@ -292,6 +328,7 @@ def _parse_jmx_tree(element, elements, depth):
 
 @router.post("/{script_id}/save")
 def save_script_content(script_id: str, req: ScriptSaveRequest):
+    """保存脚本内容到指定脚本文件，会验证 XML 格式。"""
     filepath = os.path.join(SCRIPTS_DIR, f"{script_id}.jmx")
     if not os.path.exists(filepath):
         raise HTTPException(status_code=404, detail="Script not found")
@@ -315,6 +352,7 @@ def save_script_content(script_id: str, req: ScriptSaveRequest):
 
 @router.put("/{script_id}")
 async def update_script(script_id: str, file: UploadFile = File(...)):
+    """通过上传文件更新指定脚本的内容。"""
     filepath = os.path.join(SCRIPTS_DIR, f"{script_id}.jmx")
     if not os.path.exists(filepath):
         raise HTTPException(status_code=404, detail="Script not found")
@@ -328,6 +366,7 @@ async def update_script(script_id: str, file: UploadFile = File(...)):
 
 @router.post("/create")
 def create_script_from_content(req: ScriptSaveRequest):
+    """从提供的 XML 内容创建新的 JMeter 脚本。"""
     try:
         ET.fromstring(req.content)
     except ET.ParseError as e:
@@ -353,6 +392,7 @@ def create_script_from_content(req: ScriptSaveRequest):
 
 @router.delete("/{script_id}")
 def delete_script(script_id: str):
+    """删除指定脚本及其元数据文件。"""
     filepath = os.path.join(SCRIPTS_DIR, f"{script_id}.jmx")
     if not os.path.exists(filepath):
         raise HTTPException(status_code=404, detail="Script not found")
@@ -371,6 +411,7 @@ class ReorderRequest(BaseModel):
 
 @router.post("/{script_id}/reorder")
 def reorder_elements(script_id: str, req: ReorderRequest):
+    """在同层级内拖拽排序 JMX 脚本中的测试元素。"""
     filepath = os.path.join(SCRIPTS_DIR, f"{script_id}.jmx")
     if not os.path.exists(filepath):
         raise HTTPException(status_code=404, detail="Script not found")

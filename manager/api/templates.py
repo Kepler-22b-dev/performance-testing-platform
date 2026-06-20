@@ -1,3 +1,9 @@
+"""压测场景模板管理 API 模块。
+
+提供内置和自定义压测模板的查询、创建和删除接口，支持冒烟测试、负载测试、
+压力测试、阶梯加压、峰值测试、稳定性测试等多种预设场景模板。
+"""
+
 import sys
 import os
 import json
@@ -125,10 +131,12 @@ BUILTIN_TEMPLATES = [
 
 
 def _ensure_dir():
+    """确保模板配置文件所在目录存在。"""
     os.makedirs(os.path.dirname(TEMPLATES_FILE), exist_ok=True)
 
 
 def _load_templates() -> list:
+    """加载内置模板和自定义模板的合并列表。"""
     _ensure_dir()
     custom = []
     if os.path.exists(TEMPLATES_FILE):
@@ -141,6 +149,7 @@ def _load_templates() -> list:
 
 
 def _save_custom_templates(templates: list):
+    """保存自定义模板到配置文件（自动过滤内置模板）。"""
     _ensure_dir()
     custom = [t for t in templates if not t.get("builtin")]
     with open(TEMPLATES_FILE, "w") as f:
@@ -156,12 +165,14 @@ class TemplateCreateRequest(BaseModel):
 
 @router.get("/")
 def list_templates():
+    """获取所有压测模板（包含内置和自定义）。"""
     templates = _load_templates()
     return {"total": len(templates), "templates": templates}
 
 
 @router.get("/{template_id}")
 def get_template(template_id: str):
+    """获取指定模板的详细配置。"""
     templates = _load_templates()
     for t in templates:
         if t["template_id"] == template_id:
@@ -171,6 +182,7 @@ def get_template(template_id: str):
 
 @router.post("/")
 def create_template(req: TemplateCreateRequest):
+    """创建一个新的自定义压测模板。"""
     templates = _load_templates()
 
     template_id = f"tpl-{int(time.time()*1000)}"
@@ -191,6 +203,7 @@ def create_template(req: TemplateCreateRequest):
 
 @router.delete("/{template_id}")
 def delete_template(template_id: str):
+    """删除指定的自定义模板（内置模板不可删除）。"""
     templates = _load_templates()
     target = None
     for t in templates:

@@ -1,3 +1,9 @@
+"""告警规则管理 API 模块。
+
+提供基于性能指标的告警规则的创建、更新、删除和触发检测接口，
+支持对平均响应时间、百分位响应时间、错误率、TPS 等指标设置阈值告警。
+"""
+
 import sys
 import os
 import json
@@ -16,6 +22,7 @@ router = APIRouter(prefix="/api/alerts", tags=["alerts"])
 
 
 def _get_redis():
+    """获取 Redis 连接实例。"""
     return redis.Redis(
         host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB,
         decode_responses=True,
@@ -23,6 +30,7 @@ def _get_redis():
 
 
 def _load_rules() -> list:
+    """从 Redis 加载所有告警规则。"""
     r = _get_redis()
     data = r.hget("jmeter:config", "alert_rules")
     if data:
@@ -31,6 +39,7 @@ def _load_rules() -> list:
 
 
 def _save_rules(rules: list):
+    """将告警规则列表保存到 Redis。"""
     r = _get_redis()
     r.hset("jmeter:config", "alert_rules", json.dumps(rules, ensure_ascii=False, default=str))
 
@@ -68,17 +77,20 @@ METRICS = {
 
 @router.get("/metrics")
 def list_metrics():
+    """获取所有支持告警的性能指标列表。"""
     return {"metrics": [{"key": k, "name": v} for k, v in METRICS.items()]}
 
 
 @router.get("/")
 def list_rules():
+    """获取所有告警规则的列表。"""
     rules = _load_rules()
     return {"total": len(rules), "rules": rules}
 
 
 @router.post("/")
 def create_rule(req: AlertRuleCreate):
+    """创建一条新的告警规则。"""
     rules = _load_rules()
     rule_id = f"alert-{uuid.uuid4().hex[:8]}"
     rule = {
@@ -101,6 +113,7 @@ def create_rule(req: AlertRuleCreate):
 
 @router.put("/{rule_id}")
 def update_rule(rule_id: str, req: AlertRuleUpdate):
+    """更新指定告警规则的参数。"""
     rules = _load_rules()
     for rule in rules:
         if rule["rule_id"] == rule_id:
@@ -125,6 +138,7 @@ def update_rule(rule_id: str, req: AlertRuleUpdate):
 
 @router.delete("/{rule_id}")
 def delete_rule(rule_id: str):
+    """删除指定的告警规则。"""
     rules = _load_rules()
     original = len(rules)
     rules = [r for r in rules if r["rule_id"] != rule_id]
@@ -135,6 +149,7 @@ def delete_rule(rule_id: str):
 
 
 def check_alerts(task_result: dict) -> list:
+    """检查任务结果是否触发告警规则，返回触发的规则列表。"""
     rules = _load_rules()
     triggered = []
 

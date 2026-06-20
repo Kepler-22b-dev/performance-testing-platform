@@ -1,3 +1,9 @@
+"""系统监控模块。
+
+提供 Manager 节点的系统资源监控功能，包括 CPU、内存、磁盘、
+网络等系统指标采集，JMeter 进程监控，以及网络连接和速率统计。
+"""
+
 import sys
 import os
 import time
@@ -8,6 +14,11 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 
 def get_system_metrics() -> dict:
+    """采集当前系统的综合性能指标。
+
+    包含 CPU 使用率与频率、内存与 Swap、磁盘使用、
+    网络流量统计及系统负载等信息。
+    """
     cpu_percent = psutil.cpu_percent(interval=0.5)
     cpu_count = psutil.cpu_count()
 
@@ -67,6 +78,10 @@ def get_system_metrics() -> dict:
 
 
 def get_jmeter_processes() -> list:
+    """获取当前系统中所有 JMeter 相关进程的信息。
+
+    返回每个进程的 PID、名称、CPU 占用、内存占用、线程数和命令行。
+    """
     processes = []
     for proc in psutil.process_iter(["pid", "name", "cmdline", "cpu_percent", "memory_percent", "num_threads"]):
         try:
@@ -87,6 +102,7 @@ def get_jmeter_processes() -> list:
 
 
 def get_network_connections() -> list:
+    """获取当前系统所有已建立的 TCP 网络连接。"""
     conns = []
     try:
         for conn in psutil.net_connections(kind="inet"):
@@ -109,6 +125,10 @@ _prev_time = None
 
 
 def get_network_speed() -> dict:
+    """计算当前网络发送和接收速率（字节/秒）。
+
+    通过与上次采样数据对比计算瞬时速率。
+    """
     global _prev_net, _prev_time
 
     net = psutil.net_io_counters()

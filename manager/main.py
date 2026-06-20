@@ -1,3 +1,14 @@
+"""性能测试平台 Manager 主程序。
+
+本模块是性能测试平台的管理端入口，基于 FastAPI 构建，提供以下核心能力：
+
+- **任务调度** - 分发压测任务至 Agent 节点并跟踪执行状态
+- **节点管理** - 监控 Agent 节点心跳、上下线状态
+- **结果收集** - 通过 Redis 订阅测试结果和进度更新
+- **WebSocket 推送** - 向前端实时推送测试进度和结果
+- **REST API** - 提供脚本管理、任务管理、结果查询等接口
+"""
+
 import sys
 import os
 
@@ -40,6 +51,7 @@ ws_manager = ConnectionManager()
 
 
 async def redis_listener():
+    """Redis 监听协程。订阅结果和进度通道，将消息分发给调度器并推送给 WebSocket 客户端。"""
     import redis.asyncio as aioredis
     r = aioredis.Redis(
         host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB,
@@ -74,6 +86,7 @@ async def redis_listener():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    """FastAPI 生命周期管理。启动时初始化心跳监听、Redis 订阅和调度器；关闭时清理资源。"""
     heartbeat_thread = node_manager.start_heartbeat_listener()
     listener_task = asyncio.create_task(redis_listener())
     init_scheduler_loop()
@@ -145,16 +158,19 @@ STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 
 @app.get("/")
 def index():
+    """返回前端首页。"""
     return FileResponse(os.path.join(STATIC_DIR, "index.html"))
 
 
 @app.get("/api/health")
 def health():
+    """健康检查接口。用于监控服务是否正常运行。"""
     return {"status": "ok"}
 
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
+    """WebSocket 端点。前端通过此连接接收实时测试进度和结果推送。"""
     await websocket.accept()
     ws_manager.add_connection(websocket)
     try:

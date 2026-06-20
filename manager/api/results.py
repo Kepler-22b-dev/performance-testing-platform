@@ -1,3 +1,9 @@
+"""测试结果分析与报告 API 模块。
+
+提供压测结果的查询、汇总统计、时序分析、响应时间分布、标签统计、
+错误分析、多任务对比、HTML/PDF 报告导出以及性能趋势追踪等接口。
+"""
+
 import sys
 import os
 import json
@@ -12,6 +18,7 @@ router = APIRouter(prefix="/api/results", tags=["results"])
 
 
 def _parse_jtl(jtl_path: str) -> dict:
+    """解析 JTL 格式的测试结果文件，提取样本数据和统计摘要。"""
     if not os.path.exists(jtl_path):
         return {"samples": [], "summary": {}}
 
@@ -99,6 +106,7 @@ def _parse_jtl(jtl_path: str) -> dict:
 
 
 def _percentile(data: list, p: int) -> int:
+    """计算数据列表的第 p 百分位值。"""
     if not data:
         return 0
     k = (len(data) - 1) * (p / 100)
@@ -110,6 +118,7 @@ def _percentile(data: list, p: int) -> int:
 
 
 def _build_time_series(samples: list) -> dict:
+    """将样本数据按秒聚合，构建 TPS、平均响应时间和错误率的时序数据。"""
     if not samples:
         return {"timestamps": [], "tps": [], "avg_rt": [], "error_rate": [], "active_threads": []}
 
@@ -151,6 +160,7 @@ def _build_time_series(samples: list) -> dict:
 
 
 def _build_response_time_distribution(samples: list) -> dict:
+    """构建响应时间分布统计，按预设时间区间分桶计数。"""
     ranges = [
         (0, 100, "0-100ms"),
         (100, 200, "100-200ms"),
@@ -176,6 +186,7 @@ def _build_response_time_distribution(samples: list) -> dict:
 
 
 def _build_label_stats(samples: list) -> dict:
+    """按接口标签聚合统计，计算每个接口的 TPS、响应时间和错误率。"""
     label_data = {}
     for s in samples:
         label = s["label"]
@@ -212,6 +223,7 @@ def _build_label_stats(samples: list) -> dict:
 
 @router.get("/tasks")
 def list_completed_tasks():
+    """获取所有已完成测试任务的列表。"""
     tasks = []
     if not os.path.exists(REPORTS_DIR):
         return {"total": 0, "tasks": []}
@@ -242,6 +254,7 @@ def list_completed_tasks():
 
 @router.get("/tasks/{task_id}/summary")
 def get_task_summary(task_id: str):
+    """获取指定任务的完整结果摘要，包括汇总统计、时序数据和标签统计。"""
     task_path = os.path.join(REPORTS_DIR, task_id)
     if not os.path.exists(task_path):
         raise HTTPException(status_code=404, detail="Task result not found")
@@ -324,6 +337,7 @@ def get_task_summary(task_id: str):
 
 @router.get("/tasks/{task_id}/timeseries")
 def get_task_timeseries(task_id: str):
+    """获取指定任务的时序数据（TPS、平均响应时间、错误率）。"""
     task_path = os.path.join(REPORTS_DIR, task_id)
     if not os.path.exists(task_path):
         raise HTTPException(status_code=404, detail="Task result not found")
@@ -341,6 +355,7 @@ def get_task_timeseries(task_id: str):
 
 @router.get("/tasks/{task_id}/samples")
 def get_task_samples(task_id: str, offset: int = 0, limit: int = 50, label: str = None, errors_only: bool = False):
+    """分页获取测试样本数据，支持按标签和错误状态过滤。"""
     task_path = os.path.join(REPORTS_DIR, task_id)
     if not os.path.exists(task_path):
         raise HTTPException(status_code=404, detail="Task not found")
@@ -368,6 +383,7 @@ def get_task_samples(task_id: str, offset: int = 0, limit: int = 50, label: str 
 
 @router.get("/tasks/{task_id}/sample/{index}")
 def get_sample_detail(task_id: str, index: int):
+    """获取指定样本的详细信息。"""
     task_path = os.path.join(REPORTS_DIR, task_id)
     if not os.path.exists(task_path):
         raise HTTPException(status_code=404, detail="Task not found")
@@ -383,6 +399,7 @@ def get_sample_detail(task_id: str, index: int):
 
 @router.get("/tasks/{task_id}/errors")
 def get_task_errors(task_id: str):
+    """获取指定任务的错误汇总和错误样本列表。"""
     task_path = os.path.join(REPORTS_DIR, task_id)
     if not os.path.exists(task_path):
         raise HTTPException(status_code=404, detail="Task not found")
@@ -414,6 +431,7 @@ def get_task_errors(task_id: str):
 
 @router.get("/tasks/{task_id}/full-report")
 def get_full_report(task_id: str):
+    """获取指定任务的完整报告数据，包含汇总、时序、分布、标签统计和 Agent 详情。"""
     task_path = os.path.join(REPORTS_DIR, task_id)
     if not os.path.exists(task_path):
         raise HTTPException(status_code=404, detail="Task not found")
@@ -452,6 +470,7 @@ def get_full_report(task_id: str):
 
 
 def _merge_summaries(summaries: list) -> dict:
+    """合并多个 Agent 的统计摘要为统一的汇总数据。"""
     total_samples = 0
     error_count = 0
     all_times = []
@@ -496,6 +515,7 @@ def _merge_summaries(summaries: list) -> dict:
 
 @router.get("/tasks/{task_id}/logs")
 def get_task_logs(task_id: str):
+    """获取指定任务所有 Agent 的 JMeter 日志。"""
     task_path = os.path.join(REPORTS_DIR, task_id)
     if not os.path.exists(task_path):
         raise HTTPException(status_code=404, detail="Task not found")
@@ -519,6 +539,7 @@ def get_task_logs(task_id: str):
 
 @router.get("/tasks/{task_id}/logs/{agent_id}")
 def get_agent_log(task_id: str, agent_id: str):
+    """获取指定 Agent 的 JMeter 日志内容。"""
     log_path = os.path.join(REPORTS_DIR, task_id, agent_id, "jmeter.log")
     if not os.path.exists(log_path):
         raise HTTPException(status_code=404, detail="Log not found")
@@ -533,6 +554,7 @@ def get_agent_log(task_id: str, agent_id: str):
 
 @router.get("/compare")
 def compare_tasks(task_ids: str):
+    """对比多个任务的测试结果，返回各任务的汇总统计和时序数据。"""
     ids = [t.strip() for t in task_ids.split(",") if t.strip()]
     if len(ids) < 2:
         raise HTTPException(status_code=400, detail="需要至少两个任务ID进行对比")
@@ -612,6 +634,7 @@ def compare_tasks(task_ids: str):
 
 @router.get("/tasks/{task_id}/export")
 def export_report(task_id: str):
+    """导出指定任务的 HTML 格式测试报告。"""
     task_path = os.path.join(REPORTS_DIR, task_id)
     if not os.path.exists(task_path):
         raise HTTPException(status_code=404, detail="Task not found")
@@ -857,6 +880,7 @@ tr:hover {{ background: #fafafa; }}
 
 @router.get("/tasks/{task_id}/export-pdf")
 def export_report_pdf(task_id: str):
+    """导出指定任务的 PDF 格式测试报告（需要 weasyprint 依赖）。"""
     task_path = os.path.join(REPORTS_DIR, task_id)
     if not os.path.exists(task_path):
         raise HTTPException(status_code=404, detail="Task not found")
@@ -882,6 +906,7 @@ def export_report_pdf(task_id: str):
 
 @router.get("/trend")
 def get_performance_trend(label: str = None, limit: int = 20):
+    """获取性能趋势数据，展示多个任务的关键指标变化趋势。"""
     if not os.path.exists(REPORTS_DIR):
         return {"tasks": []}
 

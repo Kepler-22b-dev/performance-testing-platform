@@ -898,6 +898,8 @@
                         <div style="display:flex;gap:8px;">
                             <button class="filter-btn active" id="btn-tree-view" onclick="switchEditorView('tree')">树形视图</button>
                             <button class="filter-btn" id="btn-code-view" onclick="switchEditorView('code')">代码视图</button>
+                            <button class="filter-btn" onclick="expandAll()" title="展开所有节点">全部展开</button>
+                            <button class="filter-btn" onclick="collapseAll()" title="收起所有节点">全部收起</button>
                             <button class="filter-btn" onclick="formatXml()">格式化</button>
                             <button class="filter-btn" onclick="toggleWordWrap()">自动换行</button>
                         </div>
@@ -1278,10 +1280,6 @@
             } catch (e) {
                 box.innerHTML = '<span class="log-loading">加载失败</span>';
             }
-        }
-
-        function escapeHtml(str) {
-            return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
         }
 
         function toggleExpand(taskId) {
@@ -2464,135 +2462,132 @@
             document.getElementById('code-view-container').classList.toggle('hidden', view !== 'code');
         }
 
+        function expandAll() {
+            const elements = window._treeElements || [];
+            elements.forEach((el, idx) => expandedNodes.add(idx));
+            renderTree();
+        }
+
+        function collapseAll() {
+            expandedNodes.clear();
+            renderTree();
+        }
+
         async function loadScriptTree(scriptId) {
             try {
-                const res = await fetch(`${API}/api/scripts/${scriptId}/structure`);
+                const res = await fetch(API + '/api/scripts/' + scriptId + '/structure');
                 const data = await res.json();
                 window._treeElements = data.elements || [];
+                expandedNodes.clear();
+                if (window._treeElements.length > 0) expandedNodes.add(0);
+                selectedNode = null;
                 renderTree();
-                document.getElementById('editor-status').textContent = `共 ${data.elements.length} 个组件`;
+                document.getElementById('editor-status').textContent = '共 ' + data.elements.length + ' 个组件';
             } catch (e) {
                 document.getElementById('script-tree').innerHTML = '<div style="color:#dc2626;font-size:12px;padding:12px">加载失败</div>';
             }
         }
 
         function renderTree() {
-            const elements = window._treeElements || [];
-            const treeContainer = document.getElementById('script-tree');
+            var elements = window._treeElements || [];
+            var treeContainer = document.getElementById('script-tree');
+            if (!treeContainer) return;
 
-            const typeIcons = {
-                'test_plan': { icon: '📋', color: '#2563eb' },
-                'thread_group': { icon: '👥', color: '#16a34a' },
-                'http_sampler': { icon: '🌐', color: '#d97706' },
-                'loop_controller': { icon: '🔄', color: '#9333ea' },
-                'arguments': { icon: '📝', color: '#6b7280' },
-                'header_manager': { icon: '📑', color: '#0891b2' },
-                'timer': { icon: '⏱️', color: '#dc2626' },
-                'assertion': { icon: '✅', color: '#16a34a' },
-                'extractor': { icon: '🔍', color: '#7c3aed' },
-                'listener': { icon: '📊', color: '#2563eb' },
-                'csv_data_set': { icon: '📄', color: '#059669' },
-                'unknown': { icon: '📦', color: '#9ca3af' },
-            };
+            var icons = {};
+            icons['test_plan'] = ['📋', '#2563eb'];
+            icons['thread_group'] = ['👥', '#16a34a'];
+            icons['http_sampler'] = ['🌐', '#d97706'];
+            icons['loop_controller'] = ['🔄', '#9333ea'];
+            icons['arguments'] = ['📝', '#6b7280'];
+            icons['header_manager'] = ['📑', '#0891b2'];
+            icons['timer'] = ['⏱️', '#dc2626'];
+            icons['assertion'] = ['✅', '#16a34a'];
+            icons['extractor'] = ['🔍', '#7c3aed'];
+            icons['listener'] = ['📊', '#2563eb'];
+            icons['csv_data_set'] = ['📄', '#059669'];
+            icons['unknown'] = ['📦', '#9ca3af'];
 
             if (elements.length === 0) {
                 treeContainer.innerHTML = '<div style="color:#888;font-size:12px;padding:12px">空脚本</div>';
                 return;
             }
 
-            const childMap = {};
-            elements.forEach((el, idx) => {
-                if (el.depth === 0) {
-                    childMap[-1] = childMap[-1] || [];
-                    childMap[-1].push(idx);
-                } else {
-                    let parentIdx = -1;
-                    for (let i = idx - 1; i >= 0; i--) {
-                        if (elements[i].depth < el.depth) {
-                            parentIdx = i;
-                            break;
-                        }
-                    }
-                    if (parentIdx >= 0) {
-                        if (!childMap[parentIdx]) childMap[parentIdx] = [];
-                        childMap[parentIdx].push(idx);
-                    }
-                }
-            });
-
             function isNodeVisible(idx) {
-                let parentIdx = -1;
-                for (let i = idx - 1; i >= 0; i--) {
+                for (var i = idx - 1; i >= 0; i--) {
                     if (elements[i].depth < elements[idx].depth) {
-                        parentIdx = i;
-                        break;
+                        return expandedNodes.has(i) && isNodeVisible(i);
                     }
                 }
-                if (parentIdx < 0) return true;
-                if (!expandedNodes.has(parentIdx)) return false;
-                return isNodeVisible(parentIdx);
+                return true;
             }
 
             function getNodeSummary(el) {
-                const props = el.props || {};
+                var p = el.props || {};
                 if (el.type === 'http_sampler') {
-                    const method = props.method || 'GET';
-                    const domain = props.domain || '';
-                    const path = props.path || '';
-                    return `${method} ${domain}${path}`;
-                } else if (el.type === 'thread_group') {
-                    return `${props.num_threads || '?'} 线程, ${props.duration || '?'}s`;
-                } else if (el.type === 'header_manager') {
-                    const headers = props.headers || props.HTTPSampler.headerManager || [];
-                    if (Array.isArray(headers)) {
-                        return `${headers.length} 个请求头`;
+                    var m = p.method || 'GET';
+                    var d = p.domain || '';
+                    var pa = p.path || '';
+                    var s = m + ' ' + d + pa;
+                    if (m === 'GET' && pa.indexOf('?') > -1) {
+                        var qs = pa.substring(pa.indexOf('?') + 1);
+                        s += ' → ' + (qs.length > 30 ? qs.substring(0, 30) + '...' : qs);
+                    } else if (m !== 'GET') {
+                        var args = p['HTTPsampler.Arguments'] || p.Arguments || '';
+                        if (typeof args === 'object' && args['Argument.value']) {
+                            var body = args['Argument.value'].trim();
+                            if (body) s += ' → ' + (body.length > 25 ? body.substring(0, 25) + '...' : body);
+                        }
                     }
-                    return '';
-                } else if (el.type === 'csv_data_set') {
-                    return props.filename || '';
+                    return s;
+                } else if (el.type === 'thread_group') {
+                    return (p.num_threads || '?') + ' 线程, ' + (p.duration || '?') + 's';
+                } else if (el.type === 'header_manager') {
+                    var h = p.headers || [];
+                    return Array.isArray(h) ? h.length + ' 个请求头' : '';
                 }
                 return '';
             }
 
-            let html = '<div style="font-family: -apple-system, sans-serif; font-size: 13px;">';
-            elements.forEach((el, idx) => {
+            var html = '';
+            elements.forEach(function(el, idx) {
                 if (!isNodeVisible(idx)) return;
+                var ico = icons[el.type] || icons['unknown'];
+                var indent = el.depth * 22;
+                var hasKids = false;
+                for (var j = idx + 1; j < elements.length; j++) {
+                    if (elements[j].depth <= el.depth) break;
+                    if (elements[j].depth === el.depth + 1) { hasKids = true; break; }
+                }
+                var isOpen = expandedNodes.has(idx);
+                var isSel = selectedNode === idx;
+                var arrow = hasKids ? (isOpen ? '▼' : '▶') : '  ';
+                var bg = isSel ? 'background:#e8f0fe;border-left:3px solid #2563eb;' : '';
+                var summary = getNodeSummary(el);
+                var method = el.type === 'http_sampler' ? (p = el.props || {}, p.method || 'GET') : '';
+                var mColor = method === 'GET' ? '#16a34a' : method === 'POST' ? '#2563eb' : method === 'PUT' ? '#d97706' : method ? '#dc2626' : '';
 
-                const icon = typeIcons[el.type] || typeIcons['unknown'];
-                const indent = el.depth * 20;
-                const hasChildren = childMap[idx] && childMap[idx].length > 0;
-                const isExpanded = expandedNodes.has(idx);
-                const isSelected = selectedNode === idx;
-                const arrow = hasChildren ? (isExpanded ? '▼' : '▶') : '';
-                const selectedBg = isSelected ? 'background:#e8f0fe;border-left:3px solid #2563eb;' : '';
-                const summary = getNodeSummary(el);
-
-                html += `<div class="tree-node" data-idx="${idx}" draggable="true"
-                    ondragstart="onDragStart(event, ${idx})" 
-                    ondragover="onDragOver(event, ${idx})" 
-                    ondrop="onDrop(event, ${idx})"
-                    style="padding:6px 8px 6px ${indent + 8}px;border-left:1px solid #e0e0e0;cursor:pointer;border-radius:0 4px 4px 0;transition:all 0.15s;${selectedBg}" 
-                    onmouseover="if(${!isSelected})this.style.background='#f5f5f5'" 
-                    onmouseout="if(${!isSelected})this.style.background=''"
-                    onclick="selectTreeNode(${idx})">
-                    <span style="display:inline-block;width:16px;color:#888;font-size:10px;cursor:pointer" onclick="event.stopPropagation();toggleNode(${idx})">${arrow}</span>
-                    <span style="color:${icon.color};margin-right:4px">${icon.icon}</span>
-                    <span style="font-weight:500;color:#1a1a1a">${el.testname}</span>
-                    <span style="font-size:11px;color:#888;margin-left:6px">${el.type.replace(/_/g, ' ')}</span>
-                    ${summary ? `<span style="font-size:11px;color:#666;margin-left:8px;opacity:0.7">- ${summary}</span>` : ''}
-                </div>`;
+                html += '<div class="tree-node" data-idx="' + idx + '" draggable="true"';
+                html += ' ondragstart="onDragStart(event,' + idx + ')"';
+                html += ' ondragover="onDragOver(event,' + idx + ')"';
+                html += ' ondrop="onDrop(event,' + idx + ')"';
+                html += ' style="padding:6px 8px 6px ' + (indent + 8) + 'px;border-left:1px solid #e0e0e0;cursor:pointer;border-radius:0 4px 4px 0;transition:all 0.15s;' + bg + '"';
+                html += ' onmouseover="this.style.background=\'#f5f5f5\'"';
+                html += ' onmouseout="this.style.background=\'\'"';
+                html += ' onclick="selectTreeNode(' + idx + ')">';
+                html += '<span style="display:inline-block;width:16px;color:#888;font-size:10px;cursor:pointer" onclick="event.stopPropagation();toggleNode(' + idx + ')">' + arrow + '</span>';
+                html += '<span style="color:' + ico[1] + ';margin-right:4px">' + ico[0] + '</span>';
+                if (method) html += '<span style="background:' + mColor + ';color:#fff;padding:1px 5px;border-radius:3px;font-size:10px;font-weight:600;margin-right:4px">' + method + '</span>';
+                html += '<span style="font-weight:500;color:#1a1a1a">' + el.testname + '</span>';
+                html += '<span style="font-size:11px;color:#888;margin-left:6px">' + el.type.replace(/_/g, ' ') + '</span>';
+                if (summary) html += '<span style="font-size:11px;color:#666;margin-left:8px;opacity:0.7">- ' + summary + '</span>';
+                html += '</div>';
             });
-            html += '</div>';
-
             treeContainer.innerHTML = html;
         }
 
         function toggleNode(idx) {
-            if (expandedNodes.has(idx)) {
-                expandedNodes.delete(idx);
-            } else {
-                expandedNodes.add(idx);
-            }
+            if (expandedNodes.has(idx)) expandedNodes.delete(idx);
+            else expandedNodes.add(idx);
             renderTree();
         }
 
@@ -2605,180 +2600,121 @@
         function onDragStart(e, idx) {
             dragFromIndex = idx;
             e.dataTransfer.effectAllowed = 'move';
-            e.target.style.opacity = '0.5';
         }
 
         function onDragOver(e, idx) {
             e.preventDefault();
             e.dataTransfer.dropEffect = 'move';
-            const node = e.target.closest('.tree-node');
-            if (node) {
-                node.style.borderTop = '2px solid #2563eb';
-            }
         }
 
         function onDrop(e, toIdx) {
             e.preventDefault();
-            const node = e.target.closest('.tree-node');
-            if (node) {
-                node.style.borderTop = '';
-            }
-
             if (dragFromIndex === -1 || dragFromIndex === toIdx) return;
-
-            const fromEl = window._treeElements[dragFromIndex];
-            const toEl = window._treeElements[toIdx];
-
+            var fromEl = window._treeElements[dragFromIndex];
+            var toEl = window._treeElements[toIdx];
             if (fromEl.depth !== toEl.depth) {
                 alert('只能在同一层级内拖拽排序');
                 dragFromIndex = -1;
                 return;
             }
-
-            const moved = window._treeElements.splice(dragFromIndex, 1)[0];
-            const insertIdx = dragFromIndex < toIdx ? toIdx - 1 : toIdx;
+            var moved = window._treeElements.splice(dragFromIndex, 1)[0];
+            var insertIdx = dragFromIndex < toIdx ? toIdx - 1 : toIdx;
             window._treeElements.splice(insertIdx, 0, moved);
-
+            var savedFrom = dragFromIndex;
             dragFromIndex = -1;
             renderTree();
-
             if (currentScriptId) {
-                fetch(`${API}/api/scripts/${currentScriptId}/reorder`, {
+                fetch(API + '/api/scripts/' + currentScriptId + '/reorder', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ from_index: dragFromIndex, to_index: toIdx }),
-                }).catch(e => console.error('Reorder failed:', e));
+                    body: JSON.stringify({ from_index: savedFrom, to_index: toIdx }),
+                }).catch(function(e) { console.error('Reorder failed:', e); });
             }
         }
 
         function showNodeDetail(idx) {
-            const el = window._treeElements[idx];
+            var el = window._treeElements[idx];
             if (!el) return;
-
-            const typeLabels = {
-                'test_plan': '测试计划',
-                'thread_group': '线程组',
-                'http_sampler': 'HTTP 请求',
-                'loop_controller': '循环控制器',
-                'arguments': '用户变量',
-                'header_manager': 'HTTP Header 管理器',
-                'timer': '定时器',
-                'assertion': '断言',
-                'extractor': '提取器',
-                'listener': '监听器',
-                'csv_data_set': 'CSV 数据集',
-                'unknown': '未知组件',
-            };
-
-            const props = el.props || {};
-            let detailHtml = `<div style="padding:12px;background:#f8f9fa;border-radius:6px;border:1px solid #e0e0e0;">
-                <div style="font-size:14px;font-weight:600;color:#1a1a1a;margin-bottom:8px">${el.testname}</div>
-                <div style="font-size:12px;color:#888;margin-bottom:12px">类型: ${typeLabels[el.type] || el.type} (${el.testclass})</div>`;
+            var p = el.props || {};
+            var html = '<div style="padding:12px;background:#f8f9fa;border-radius:6px;border:1px solid #e0e0e0;">';
+            html += '<div style="font-size:14px;font-weight:600;color:#1a1a1a;margin-bottom:4px">' + el.testname + '</div>';
+            html += '<div style="font-size:12px;color:#888;margin-bottom:12px">类型: ' + el.type.replace(/_/g, ' ') + ' (' + el.testclass + ')</div>';
 
             if (el.type === 'http_sampler') {
-                const method = props.method || 'GET';
-                const domain = props.domain || '';
-                const port = props.port || '';
-                const path = props.path || '';
-                const url = port ? `${domain}:${port}${path}` : `${domain}${path}`;
-                const postBody = props.postBodyRaw === 'true';
-                const body = props.body || props.Arguments || '';
-                detailHtml += `
-                    <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
-                        <span style="background:${method === 'GET' ? '#16a34a' : method === 'POST' ? '#2563eb' : method === 'PUT' ? '#d97706' : '#dc2626'};color:#fff;padding:3px 10px;border-radius:4px;font-size:12px;font-weight:600">${method}</span>
-                        <span style="font-family:monospace;font-size:13px;color:#1a1a1a">${url}</span>
-                    </div>`;
-                if (props.protocol) detailHtml += `<div style="font-size:12px;color:#666;margin-bottom:4px">协议: <b>${props.protocol}</b></div>`;
-                if (props.contentEncoding) detailHtml += `<div style="font-size:12px;color:#666;margin-bottom:4px">编码: <b>${props.contentEncoding}</b></div>`;
+                var method = p.method || 'GET';
+                var domain = p.domain || '';
+                var port = p.port || '';
+                var path = p.path || '';
+                var url = port ? domain + ':' + port + path : domain + path;
+                var mColor = method === 'GET' ? '#16a34a' : method === 'POST' ? '#2563eb' : method === 'PUT' ? '#d97706' : '#dc2626';
+                html += '<div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">';
+                html += '<span style="background:' + mColor + ';color:#fff;padding:3px 10px;border-radius:4px;font-size:12px;font-weight:600">' + method + '</span>';
+                html += '<span style="font-family:monospace;font-size:13px;color:#1a1a1a">' + url + '</span></div>';
+                if (p.protocol) html += '<div style="font-size:12px;color:#666;margin-bottom:4px">协议: <b>' + p.protocol + '</b></div>';
+                var postBody = p.postBodyRaw === 'true';
+                var body = '';
+                var args = p['HTTPsampler.Arguments'] || p.Arguments || '';
+                if (typeof args === 'object') body = (args['Argument.value'] || '').trim();
+                else if (typeof args === 'string') body = args.trim();
                 if (postBody && body) {
-                    detailHtml += `<div style="font-size:12px;color:#666;margin-bottom:4px">请求体:</div>`;
-                    detailHtml += `<div style="background:#1a1a1a;color:#d4d4d4;padding:8px;border-radius:4px;font-family:monospace;font-size:11px;max-height:100px;overflow:auto;white-space:pre-wrap">${escapeHtml(body)}</div>`;
-                }
-                detailHtml += `<div style="font-size:12px;color:#888;margin-top:8px">应用: 保存响应数据 = ${props.saveResponseHeaders === 'true' ? '是' : '否'}</div>`;
-            } else if (el.type === 'thread_group') {
-                const threads = props.num_threads || '-';
-                const ramp = props.ramp_time || '-';
-                const duration = props.duration || '-';
-                const scheduler = props.scheduler || '-';
-                const loops = props.loops || props.LoopController?.loops || '-';
-                detailHtml += `
-                    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;">
-                        <div style="text-align:center;padding:10px;background:#fff;border-radius:4px;border:1px solid #e0e0e0">
-                            <div style="font-size:11px;color:#888">线程数</div>
-                            <div style="font-size:20px;font-weight:600;color:#2563eb">${threads}</div>
-                        </div>
-                        <div style="text-align:center;padding:10px;background:#fff;border-radius:4px;border:1px solid #e0e0e0">
-                            <div style="font-size:11px;color:#888">预热(s)</div>
-                            <div style="font-size:20px;font-weight:600;color:#16a34a">${ramp}</div>
-                        </div>
-                        <div style="text-align:center;padding:10px;background:#fff;border-radius:4px;border:1px solid #e0e0e0">
-                            <div style="font-size:11px;color:#888">持续(s)</div>
-                            <div style="font-size:20px;font-weight:600;color:#d97706">${duration}</div>
-                        </div>
-                        <div style="text-align:center;padding:10px;background:#fff;border-radius:4px;border:1px solid #e0e0e0">
-                            <div style="font-size:11px;color:#888">循环次数</div>
-                            <div style="font-size:20px;font-weight:600;color:#9333ea">${loops === '-1' ? '∞' : loops}</div>
-                        </div>
-                    </div>`;
-                detailHtml += `<div style="font-size:12px;color:#666">调度器: ${scheduler === 'true' ? '<span style="color:#16a34a">启用</span>' : '<span style="color:#888">禁用</span>'}</div>`;
-            } else if (el.type === 'header_manager') {
-                const headers = props.headers || props.HTTPSampler?.headerManager || [];
-                detailHtml += `<div style="font-size:12px;color:#666;margin-bottom:8px">请求头列表:</div>`;
-                detailHtml += `<div style="background:#1a1a1a;color:#d4d4d4;padding:10px;border-radius:4px;font-family:monospace;font-size:11px;line-height:1.6;">`;
-                if (Array.isArray(headers)) {
-                    headers.forEach(h => {
-                        const name = h.name || h['Header.name'] || '';
-                        const value = h.value || h['Header.value'] || '';
-                        if (name) detailHtml += `<div><span style="color:#569cd6">${name}</span>: ${escapeHtml(value)}</div>`;
+                    html += '<div style="font-size:12px;color:#666;margin-bottom:4px">请求体 (入参):</div>';
+                    html += '<div style="background:#1a1a1a;color:#d4d4d4;padding:10px;border-radius:4px;font-family:monospace;font-size:11px;max-height:150px;overflow:auto;white-space:pre-wrap;line-height:1.6">' + escapeHtml(body) + '</div>';
+                } else if (path.indexOf('?') > -1) {
+                    var qs = path.substring(path.indexOf('?') + 1);
+                    html += '<div style="font-size:12px;color:#666;margin-bottom:4px">查询参数 (Query String):</div>';
+                    html += '<div style="background:#1a1a1a;color:#d4d4d4;padding:10px;border-radius:4px;font-family:monospace;font-size:11px;line-height:1.6">';
+                    qs.split('&').forEach(function(pair) {
+                        var kv = pair.split('=');
+                        html += '<div><span style="color:#569cd6">' + decodeURIComponent(kv[0]) + '</span> = ' + decodeURIComponent(kv[1] || '') + '</div>';
                     });
-                } else {
-                    for (const [k, v] of Object.entries(props)) {
-                        detailHtml += `<div><span style="color:#569cd6">${k}</span>: ${escapeHtml(String(v))}</div>`;
-                    }
+                    html += '</div>';
+                } else if (typeof args === 'object' && args.items && Array.isArray(args.items)) {
+                    html += '<div style="font-size:12px;color:#666;margin-bottom:4px">查询参数:</div>';
+                    html += '<div style="background:#1a1a1a;color:#d4d4d4;padding:10px;border-radius:4px;font-family:monospace;font-size:11px;line-height:1.6">';
+                    args.items.forEach(function(item) {
+                        html += '<div><span style="color:#569cd6">' + (item['Argument.name'] || item.name || '') + '</span> = ' + (item['Argument.value'] || item.value || '') + '</div>';
+                    });
+                    html += '</div>';
                 }
-                detailHtml += `</div>`;
-            } else if (el.type === 'arguments') {
-                detailHtml += `<div style="font-size:12px;color:#666;margin-bottom:8px">变量列表:</div>`;
-                detailHtml += `<div style="background:#1a1a1a;color:#d4d4d4;padding:10px;border-radius:4px;font-family:monospace;font-size:11px;line-height:1.6;">`;
-                for (const [k, v] of Object.entries(props)) {
-                    detailHtml += `<div><span style="color:#569cd6">${k}</span> = ${escapeHtml(String(v))}</div>`;
+            } else if (el.type === 'thread_group') {
+                html += '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px">';
+                var items = [
+                    ['线程数', p.num_threads || '?', '#2563eb'],
+                    ['预热(s)', p.ramp_time || '?', '#16a34a'],
+                    ['持续(s)', p.duration || '?', '#d97706'],
+                    ['循环', (p.loops === '-1' || (p['LoopController'] && p['LoopController']['LoopController.loops'] === '-1')) ? '∞' : (p.loops || '?'), '#9333ea']
+                ];
+                items.forEach(function(item) {
+                    html += '<div style="text-align:center;padding:10px;background:#fff;border-radius:4px;border:1px solid #e0e0e0">';
+                    html += '<div style="font-size:11px;color:#888">' + item[0] + '</div>';
+                    html += '<div style="font-size:20px;font-weight:600;color:' + item[2] + '">' + item[1] + '</div></div>';
+                });
+                html += '</div>';
+            } else if (el.type === 'header_manager') {
+                html += '<div style="font-size:12px;color:#666;margin-bottom:8px">请求头列表:</div>';
+                html += '<div style="background:#1a1a1a;color:#d4d4d4;padding:10px;border-radius:4px;font-family:monospace;font-size:11px;line-height:1.6">';
+                var hdrs = p.headers || [];
+                if (Array.isArray(hdrs)) {
+                    hdrs.forEach(function(h) {
+                        html += '<div><span style="color:#569cd6">' + (h['Header.name'] || h.name || '') + '</span>: ' + escapeHtml(h['Header.value'] || h.value || '') + '</div>';
+                    });
                 }
-                detailHtml += `</div>`;
-            } else if (el.type === 'csv_data_set') {
-                detailHtml += `
-                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-                        <div style="padding:10px;background:#fff;border-radius:4px;border:1px solid #e0e0e0">
-                            <div style="font-size:11px;color:#888">文件</div>
-                            <div style="font-size:13px;font-weight:500;color:#1a1a1a;margin-top:2px">${props.filename || '-'}</div>
-                        </div>
-                        <div style="padding:10px;background:#fff;border-radius:4px;border:1px solid #e0e0e0">
-                            <div style="font-size:11px;color:#888">变量名</div>
-                            <div style="font-size:13px;font-weight:500;color:#1a1a1a;margin-top:2px">${props.variableNames || '-'}</div>
-                        </div>
-                        <div style="padding:10px;background:#fff;border-radius:4px;border:1px solid #e0e0e0">
-                            <div style="font-size:11px;color:#888">分隔符</div>
-                            <div style="font-size:13px;font-weight:500;color:#1a1a1a;margin-top:2px">${props.delimiter || ','}</div>
-                        </div>
-                        <div style="padding:10px;background:#fff;border-radius:4px;border:1px solid #e0e0e0">
-                            <div style="font-size:11px;color:#888">循环读取</div>
-                            <div style="font-size:13px;font-weight:500;color:#1a1a1a;margin-top:2px">${props.recycle === 'true' ? '是' : '否'}</div>
-                        </div>
-                    </div>`;
-            } else if (Object.keys(props).length > 0) {
-                detailHtml += `<div style="font-size:12px;color:#666;margin-bottom:8px">属性:</div>`;
-                detailHtml += `<div style="background:#1a1a1a;color:#d4d4d4;padding:10px;border-radius:4px;font-family:monospace;font-size:11px;line-height:1.6;max-height:200px;overflow:auto;">`;
-                for (const [k, v] of Object.entries(props)) {
-                    const val = typeof v === 'object' ? JSON.stringify(v) : String(v);
-                    detailHtml += `<div><span style="color:#569cd6">${k}</span>: ${escapeHtml(val)}</div>`;
+                html += '</div>';
+            } else if (Object.keys(p).length > 0) {
+                html += '<div style="font-size:12px;color:#666;margin-bottom:8px">属性:</div>';
+                html += '<div style="background:#1a1a1a;color:#d4d4d4;padding:10px;border-radius:4px;font-family:monospace;font-size:11px;line-height:1.6;max-height:200px;overflow:auto">';
+                for (var k in p) {
+                    var v = typeof p[k] === 'object' ? JSON.stringify(p[k]) : String(p[k]);
+                    html += '<div><span style="color:#569cd6">' + k + '</span>: ' + escapeHtml(v) + '</div>';
                 }
-                detailHtml += `</div>`;
+                html += '</div>';
             }
-
-            detailHtml += '</div>';
-            document.getElementById('editor-status').innerHTML = detailHtml;
+            html += '</div>';
+            document.getElementById('editor-status').innerHTML = html;
         }
 
         function escapeHtml(str) {
+            if (!str) return '';
             return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
         }
 

@@ -1,3 +1,9 @@
+"""测试结果采样数据缓存模块。
+
+提供 JMeter 测试结果（XML/JTL 格式）的解析和带 TTL 的内存缓存，
+避免重复解析磁盘文件，提升报告查询性能。
+"""
+
 import sys
 import os
 import time
@@ -14,6 +20,10 @@ _cache_ttl = 300
 
 
 def get_cached_samples(task_id: str) -> list:
+    """获取指定任务的采样数据（带缓存）。
+
+    优先从内存缓存读取，缓存过期或未命中时从磁盘重新加载。
+    """
     with _cache_lock:
         if task_id in _cache:
             entry = _cache[task_id]
@@ -30,6 +40,10 @@ def get_cached_samples(task_id: str) -> list:
 
 
 def _load_samples(task_id: str) -> list:
+    """从磁盘加载指定任务的所有采样数据。
+
+    遍历任务目录下各 Agent 的结果文件，解析 XML 和 JTL 格式。
+    """
     task_path = os.path.join(REPORTS_DIR, task_id)
     if not os.path.exists(task_path):
         return []
@@ -65,6 +79,7 @@ def _load_samples(task_id: str) -> list:
 
 
 def _parse_xml_result(xml_path: str) -> list:
+    """解析 JMeter XML 格式的测试结果文件。"""
     samples = []
     try:
         tree = ET.parse(xml_path)
@@ -113,6 +128,7 @@ def _parse_xml_result(xml_path: str) -> list:
 
 
 def _get_element_text(parent, tag):
+    """安全获取 XML 元素的文本内容。"""
     elem = parent.find(tag)
     if elem is not None and elem.text:
         return elem.text.strip()
@@ -120,6 +136,7 @@ def _get_element_text(parent, tag):
 
 
 def _parse_jtl_fast(jtl_path: str) -> list:
+    """快速解析 JMeter CSV/JTL 格式的测试结果文件。"""
     samples = []
     try:
         with open(jtl_path, "r", encoding="utf-8", errors="replace") as f:
@@ -166,6 +183,7 @@ def _parse_jtl_fast(jtl_path: str) -> list:
 
 
 def _safe_get(parts, field_map, key, default=""):
+    """从 CSV 行中安全提取指定字段值。"""
     idx = field_map.get(key, -1)
     if idx >= 0 and idx < len(parts):
         return parts[idx]
@@ -173,6 +191,7 @@ def _safe_get(parts, field_map, key, default=""):
 
 
 def _safe_int(parts, field_map, key, default=0):
+    """从 CSV 行中安全提取指定字段的整数值。"""
     val = _safe_get(parts, field_map, key, "")
     try:
         return int(val) if val.isdigit() else default
@@ -181,6 +200,7 @@ def _safe_int(parts, field_map, key, default=0):
 
 
 def _cleanup_cache():
+    """清理内存缓存中已过期的条目。"""
     now = time.time()
     expired = [k for k, v in _cache.items() if now - v["time"] > _cache_ttl]
     for k in expired:
@@ -188,5 +208,6 @@ def _cleanup_cache():
 
 
 def invalidate_cache(task_id: str):
+    """手动使指定任务的缓存失效。"""
     with _cache_lock:
         _cache.pop(task_id, None)

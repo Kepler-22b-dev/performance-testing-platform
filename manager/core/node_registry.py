@@ -1,3 +1,10 @@
+"""节点注册与验证模块。
+
+提供 JMeter Slave 节点的持久化管理功能，包括节点的增删查改、
+连接验证（端口可达性、SSL 配置、Master 配置同步）以及
+JMeter remote_hosts 配置文件的自动同步。
+"""
+
 import sys
 import os
 import json
@@ -17,10 +24,12 @@ NODES_FILE = os.path.join(
 
 
 def _ensure_config_dir():
+    """确保配置文件所在目录存在。"""
     os.makedirs(os.path.dirname(NODES_FILE), exist_ok=True)
 
 
 def _load_nodes() -> list:
+    """从 JSON 文件加载节点列表。"""
     if not os.path.exists(NODES_FILE):
         return []
     with open(NODES_FILE, "r") as f:
@@ -28,6 +37,7 @@ def _load_nodes() -> list:
 
 
 def _save_nodes(nodes: list):
+    """将节点列表持久化到 JSON 文件并同步 JMeter 配置。"""
     _ensure_config_dir()
     with open(NODES_FILE, "w") as f:
         json.dump(nodes, f, indent=2, ensure_ascii=False)
@@ -35,6 +45,7 @@ def _save_nodes(nodes: list):
 
 
 def _sync_jmeter_config(nodes: list):
+    """将已验证节点同步到 jmeter.properties 的 remote_hosts 配置。"""
     jmeter_props = os.path.join(JMETER_HOME, "bin", "jmeter.properties")
     if not os.path.exists(jmeter_props):
         return
@@ -57,10 +68,12 @@ def _sync_jmeter_config(nodes: list):
 
 
 def get_all_nodes() -> list:
+    """获取所有已注册的节点列表。"""
     return _load_nodes()
 
 
 def get_node(node_id: str) -> Optional[dict]:
+    """根据节点 ID 获取单个节点信息。"""
     nodes = _load_nodes()
     for n in nodes:
         if n["node_id"] == node_id:
@@ -69,6 +82,7 @@ def get_node(node_id: str) -> Optional[dict]:
 
 
 def add_node(ip: str, port: int = 1100, name: str = "") -> dict:
+    """添加一个新的 JMeter Slave 节点。"""
     nodes = _load_nodes()
 
     for n in nodes:
@@ -93,6 +107,7 @@ def add_node(ip: str, port: int = 1100, name: str = "") -> dict:
 
 
 def remove_node(node_id: str) -> dict:
+    """删除指定节点。"""
     nodes = _load_nodes()
     original_len = len(nodes)
     nodes = [n for n in nodes if n["node_id"] != node_id]
@@ -105,6 +120,7 @@ def remove_node(node_id: str) -> dict:
 
 
 def verify_node(node_id: str) -> dict:
+    """验证指定节点的连接性、SSL 配置和 Master 配置。"""
     node = get_node(node_id)
     if not node:
         return {"status": "error", "message": f"节点不存在: {node_id}"}
@@ -146,6 +162,7 @@ def verify_node(node_id: str) -> dict:
 
 
 def _check_port(ip: str, port: int) -> dict:
+    """检测指定 IP 和端口的 TCP 连接可达性。"""
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.settimeout(3)
@@ -162,6 +179,7 @@ def _check_port(ip: str, port: int) -> dict:
 
 
 def _check_ssl_config() -> dict:
+    """检查 jmeter.properties 中 SSL 是否已正确禁用。"""
     jmeter_props = os.path.join(JMETER_HOME, "bin", "jmeter.properties")
     if not os.path.exists(jmeter_props):
         return {"ok": False, "detail": "jmeter.properties 不存在"}
@@ -182,6 +200,7 @@ def _check_ssl_config() -> dict:
 
 
 def _check_remote_hosts(ip: str, port: int) -> dict:
+    """检查指定节点是否已配置在 jmeter.properties 的 remote_hosts 中。"""
     jmeter_props = os.path.join(JMETER_HOME, "bin", "jmeter.properties")
     if not os.path.exists(jmeter_props):
         return {"ok": False, "detail": "jmeter.properties 不存在"}
@@ -203,6 +222,7 @@ def _check_remote_hosts(ip: str, port: int) -> dict:
 
 
 def verify_all() -> list:
+    """批量验证所有已注册节点。"""
     nodes = _load_nodes()
     results = []
     for node in nodes:
@@ -212,5 +232,6 @@ def verify_all() -> list:
 
 
 def get_verified_nodes() -> list:
+    """获取所有验证通过的节点列表。"""
     nodes = _load_nodes()
     return [n for n in nodes if n.get("status") == "verified"]

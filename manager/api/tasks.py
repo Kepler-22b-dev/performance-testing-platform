@@ -1,3 +1,9 @@
+"""任务管理 API 模块。
+
+提供压测任务的创建、启动、停止、删除、重新执行、批量创建和快速运行等接口，
+通过 Scheduler 实现任务的全生命周期管理。
+"""
+
 import sys
 import os
 from fastapi import APIRouter, HTTPException
@@ -14,6 +20,11 @@ _scheduler = None
 
 
 def set_scheduler(scheduler):
+    """注入 Scheduler 实例供 API 路由使用。
+
+    Args:
+        scheduler: Scheduler 实例，提供任务管理的核心方法。
+    """
     global _scheduler
     _scheduler = scheduler
 
@@ -71,6 +82,7 @@ class TaskStopRequest(BaseModel):
 
 @router.post("/")
 def create_task(req: TaskCreateRequest):
+    """创建一个新的压测任务。"""
     try:
         task_id = _scheduler.create_task(
             script_id=req.script_id,
@@ -92,6 +104,7 @@ def create_task(req: TaskCreateRequest):
 
 @router.post("/{task_id}/start")
 def start_task(task_id: str):
+    """启动指定的压测任务。"""
     success = _scheduler.start_task(task_id)
     if not success:
         raise HTTPException(status_code=400, detail="Cannot start task")
@@ -100,6 +113,7 @@ def start_task(task_id: str):
 
 @router.post("/{task_id}/stop")
 def stop_task(task_id: str):
+    """停止正在运行的压测任务。"""
     success = _scheduler.stop_task(task_id)
     if not success:
         raise HTTPException(status_code=400, detail="Cannot stop task")
@@ -108,12 +122,14 @@ def stop_task(task_id: str):
 
 @router.get("/")
 def list_tasks():
+    """获取所有压测任务的列表。"""
     tasks = _scheduler.get_all_tasks()
     return {"total": len(tasks), "tasks": tasks}
 
 
 @router.get("/{task_id}")
 def get_task(task_id: str):
+    """获取指定任务的详细信息。"""
     task = _scheduler.get_task(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -122,6 +138,7 @@ def get_task(task_id: str):
 
 @router.get("/{task_id}/progress")
 def get_progress(task_id: str):
+    """获取指定任务的执行进度。"""
     progress = _scheduler.get_progress(task_id)
     if not progress:
         return {"task_id": task_id, "data": None}
@@ -131,12 +148,14 @@ def get_progress(task_id: str):
 
 @router.post("/batch")
 def batch_create_tasks(req: BatchTaskRequest):
+    """批量创建多个压测任务。"""
     task_ids = _scheduler.batch_create_tasks([t.dict() for t in req.tasks])
     return {"task_ids": task_ids, "total": len(task_ids)}
 
 
 @router.delete("/{task_id}")
 def delete_task(task_id: str):
+    """删除指定的压测任务（仅限非运行中状态）。"""
     success = _scheduler.delete_task(task_id)
     if not success:
         raise HTTPException(status_code=400, detail="无法删除任务（可能正在运行中）")
@@ -145,6 +164,7 @@ def delete_task(task_id: str):
 
 @router.post("/{task_id}/rerun")
 def rerun_task(task_id: str):
+    """重新执行指定的压测任务，生成新任务。"""
     new_id = _scheduler.rerun_task(task_id)
     if not new_id:
         raise HTTPException(status_code=400, detail="无法重新执行任务")
@@ -153,6 +173,7 @@ def rerun_task(task_id: str):
 
 @router.post("/quick-run")
 def quick_run(req: QuickRunRequest):
+    """快速运行：自动选择可用 Agent 并立即启动压测任务。"""
     target = req.target_agents
     if not target:
         agents = _scheduler._node_manager.get_available_agents() if hasattr(_scheduler, '_node_manager') else []

@@ -1,3 +1,16 @@
+"""JMeter Agent 主程序。
+
+本模块实现 JMeter 性能测试代理节点，负责接收 Manager 下发的测试任务，
+执行 JMeter 脚本并将测试结果实时上报。
+
+核心功能：
+- 订阅 Redis 命令通道，接收任务执行/停止指令
+- 通过 JMeterRunner 执行压测脚本
+- 实时计算并上报测试进度（TPS、响应时间、错误率）
+- 定时上报心跳和节点状态信息
+- 支持分布式压测模式
+"""
+
 import os
 import sys
 import time
@@ -26,7 +39,14 @@ from jmeter_runner import JMeterRunner
 
 
 class JMeterAgent:
+    """JMeter 性能测试代理节点。
+
+    负责连接 Redis 进行任务通信，执行 JMeter 压测脚本，
+    并通过 Redis 发布/订阅机制上报测试结果和进度。
+    """
+
     def __init__(self):
+        """初始化 Agent 实例。生成唯一 ID、获取本机 IP、建立 Redis 连接、注册信号处理。"""
         self.agent_id = f"agent-{uuid.uuid4().hex[:8]}"
         self.host = self._get_local_ip()
         self.port = int(os.getenv("AGENT_PORT", 9999))
@@ -52,6 +72,7 @@ class JMeterAgent:
         signal.signal(signal.SIGTERM, self._shutdown)
 
     def start(self):
+        """启动 Agent。订阅 Redis 命令通道、注册到 Agent 列表并进入心跳循环。"""
         print(f"[{self.agent_id}] Starting agent on {self.host}:{self.port}")
         print(f"[{self.agent_id}] JMeter home: {JMETER_HOME}")
         print(f"[{self.agent_id}] Scripts dir: {SCRIPTS_DIR}")
@@ -67,6 +88,7 @@ class JMeterAgent:
         self._heartbeat_loop()
 
     def _on_command(self, message):
+        """Redis 命令消息回调。解析消息并分发到对应的处理方法。"""
         try:
             data = message["data"]
             command = TaskCommand.from_json(data)
@@ -79,6 +101,7 @@ class JMeterAgent:
             print(f"[{self.agent_id}] Command error: {e}")
 
     def _handle_execute(self, command: TaskCommand):
+        """处理任务执行指令。准备脚本、执行 JMeter 并实时上报进度。"""
         if self.runner.is_running:
             self._send_result(TaskResult(
                 task_id=command.task_id,
@@ -168,6 +191,7 @@ class JMeterAgent:
         self._update_info()
 
     def _handle_stop(self, command: TaskCommand):
+        """处理任务停止指令。终止正在执行的 JMeter 进程。"""
         if self.current_task and self.current_task.task_id == command.task_id:
             self.runner.stop()
             self._send_result(TaskResult(
@@ -177,6 +201,7 @@ class JMeterAgent:
             ))
 
     def _prepare_script(self, command: TaskCommand) -> str:
+        """准备 JMX 脚本文件。根据指令写入脚本内容或复制外部脚本到执行目录。"""
         script_path = os.path.join(SCRIPTS_DIR, f"{command.task_id}.jmx")
 
         if command.script_content:
@@ -191,6 +216,7 @@ class JMeterAgent:
         return script_path
 
     def _send_result(self, result: TaskResult):
+        """发送测试结果。通过 Redis 发布并存储到 Hash 中。"""
         self.redis.publish(REDIS_CHANNEL_RESULT, result.to_json())
         self.redis.hset(
             f"jmeter:task:{result.task_id}:result:{self.agent_id}",
@@ -198,6 +224,7 @@ class JMeterAgent:
         )
 
     def _heartbeat_loop(self):
+        """心跳循环。周期性上报 CPU/内存使用率和 Agent 状态，直到收到关闭信号。"""
         thread = self.pubsub.run_in_thread(sleep_time=0.1)
 
         while self._running:
@@ -219,10 +246,12 @@ class JMeterAgent:
         print(f"[{self.agent_id}] Agent stopped")
 
     def _update_info(self):
+        """更新 Agent 状态信息到 Redis 并发布心跳消息。"""
         self.redis.hset(f"jmeter:agent:{self.agent_id}", mapping=self.info.to_dict())
         self.redis.publish(REDIS_CHANNEL_HEARTBEAT, self.info.to_json())
 
     def _get_local_ip(self) -> str:
+        """获取本机局域网 IP 地址。"""
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             s.connect(("8.8.8.8", 80))
@@ -233,6 +262,7 @@ class JMeterAgent:
             return "127.0.0.1"
 
     def _shutdown(self, signum, frame):
+        """信号处理函数。捕获 SIGINT/SIGTERM 信号，优雅关闭 Agent。"""
         print(f"[{self.agent_id}] Shutting down...")
         self._running = False
 

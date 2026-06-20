@@ -1,3 +1,9 @@
+"""JMeter Slave 进程管理模块。
+
+提供本地 JMeter Slave（jmeter-server）进程的启停管理功能，
+包括进程状态查询、启动、停止以及本地 IP 获取。
+"""
+
 import sys
 import os
 import subprocess
@@ -12,6 +18,10 @@ _slave_process = None
 
 
 def get_slave_status() -> dict:
+    """获取本地 JMeter Slave 进程的运行状态。
+
+    先检查内部管理的子进程，再通过端口探测确认外部启动的进程。
+    """
     global _slave_process
 
     if _slave_process and _slave_process.poll() is None:
@@ -49,6 +59,10 @@ def get_slave_status() -> dict:
 
 
 def start_slave(port: int = None) -> dict:
+    """启动本地 JMeter Slave 进程。
+
+    如果 Slave 已在运行则返回 already_running，否则启动新的 jmeter-server 进程。
+    """
     global _slave_process
 
     if _slave_process and _slave_process.poll() is None:
@@ -97,6 +111,10 @@ def start_slave(port: int = None) -> dict:
 
 
 def stop_slave() -> dict:
+    """停止本地 JMeter Slave 进程。
+
+    先发送 SIGINT 信号优雅关闭，超时后强制终止。
+    """
     global _slave_process
 
     if _slave_process and _slave_process.poll() is None:
@@ -117,6 +135,7 @@ def stop_slave() -> dict:
 
 
 def _get_local_ip() -> str:
+    """获取本机局域网 IP 地址。"""
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.connect(("8.8.8.8", 80))

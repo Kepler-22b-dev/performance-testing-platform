@@ -1,3 +1,9 @@
+"""定时调度管理 API 模块。
+
+提供压测任务的定时调度配置管理接口，支持 cron 表达式、固定间隔和单次定时执行，
+通过后台线程轮询实现自动触发压测任务。
+"""
+
 import sys
 import os
 import json
@@ -22,11 +28,17 @@ _scheduler_running = False
 
 
 def set_scheduler(scheduler):
+    """注入 Scheduler 实例供调度 API 使用。
+
+    Args:
+        scheduler: Scheduler 实例，提供任务创建和启动方法。
+    """
     global _scheduler
     _scheduler = scheduler
 
 
 def _get_redis():
+    """获取 Redis 连接实例。"""
     return redis.Redis(
         host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB,
         decode_responses=True,
@@ -34,6 +46,7 @@ def _get_redis():
 
 
 def _load_schedules():
+    """从 Redis 加载所有调度配置。"""
     global _schedules
     r = _get_redis()
     data = r.hget("jmeter:config", "schedules")
@@ -44,6 +57,7 @@ def _load_schedules():
 
 
 def _save_schedules():
+    """将调度配置保存到 Redis。"""
     r = _get_redis()
     r.hset("jmeter:config", "schedules", json.dumps(_schedules, ensure_ascii=False, default=str))
 
@@ -72,12 +86,14 @@ class ScheduleUpdateRequest(BaseModel):
 
 @router.get("/")
 def list_schedules():
+    """获取所有调度配置的列表。"""
     _load_schedules()
     return {"total": len(_schedules), "schedules": list(_schedules.values())}
 
 
 @router.get("/{schedule_id}")
 def get_schedule(schedule_id: str):
+    """获取指定调度配置的详细信息。"""
     _load_schedules()
     if schedule_id not in _schedules:
         raise HTTPException(status_code=404, detail="调度不存在")
@@ -86,6 +102,7 @@ def get_schedule(schedule_id: str):
 
 @router.post("/")
 def create_schedule(req: ScheduleCreateRequest):
+    """创建一个新的定时调度配置。"""
     _load_schedules()
 
     schedule_id = f"sch-{uuid.uuid4().hex[:8]}"
@@ -115,6 +132,7 @@ def create_schedule(req: ScheduleCreateRequest):
 
 @router.put("/{schedule_id}")
 def update_schedule(schedule_id: str, req: ScheduleUpdateRequest):
+    """更新指定调度配置的参数。"""
     _load_schedules()
     if schedule_id not in _schedules:
         raise HTTPException(status_code=404, detail="调度不存在")
@@ -138,6 +156,7 @@ def update_schedule(schedule_id: str, req: ScheduleUpdateRequest):
 
 @router.delete("/{schedule_id}")
 def delete_schedule(schedule_id: str):
+    """删除指定的调度配置。"""
     _load_schedules()
     if schedule_id not in _schedules:
         raise HTTPException(status_code=404, detail="调度不存在")
@@ -148,6 +167,7 @@ def delete_schedule(schedule_id: str):
 
 @router.post("/{schedule_id}/run-now")
 def run_now(schedule_id: str):
+    """立即执行指定的调度任务。"""
     _load_schedules()
     if schedule_id not in _schedules:
         raise HTTPException(status_code=404, detail="调度不存在")
@@ -157,6 +177,7 @@ def run_now(schedule_id: str):
 
 
 def _calc_next_run(run_at, interval_seconds):
+    """计算下次执行时间，优先使用指定时间，其次使用间隔时间。"""
     if run_at and run_at > time.time():
         return run_at
     if interval_seconds and interval_seconds > 0:
@@ -165,6 +186,7 @@ def _calc_next_run(run_at, interval_seconds):
 
 
 def _execute_schedule(schedule: dict) -> dict:
+    """执行一个调度任务，创建并启动压测任务。"""
     global _scheduler
     if not _scheduler:
         return {"status": "error", "message": "Scheduler 未初始化"}
@@ -198,6 +220,7 @@ def _execute_schedule(schedule: dict) -> dict:
 
 
 def _start_scheduler_loop():
+    """启动后台调度轮询线程，每 10 秒检查并执行到期的任务。"""
     global _scheduler_running, _scheduler_thread
 
     if _scheduler_running:
@@ -222,5 +245,6 @@ def _start_scheduler_loop():
 
 
 def init_scheduler_loop():
+    """初始化并启动调度器后台循环。"""
     _load_schedules()
     _start_scheduler_loop()

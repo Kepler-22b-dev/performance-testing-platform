@@ -1,3 +1,9 @@
+"""测试环境管理 API 模块。
+
+提供测试环境的增删改查和连通性测试接口，支持配置基础 URL、自定义变量、
+请求头和认证 Token，用于管理不同测试环境的连接配置。
+"""
+
 import sys
 import os
 import json
@@ -16,6 +22,7 @@ router = APIRouter(prefix="/api/environments", tags=["environments"])
 
 
 def _get_redis():
+    """获取 Redis 连接实例。"""
     return redis.Redis(
         host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB,
         decode_responses=True,
@@ -23,6 +30,7 @@ def _get_redis():
 
 
 def _load_environments() -> list:
+    """从 Redis 加载所有环境配置。"""
     r = _get_redis()
     data = r.hget("jmeter:config", "environments")
     if data:
@@ -31,6 +39,7 @@ def _load_environments() -> list:
 
 
 def _save_environments(envs: list):
+    """将环境配置列表保存到 Redis。"""
     r = _get_redis()
     r.hset("jmeter:config", "environments", json.dumps(envs, ensure_ascii=False, default=str))
 
@@ -55,12 +64,14 @@ class EnvironmentUpdate(BaseModel):
 
 @router.get("/")
 def list_environments():
+    """获取所有测试环境的列表。"""
     envs = _load_environments()
     return {"total": len(envs), "environments": envs}
 
 
 @router.get("/{env_id}")
 def get_environment(env_id: str):
+    """获取指定测试环境的详细配置。"""
     envs = _load_environments()
     for env in envs:
         if env["env_id"] == env_id:
@@ -70,6 +81,7 @@ def get_environment(env_id: str):
 
 @router.post("/")
 def create_environment(req: EnvironmentCreate):
+    """创建一个新的测试环境配置。"""
     envs = _load_environments()
 
     for env in envs:
@@ -95,6 +107,7 @@ def create_environment(req: EnvironmentCreate):
 
 @router.put("/{env_id}")
 def update_environment(env_id: str, req: EnvironmentUpdate):
+    """更新指定测试环境的配置。"""
     envs = _load_environments()
     for env in envs:
         if env["env_id"] == env_id:
@@ -118,6 +131,7 @@ def update_environment(env_id: str, req: EnvironmentUpdate):
 
 @router.delete("/{env_id}")
 def delete_environment(env_id: str):
+    """删除指定的测试环境配置。"""
     envs = _load_environments()
     original = len(envs)
     envs = [e for e in envs if e["env_id"] != env_id]
@@ -129,6 +143,7 @@ def delete_environment(env_id: str):
 
 @router.post("/{env_id}/test")
 def test_environment(env_id: str):
+    """测试指定环境的连通性，发送 HTTP 请求验证基础 URL 是否可达。"""
     envs = _load_environments()
     env = None
     for e in envs:

@@ -1,319 +1,442 @@
 # 性能测试平台 - 部署手册
 
-> 版本：1.1 | 更新时间：2026-06-18
+> 版本：2.0 | 更新时间：2026-06-20
 
 ## 一、环境要求
 
-| 组件 | 要求 |
-|------|------|
-| Python | 3.10+ |
-| Redis | 6.0+ |
-| JMeter | 5.6.3（已内置） |
-| 操作系统 | Linux / macOS |
-| 最低内存 | 4GB（建议 8GB+） |
+| 组件 | 要求 | 说明 |
+|------|------|------|
+| Python | 3.10+ | 运行 Manager 和 Agent |
+| Redis | 6.0+ | 消息队列和数据持久化 |
+| Java | 8+ | JMeter 运行需要 |
+| JMeter | 5.6.3 | 已内置在项目中 |
+| 操作系统 | Linux / macOS / Windows | 推荐 Linux |
+| 最低内存 | 4GB | 建议 8GB+ |
+| 磁盘空间 | 2GB | JMeter + 脚本 + 报告 |
 
-## 二、目录结构
+## 二、快速部署（单机模式）
 
-```
-Performance Testing Platform/
-├── common/                    # 公共模块
-│   ├── config.py             # 全局配置
-│   └── protocol.py           # 通信协议
-├── manager/                   # 管理服务
-│   ├── main.py               # FastAPI 入口
-│   ├── api/                  # API 路由
-│   │   ├── data.py           # 数据管理（变量/CSV）
-│   │   ├── monitor.py        # 资源监控
-│   │   ├── nodes.py          # Agent 节点
-│   │   ├── registry.py       # 节点注册
-│   │   ├── results.py        # 结果分析
-│   │   ├── scripts.py        # 脚本管理
-│   │   ├── slave.py          # Slave 控制
-│   │   └── tasks.py          # 任务管理
-│   ├── core/                 # 核心逻辑
-│   │   ├── monitor.py        # 系统指标采集
-│   │   ├── node_manager.py   # 节点状态管理
-│   │   ├── node_registry.py  # 节点注册中心
-│   │   ├── scheduler.py      # 任务调度
-│   │   ├── slave_manager.py  # Slave 进程管理
-│   │   ├── variables.py      # 变量/CSV 管理
-│   │   └── ws.py             # WebSocket
-│   ├── static/
-│   │   └── index.html        # 前端页面
-│   └── requirements.txt      # Python 依赖
-├── agent/                     # 施压节点
-│   ├── main.py               # Agent 入口
-│   ├── jmeter_runner.py      # JMeter 执行器
-│   └── requirements.txt
-├── config/                    # 配置数据（自动生成）
-│   ├── nodes.json            # 已注册节点
-│   ├── variables.json        # 全局变量
-│   └── csv/                  # CSV 数据文件
-├── scripts/                   # JMeter 脚本
-├── reports/                   # 测试报告
-├── apache-jmeter-5.6.3/      # Master JMeter
-├── apache-jmeter-5.6.3-slave/ # Slave JMeter (端口 1100)
-├── apache-jmeter-5.6.3-slave2/ # Slave2 JMeter (端口 1200)
-├── apache-jmeter-5.6.3-slave3/ # Slave3 JMeter (端口 1300)
-└── start-slave.sh            # Slave 启动脚本
-```
-
-## 三、快速部署
-
-### 3.1 安装依赖
-
+### 2.1 一键部署
 ```bash
-cd "Performance Testing Platform"
+cd Performance\ Testing\ Platform
+bash deploy.sh
+```
 
-# 安装 Redis（macOS）
-brew install redis
-brew services start redis
+### 2.2 手动部署
 
-# 或 Ubuntu
-sudo apt install redis-server
-sudo systemctl start redis
-
-# 安装 Python 依赖
+#### 步骤 1：安装 Python 依赖
+```bash
 pip install -r manager/requirements.txt
 pip install -r agent/requirements.txt
 ```
 
-### 3.2 配置 JMeter
-
+#### 步骤 2：启动 Redis
 ```bash
-# 创建无空格路径的符号链接（JMeter 不支持路径含空格）
-ln -sf "$(pwd)/apache-jmeter-5.6.3" /tmp/jmeter
-ln -sf "$(pwd)/apache-jmeter-5.6.3-slave" /tmp/jmeter-slave
-ln -sf "$(pwd)/apache-jmeter-5.6.3-slave2" /tmp/jmeter-slave2
-ln -sf "$(pwd)/apache-jmeter-5.6.3-slave3" /tmp/jmeter-slave3
+# macOS
+brew services start redis
+
+# Ubuntu/Debian
+sudo systemctl start redis
+sudo systemctl enable redis
+
+# CentOS/RHEL
+sudo systemctl start redis
+sudo systemctl enable redis
 ```
 
-### 3.3 启动服务
-
+#### 步骤 3：启动 Manager 服务
 ```bash
-# 终端 1：启动管理服务
+# 前台运行（调试用）
 python3 -m manager.main
-# 访问 http://localhost:8000
 
-# 终端 2：启动 Agent（本机施压节点）
+# 后台运行（生产用）
+nohup python3 -m manager.main > manager.log 2>&1 &
+```
+
+访问 http://localhost:8000
+
+#### 步骤 4：启动 Agent 服务
+```bash
+# 前台运行
 python3 -m agent.main
 
-# 终端 3：启动 Slave（分布式模式需要）
-./start-slave.sh        # 端口 1100
-./start-slave.sh 1200   # 端口 1200
-./start-slave.sh 1300   # 端口 1300
+# 后台运行
+nohup python3 -m agent.main > agent.log 2>&1 &
 ```
 
-### 3.4 验证部署
+#### 步骤 5：启动 JMeter Slave（分布式模式）
+```bash
+bash start-slave.sh 1100
+```
+
+### 2.3 服务管理命令
+```bash
+# 启动所有服务
+bash deploy.sh start
+
+# 停止所有服务
+bash deploy.sh stop
+
+# 重启所有服务
+bash deploy.sh restart
+
+# 查看服务状态
+bash deploy.sh status
+
+# 清理所有数据
+bash deploy.sh clean
+```
+
+## 三、分布式部署（生产环境）
+
+### 3.1 架构图
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    管理节点 (Manager)                      │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐              │
+│  │ FastAPI  │  │  Redis   │  │  Web UI  │              │
+│  │  :8000   │  │  :6379   │  │  :8000   │              │
+│  └──────────┘  └──────────┘  └──────────┘              │
+└───────────────────────┬─────────────────────────────────┘
+                        │ Redis PubSub
+        ┌───────────────┼───────────────┐
+        ▼               ▼               ▼
+┌───────────────┐ ┌───────────────┐ ┌───────────────┐
+│   Agent 1     │ │   Agent 2     │ │   Agent N     │
+│   (施压机1)    │ │   (施压机2)    │ │   (施压机N)    │
+│   :9999       │ │   :9999       │ │   :9999       │
+├───────────────┤ ├───────────────┤ ├───────────────┤
+│ Slave :1100   │ │ Slave :1200   │ │ Slave :1300   │
+│ Slave :1101   │ │ Slave :1201   │ │ Slave :1301   │
+└───────────────┘ └───────────────┘ └───────────────┘
+```
+
+### 3.2 管理节点部署
 
 ```bash
-# 检查服务状态
+# 1. 安装依赖
+pip install -r manager/requirements.txt
+
+# 2. 配置 Redis（编辑 /etc/redis/redis.conf）
+# bind 0.0.0.0
+# requirepass your_password
+
+# 3. 启动 Redis
+sudo systemctl start redis
+
+# 4. 启动 Manager
+nohup python3 -m manager.main > manager.log 2>&1 &
+
+# 5. 验证服务
+curl http://localhost:8000/api/health
+```
+
+### 3.3 施压节点部署
+
+在每台施压机上执行：
+
+```bash
+# 1. 复制项目
+scp -r Performance\ Testing\ Platform/ user@agent-host:~/
+
+# 2. 安装依赖
+ssh user@agent-host
+cd ~/Performance\ Testing\ Platform
+pip install -r agent/requirements.txt
+
+# 3. 配置 Redis 连接（可选，默认连接本机）
+export REDIS_HOST=管理节点IP
+
+# 4. 启动 Agent
+nohup python3 -m agent.main > agent.log 2>&1 &
+
+# 5. 启动多个 Slave
+bash start-slave.sh 1100 &
+bash start-slave.sh 1200 &
+bash start-slave.sh 1300 &
+```
+
+### 3.4 节点注册
+
+1. 登录 Web UI → 施压节点
+2. 在「添加远程节点」中输入 Agent 的 IP 和端口
+3. 点击「添加」
+4. 点击「验证」确认连通性
+5. 状态显示「已验证」后即可使用
+
+### 3.5 防火墙配置
+
+```bash
+# Manager 节点
+sudo firewall-cmd --add-port=8000/tcp --permanent    # Web UI
+sudo firewall-cmd --add-port=6379/tcp --permanent    # Redis
+sudo firewall-cmd --reload
+
+# Agent 节点
+sudo firewall-cmd --add-port=9999/tcp --permanent    # Agent
+sudo firewall-cmd --add-port=1100-1301/tcp --permanent  # JMeter Slave
+sudo firewall-cmd --reload
+```
+
+## 四、Docker 部署
+
+### 4.1 docker-compose.yml
+```yaml
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: always
+
+  manager:
+    build:
+      context: .
+      dockerfile: Dockerfile.manager
+    ports:
+      - "8000:8000"
+    depends_on:
+      - redis
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    volumes:
+      - ./scripts:/app/scripts
+      - ./reports:/app/reports
+      - ./config:/app/config
+    restart: always
+
+  agent:
+    build:
+      context: .
+      dockerfile: Dockerfile.agent
+    depends_on:
+      - redis
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    volumes:
+      - ./scripts:/app/scripts
+      - ./reports:/app/reports
+    restart: always
+
+volumes:
+  redis_data:
+```
+
+### 4.2 Dockerfile.manager
+```dockerfile
+FROM python:3.10-slim
+
+WORKDIR /app
+
+# 安装 Java（JMeter 需要）
+RUN apt-get update && apt-get install -y default-jre-headless && rm -rf /var/lib/apt/lists/*
+
+COPY manager/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY common/ /app/common/
+COPY manager/ /app/manager/
+COPY scripts/ /app/scripts/
+COPY apache-jmeter-5.6.3/ /app/apache-jmeter-5.6.3/
+
+EXPOSE 8000
+
+CMD ["python3", "-m", "manager.main"]
+```
+
+### 4.3 Dockerfile.agent
+```dockerfile
+FROM python:3.10-slim
+
+WORKDIR /app
+
+# 安装 Java
+RUN apt-get update && apt-get install -y default-jre-headless && rm -rf /var/lib/apt/lists/*
+
+COPY agent/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY common/ /app/common/
+COPY agent/ /app/agent/
+COPY apache-jmeter-5.6.3/ /app/apache-jmeter-5.6.3/
+
+CMD ["python3", "-m", "agent.main"]
+```
+
+### 4.4 启动
+```bash
+docker-compose up -d
+```
+
+## 五、systemd 服务配置
+
+### 5.1 Manager 服务
+```ini
+# /etc/systemd/system/perftest-manager.service
+[Unit]
+Description=Performance Test Platform Manager
+After=network.target redis.service
+
+[Service]
+Type=simple
+User=perftest
+WorkingDirectory=/opt/performance-testing-platform
+ExecStart=/usr/bin/python3 -m manager.main
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
+
+### 5.2 Agent 服务
+```ini
+# /etc/systemd/system/perftest-agent.service
+[Unit]
+Description=Performance Test Platform Agent
+After=network.target redis.service
+
+[Service]
+Type=simple
+User=perftest
+WorkingDirectory=/opt/performance-testing-platform
+ExecStart=/usr/bin/python3 -m agent.main
+Restart=always
+RestartSec=5
+Environment=REDIS_HOST=管理节点IP
+
+[Install]
+WantedBy=multi-user.target
+```
+
+### 5.3 启用服务
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable perftest-manager perftest-agent
+sudo systemctl start perftest-manager perftest-agent
+```
+
+## 六、性能调优
+
+### 6.1 Redis 优化
+```conf
+# /etc/redis/redis.conf
+maxmemory 2gb
+maxmemory-policy allkeys-lru
+save 60 1000
+```
+
+### 6.2 系统参数
+```bash
+# 增大文件描述符
+ulimit -n 65535
+
+# 优化网络参数
+echo "net.core.somaxconn = 65535" >> /etc/sysctl.conf
+echo "net.ipv4.tcp_max_syn_backlog = 65535" >> /etc/sysctl.conf
+sysctl -p
+```
+
+### 6.3 JMeter 调优
+```bash
+# 编辑 apache-jmeter-5.6.3/bin/jmeter
+# 调整 JVM 内存
+JAVA_OPTS="-Xms1g -Xmx4g"
+```
+
+## 七、监控与告警
+
+### 7.1 内置监控
+- Web UI → 施压节点 → 压力机资源监控
+- 实时显示 CPU、内存、网络、JMeter 进程
+
+### 7.2 Webhook 通知
+1. Web UI → 通知设置
+2. 添加 Webhook URL
+3. 配置告警规则
+
+### 7.3 告警规则示例
+- 平均响应时间 > 1000ms
+- 错误率 > 5%
+- P99 > 3000ms
+
+## 八、备份与恢复
+
+### 8.1 备份
+```bash
+# 备份脚本
+cp -r scripts/ backup/scripts_$(date +%Y%m%d)/
+
+# 备份报告
+cp -r reports/ backup/reports_$(date +%Y%m%d)/
+
+# 备份配置
+cp -r config/ backup/config_$(date +%Y%m%d)/
+
+# 备份 Redis
+redis-cli BGSAVE
+cp /var/lib/redis/dump.rdb backup/
+```
+
+### 8.2 恢复
+```bash
+# 恢复文件
+cp -r backup/scripts_*/ scripts/
+cp -r backup/reports_*/ reports/
+cp -r backup/config_*/ config/
+
+# 恢复 Redis
+cp backup/dump.rdb /var/lib/redis/
+sudo systemctl restart redis
+```
+
+## 九、故障排查
+
+### 9.1 常见问题
+
+| 问题 | 原因 | 解决方案 |
+|------|------|----------|
+| Agent 无法连接 | Redis 未启动或网络不通 | 检查 Redis 状态和防火墙 |
+| JMeter 执行失败 | Java 版本不兼容 | 安装 Java 8+ |
+| 脚本上传失败 | 文件格式不是 .jmx | 只支持 .jmx 文件 |
+| 报告生成失败 | JMeter 路径错误 | 检查 JMETER_HOME 配置 |
+| 内存不足 | 并发线程数过高 | 增加内存或降低并发数 |
+
+### 9.2 日志查看
+```bash
+# Manager 日志
+tail -f manager.log
+
+# Agent 日志
+tail -f agent.log
+
+# JMeter 日志
+tail -f reports/<task_id>/<agent_id>/jmeter.log
+```
+
+### 9.3 健康检查
+```bash
+# API 健康检查
 curl http://localhost:8000/api/health
 
-# 检查节点状态
-curl http://localhost:8000/api/nodes/
-
-# 检查 Slave 状态
-curl http://localhost:8000/api/slave/status
-```
-
-## 四、端口说明
-
-| 端口 | 用途 | 进程 |
-|------|------|------|
-| 8000 | Web 管理界面 + API | manager.main |
-| 6379 | Redis | redis-server |
-| 1100 | JMeter Slave1 | jmeter-server |
-| 1200 | JMeter Slave2 | jmeter-server |
-| 1300 | JMeter Slave3 | jmeter-server |
-| 9999 | Agent 心跳 | agent.main |
-
-## 五、分布式部署
-
-### 5.1 单机多 Slave
-
-在同一台机器上运行多个 Slave，使用不同端口：
-
-```bash
-./start-slave.sh 1100 &
-./start-slave.sh 1200 &
-./start-slave.sh 1300 &
-```
-
-### 5.2 跨机器部署
-
-在远程机器上：
-
-```bash
-# 1. 复制 JMeter 到远程机器
-scp -r apache-jmeter-5.6.3-slave user@remote:/opt/jmeter-slave
-
-# 2. 配置 Slave
-cd /opt/jmeter-slave
-sed -i 's/^server_port=1100/server_port=1100/' bin/jmeter.properties
-sed -i 's/^#server.rmi.ssl.disable=false/server.rmi.ssl.disable=true/' bin/jmeter.properties
-
-# 3. 启动 Slave
-/opt/jmeter-slave/bin/jmeter-server \
-    -Dserver_port=1100 \
-    -Dserver.rmi.ssl.disable=true \
-    -Djava.rmi.server.hostname=<远程机器IP>
-```
-
-在管理平台：
-
-```
-1. 进入「施压节点」页面
-2. 添加远程节点：输入 IP 和端口
-3. 点击「验证」确认连通
-4. 创建分布式任务时勾选「分布式模式」
-```
-
-## 六、配置说明
-
-### 6.1 环境变量
-
-| 变量 | 默认值 | 说明 |
-|------|--------|------|
-| REDIS_HOST | 127.0.0.1 | Redis 地址 |
-| REDIS_PORT | 6379 | Redis 端口 |
-| JMETER_HOME | /tmp/jmeter | Master JMeter 路径 |
-| JMETER_SLAVE_HOME | /tmp/jmeter-slave | Slave JMeter 路径 |
-| SLAVE_PORT | 1100 | 默认 Slave 端口 |
-| AGENT_HEARTBEAT_INTERVAL | 5 | 心跳间隔(秒) |
-| MAX_CONCURRENT_TASKS | 3 | 最大并行任务数 |
-
-### 6.2 JMeter 配置
-
-修改 `apache-jmeter-5.6.3/bin/jmeter.properties`：
-
-```properties
-# Master 连接的 Slave 列表（自动由平台管理）
-remote_hosts=192.168.1.100:1100,192.168.1.101:1100
-
-# 禁用 SSL（分布式调试必须）
-server.rmi.ssl.disable=true
-```
-
-## 七、常见问题
-
-### 7.1 JMeter 启动报 "loopback address" 错误
-
-**原因**：路径含空格或绑定到 127.0.0.1
-
-**解决**：
-```bash
-# 创建无空格符号链接
-ln -sf /path/to/apache-jmeter-5.6.3 /tmp/jmeter
-
-# 启动时指定实际 IP
-jmeter-server -Djava.rmi.server.hostname=192.168.1.100
-```
-
-### 7.2 分布式连接失败
-
-**检查清单**：
-```bash
-# 1. Slave 端口是否监听
-lsof -i :1100
-
-# 2. RMI 端口是否可达
-telnet 192.168.1.100 1100
-
-# 3. SSL 是否禁用
-grep "ssl.disable" jmeter.properties
-
-# 4. Master remote_hosts 是否包含 Slave
-grep "remote_hosts" jmeter.properties
-
-# 5. 查看 Slave 日志
-tail -f /tmp/slave.log
-```
-
-### 7.3 Redis 连接失败
-
-```bash
-# 检查 Redis 状态
+# Redis 连接检查
 redis-cli ping
 
-# 启动 Redis
-redis-server --daemonize yes
+# Agent 状态检查
+curl http://localhost:8000/api/nodes/
 ```
 
-### 7.4 端口被占用
+## 十、安全建议
 
-```bash
-# 查找占用端口的进程
-lsof -i :8000
-
-# 杀掉进程
-kill -9 <PID>
-```
-
-## 八、停止服务
-
-```bash
-# 停止所有服务
-pkill -f "manager.main"
-pkill -f "agent.main"
-pkill -f "jmeter-server"
-pkill -f "ApacheJMeter.jar"
-
-# 清空 Redis
-redis-cli FLUSHDB
-```
-
-## 九、API 速查
-
-| 模块 | 接口 | 说明 |
-|------|------|------|
-| 健康检查 | `GET /api/health` | 服务状态 |
-| 首页 | `GET /api/tasks/` | 任务列表（首页统计） |
-| 任务 | `POST /api/tasks/quick-run` | 一键创建执行 |
-| 任务 | `GET /api/tasks/` | 任务列表 |
-| 任务 | `POST /api/tasks/{id}/start` | 启动任务 |
-| 任务 | `POST /api/tasks/{id}/stop` | 停止任务 |
-| 脚本 | `POST /api/scripts/upload` | 上传脚本 |
-| 脚本 | `GET /api/scripts/{id}` | 获取脚本内容 |
-| 脚本 | `POST /api/scripts/{id}/save` | 保存脚本 |
-| 脚本 | `GET /api/scripts/{id}/structure` | 解析脚本结构 |
-| 脚本 | `POST /api/scripts/create` | 新建脚本 |
-| 节点 | `GET /api/nodes/` | Agent 列表 |
-| 注册 | `POST /api/registry/` | 注册节点 |
-| 注册 | `GET /api/registry/` | 已注册节点列表 |
-| 注册 | `POST /api/registry/{id}/verify` | 验证节点 |
-| 注册 | `POST /api/registry/verify-all` | 验证全部节点 |
-| Slave | `GET /api/slave/status` | Slave 状态 |
-| Slave | `POST /api/slave/start` | 启动 Slave |
-| Slave | `POST /api/slave/stop` | 停止 Slave |
-| 监控 | `GET /api/monitor/overview` | 资源概览 |
-| 监控 | `GET /api/monitor/system` | 系统指标 |
-| 监控 | `GET /api/monitor/jmeter` | JMeter 进程 |
-| 数据 | `GET /api/data/vars` | 变量列表 |
-| 数据 | `POST /api/data/vars` | 添加变量 |
-| 数据 | `GET /api/data/csv` | CSV 列表 |
-| 数据 | `POST /api/data/csv/upload` | 上传 CSV |
-| 数据 | `GET /api/data/csv/{id}/data` | CSV 数据 |
-| 结果 | `GET /api/results/tasks/{id}/summary` | 结果分析 |
-| 结果 | `GET /api/results/tasks/{id}/logs` | 执行日志 |
-| 结果 | `GET /api/results/tasks/{id}/export` | 导出 HTML 报告 |
-| WebSocket | `ws://localhost:8000/ws` | 实时推送 |
-
-## 十、功能清单
-
-| 功能 | 说明 | 状态 |
-|------|------|------|
-| 首页仪表盘 | 系统概览、最近任务、快速开始 | ✓ |
-| 任务管理 | 创建/启动/停止/查看任务 | ✓ |
-| 实时监控 | 运行中任务实时进度显示 | ✓ |
-| 结果分析 | TPS/RT/错误率/百分位/分布图表 | ✓ |
-| 脚本管理 | 上传/新建/编辑/保存/删除 | ✓ |
-| 脚本编辑器 | 在线编辑 XML、格式化、一键执行 | ✓ |
-| 分布式压测 | 多 Slave 并行执行 | ✓ |
-| 节点注册 | 添加/验证/删除远程节点 | ✓ |
-| 资源监控 | CPU/内存/磁盘/网络/JMeter 进程 | ✓ |
-| 变量管理 | 全局变量配置 | ✓ |
-| CSV 管理 | 数据文件上传、预览 | ✓ |
-| 执行日志 | 各节点 JMeter 日志查看 | ✓ |
-| 报告导出 | HTML 格式测试报告 | ✓ |
-| 一键部署 | deploy.sh 自动化部署 | ✓ |
+1. **Redis 安全**：配置密码、限制访问IP
+2. **网络安全**：使用防火墙限制端口访问
+3. **数据安全**：定期备份脚本和报告
+4. **访问控制**：生产环境建议添加认证机制
+5. **日志管理**：定期清理过期日志和报告
