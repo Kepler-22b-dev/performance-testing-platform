@@ -9,6 +9,7 @@
 - 实时计算并上报测试进度（TPS、响应时间、错误率）
 - 定时上报心跳和节点状态信息
 - 支持分布式压测模式
+- 完整的日志记录，便于问题排查
 """
 
 import os
@@ -35,6 +36,7 @@ from common.protocol import (
     AgentInfo, TaskCommand, TaskResult, ProgressUpdate,
     CommandType, TaskStatus,
 )
+from common.logger import get_agent_logger, get_task_logger, log_task_event, log_error
 from jmeter_runner import JMeterRunner
 
 
@@ -50,6 +52,9 @@ class JMeterAgent:
         self.agent_id = f"agent-{uuid.uuid4().hex[:8]}"
         self.host = self._get_local_ip()
         self.port = int(os.getenv("AGENT_PORT", 9999))
+
+        self.logger = get_agent_logger()
+        self.task_logger = get_task_logger()
 
         self.redis = redis.Redis(
             host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB,
@@ -73,10 +78,10 @@ class JMeterAgent:
 
     def start(self):
         """启动 Agent。订阅 Redis 命令通道、注册到 Agent 列表并进入心跳循环。"""
-        print(f"[{self.agent_id}] Starting agent on {self.host}:{self.port}")
-        print(f"[{self.agent_id}] JMeter home: {JMETER_HOME}")
-        print(f"[{self.agent_id}] Scripts dir: {SCRIPTS_DIR}")
-        print(f"[{self.agent_id}] Reports dir: {REPORTS_DIR}")
+        self.logger.info(f"Agent 启动: {self.host}:{self.port}")
+        self.logger.info(f"JMeter 路径: {JMETER_HOME}")
+        self.logger.info(f"脚本目录: {SCRIPTS_DIR}")
+        self.logger.info(f"报告目录: {REPORTS_DIR}")
 
         self.pubsub.subscribe(**{
             REDIS_CHANNEL_COMMAND: self._on_command,
@@ -84,6 +89,7 @@ class JMeterAgent:
 
         self.redis.sadd("jmeter:agents", self.agent_id)
         self.redis.hset(f"jmeter:agent:{self.agent_id}", mapping=self.info.to_dict())
+        self.logger.info(f"Agent 已注册到 Redis，ID: {self.agent_id}")
 
         self._heartbeat_loop()
 
@@ -92,17 +98,19 @@ class JMeterAgent:
         try:
             data = message["data"]
             command = TaskCommand.from_json(data)
+            self.logger.debug(f"收到命令: {command.command} for task {command.task_id}")
 
             if command.command == CommandType.EXECUTE:
                 self._handle_execute(command)
             elif command.command == CommandType.STOP:
                 self._handle_stop(command)
         except Exception as e:
-            print(f"[{self.agent_id}] Command error: {e}")
+            log_error(self.logger, e, "命令处理")
 
     def _handle_execute(self, command: TaskCommand):
         """处理任务执行指令。准备脚本、执行 JMeter 并实时上报进度。"""
         if self.runner.is_running:
+            self.logger.warning(f"Agent 忙碌，无法执行任务 {command.task_id}")
             self._send_result(TaskResult(
                 task_id=command.task_id,
                 agent_id=self.agent_id,
@@ -116,7 +124,8 @@ class JMeterAgent:
         self.info.status = "busy"
         self._update_info()
 
-        print(f"[{self.agent_id}] Executing task {command.task_id}")
+        log_task_event(self.task_logger, command.task_id, "开始执行",
+                       {"agent": self.agent_id, "script": command.script_path})
 
         script_path = self._prepare_script(command)
         result_dir = os.path.join(REPORTS_DIR, command.task_id, self.agent_id)
@@ -185,6 +194,10 @@ class JMeterAgent:
 
         self._send_result(task_result)
 
+        log_task_event(self.task_logger, command.task_id, "执行完成",
+                       {"agent": self.agent_id, "status": task_result.status,
+                        "samples": task_result.summary.get("total_samples", 0)})
+
         self.current_task = None
         self.info.current_task_id = None
         self.info.status = "online"
@@ -193,6 +206,7 @@ class JMeterAgent:
     def _handle_stop(self, command: TaskCommand):
         """处理任务停止指令。终止正在执行的 JMeter 进程。"""
         if self.current_task and self.current_task.task_id == command.task_id:
+            log_task_event(self.task_logger, command.task_id, "收到停止指令")
             self.runner.stop()
             self._send_result(TaskResult(
                 task_id=command.task_id,
@@ -208,10 +222,12 @@ class JMeterAgent:
             os.makedirs(os.path.dirname(script_path), exist_ok=True)
             with open(script_path, "w") as f:
                 f.write(command.script_content)
+            self.logger.debug(f"脚本已写入: {script_path}")
         elif command.script_path and os.path.exists(command.script_path):
             import shutil
             os.makedirs(os.path.dirname(script_path), exist_ok=True)
             shutil.copy2(command.script_path, script_path)
+            self.logger.debug(f"脚本已复制: {command.script_path} -> {script_path}")
 
         return script_path
 
@@ -222,10 +238,12 @@ class JMeterAgent:
             f"jmeter:task:{result.task_id}:result:{self.agent_id}",
             mapping={"data": result.to_json()},
         )
+        self.logger.debug(f"结果已发送: task={result.task_id}, status={result.status}")
 
     def _heartbeat_loop(self):
         """心跳循环。周期性上报 CPU/内存使用率和 Agent 状态，直到收到关闭信号。"""
         thread = self.pubsub.run_in_thread(sleep_time=0.1)
+        self.logger.info("心跳循环已启动")
 
         while self._running:
             self.info.cpu_usage = psutil.cpu_percent(interval=None)
@@ -243,7 +261,7 @@ class JMeterAgent:
         thread.stop()
         self.redis.srem("jmeter:agents", self.agent_id)
         self.redis.delete(f"jmeter:agent:{self.agent_id}")
-        print(f"[{self.agent_id}] Agent stopped")
+        self.logger.info("Agent 已停止")
 
     def _update_info(self):
         """更新 Agent 状态信息到 Redis 并发布心跳消息。"""
@@ -263,7 +281,7 @@ class JMeterAgent:
 
     def _shutdown(self, signum, frame):
         """信号处理函数。捕获 SIGINT/SIGTERM 信号，优雅关闭 Agent。"""
-        print(f"[{self.agent_id}] Shutting down...")
+        self.logger.info("收到关闭信号，正在停止...")
         self._running = False
 
 
