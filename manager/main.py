@@ -7,6 +7,7 @@
 - **结果收集** - 通过 Redis 订阅测试结果和进度更新
 - **WebSocket 推送** - 向前端实时推送测试进度和结果
 - **REST API** - 提供脚本管理、任务管理、结果查询等接口
+- **日志系统** - 记录 API 请求、任务事件、错误信息
 """
 
 import sys
@@ -22,6 +23,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from common.protocol import TaskResult, ProgressUpdate
 from common.config import REDIS_HOST, REDIS_PORT, REDIS_DB, REDIS_CHANNEL_RESULT, REDIS_CHANNEL_PROGRESS
+from common.logger import get_logger, get_api_logger, get_task_logger, log_task_event
 
 from manager.core.node_manager import NodeManager
 from manager.core.scheduler import TaskScheduler
@@ -40,18 +42,29 @@ from manager.api.notifications import router as notifications_router
 from manager.api.scheduler_api import router as scheduler_router
 from manager.api.alerts import router as alerts_router
 from manager.api.environments import router as environments_router
+from manager.api.jtl_compare import router as jtl_router
 
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+
+
+# 初始化日志
+logger = get_logger("manager", level="INFO", log_file="manager.log")
+api_logger = get_api_logger()
+task_logger = get_task_logger()
+
+logger.info("Manager 服务启动中...")
 
 
 node_manager = NodeManager()
 scheduler = TaskScheduler(node_manager=node_manager)
 ws_manager = ConnectionManager()
 
+logger.info(f"Redis 连接: {REDIS_HOST}:{REDIS_PORT}")
+
 
 async def redis_listener():
-    """Redis 监听协程。订阅结果和进度通道，将消息分发给调度器并推送给 WebSocket 客户端。"""
+    """Redis 监听器 - 订阅任务结果和进度更新"""
     import redis.asyncio as aioredis
     r = aioredis.Redis(
         host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB,
@@ -59,6 +72,7 @@ async def redis_listener():
     )
     pubsub = r.pubsub()
     await pubsub.subscribe(REDIS_CHANNEL_RESULT, REDIS_CHANNEL_PROGRESS)
+    logger.info("Redis 监听器已启动，订阅结果和进度频道")
 
     try:
         async for message in pubsub.listen():
@@ -73,6 +87,8 @@ async def redis_listener():
 
                 if channel == REDIS_CHANNEL_RESULT:
                     result = TaskResult.from_json(data)
+                    log_task_event(task_logger, result.task_id, "结果收到",
+                                   {"agent": result.agent_id, "status": result.status})
                     scheduler.handle_result(result)
                     await ws_manager.broadcast({"channel": "result", "data": payload})
                 elif channel == REDIS_CHANNEL_PROGRESS:
@@ -80,16 +96,27 @@ async def redis_listener():
                     scheduler.handle_progress(update)
                     await ws_manager.broadcast({"channel": "progress", "data": payload})
     except asyncio.CancelledError:
+        logger.info("Redis 监听器已停止")
         await pubsub.unsubscribe()
         await r.close()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """FastAPI 生命周期管理。启动时初始化心跳监听、Redis 订阅和调度器；关闭时清理资源。"""
+    """应用生命周期管理"""
+    logger.info("Manager 服务启动完成")
     heartbeat_thread = node_manager.start_heartbeat_listener()
+    logger.info("心跳监听器已启动")
     listener_task = asyncio.create_task(redis_listener())
     init_scheduler_loop()
+    logger.info("定时调度器已启动")
+
+    yield
+
+    logger.info("Manager 服务关闭中...")
+    listener_task.cancel()
+    heartbeat_thread.stop()
+    logger.info("Manager 服务已关闭")
 
     yield
 
@@ -133,6 +160,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# 添加 API 请求日志中间件
+@app.middleware("http")
+async def log_requests(request, call_next):
+    import time as _time
+    start = _time.time()
+    response = await call_next(request)
+    duration = (_time.time() - start) * 1000
+    api_logger.info(f"{request.method} {request.url.path} -> {response.status_code} ({duration:.1f}ms)")
+    return response
+
+logger.info(f"API 路由已注册: nodes, scripts, tasks, results, slave, registry, monitor, data, templates, notifications, scheduler, alerts, environments")
+
 set_node_manager(node_manager)
 set_scheduler(scheduler)
 
@@ -152,6 +191,7 @@ app.include_router(notifications_router)
 app.include_router(scheduler_router)
 app.include_router(alerts_router)
 app.include_router(environments_router)
+app.include_router(jtl_router)
 
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 

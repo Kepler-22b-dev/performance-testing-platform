@@ -7,6 +7,7 @@ import os
 import signal
 import time
 import csv
+import json
 import xml.etree.ElementTree as ET
 from typing import Optional, Callable
 
@@ -87,7 +88,7 @@ class JMeterRunner:
             print(f"CSV injection failed: {e}")
             return script_path
 
-    def _inject_thread_config(self, script_path: str, threads: int, ramp_time: int, duration: int) -> str:
+    def _inject_thread_config(self, script_path: str, threads: int, ramp_time: int, duration: int, scenario: dict = None) -> str:
         """
         动态注入线程组配置到 JMX 脚本
         覆盖 JMX 中的线程数、预热时间、持续时间
@@ -97,6 +98,7 @@ class JMeterRunner:
             threads: 线程数
             ramp_time: 预热时间(秒)
             duration: 持续时间(秒)
+            scenario: 场景配置(可选)
         Returns:
             修改后的脚本路径
         """
@@ -187,12 +189,20 @@ class JMeterRunner:
         report_path = os.path.join(result_dir, "html-report")
 
         # 注入线程组配置
+        scenario = None
+        if jmeter_args.get("scenario"):
+            try:
+                scenario = json.loads(jmeter_args["scenario"])
+            except Exception:
+                pass
+
         if jmeter_args.get("threads") or jmeter_args.get("duration") or jmeter_args.get("ramp_time"):
             script_path = self._inject_thread_config(
                 script_path,
                 threads=int(jmeter_args.get("threads", 10)),
                 ramp_time=int(jmeter_args.get("ramp_time", 1)),
                 duration=int(jmeter_args.get("duration", 60)),
+                scenario=scenario,
             )
 
         # 构建 JMeter 命令

@@ -1,1 +1,11 @@
-{"script_id": "6", "original_name": "empty-test.jmx", "filename": "6.jmx", "size": 179, "created_at": 1781882109.892329, "modified_at": 1781882109.892329}
+{
+  "script_id": "6",
+  "original_name": "empty-test.jmx",
+  "filename": "6.jmx",
+  "size": 179,
+  "created_at": 1781882109.892329,
+  "modified_at": 1781882109.892329,
+  "old_ids": [
+    "script-ad005de6"
+  ]
+}

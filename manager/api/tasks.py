@@ -6,6 +6,7 @@
 
 import sys
 import os
+import json
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
@@ -42,6 +43,7 @@ class TaskCreateRequest(BaseModel):
 
 
 class QuickRunRequest(BaseModel):
+    """快速执行压测请求"""
     script_id: str
     target_agents: list[str] = []
     threads: int = 1
@@ -55,6 +57,7 @@ class QuickRunRequest(BaseModel):
     csv_delimiter: str = ","
     csv_recycle: bool = True
     csv_stop_on_eof: bool = False
+    scenario: Optional[dict] = None  # 自定义并发场景配置
 
 
 class BatchTaskItem(BaseModel):
@@ -191,11 +194,16 @@ def quick_run(req: QuickRunRequest):
             raise HTTPException(status_code=400, detail="所有 Agent 节点正忙，请等待任务完成")
         target = [agents[0].agent_id]
 
+    # 构建 JMeter 参数
     jmeter_args = {
         "threads": str(req.threads),
         "ramp_time": str(req.ramp_time),
         "duration": str(req.duration),
     }
+
+    # 添加场景配置到 jmeter_args
+    if req.scenario:
+        jmeter_args["scenario"] = json.dumps(req.scenario)
 
     timeout = req.timeout
     if req.distributed:

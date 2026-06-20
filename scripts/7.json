@@ -1,1 +1,11 @@
-{"script_id": "7", "original_name": "full-test.jmx", "filename": "7.jmx", "size": 4009, "created_at": 1781882109.892433, "modified_at": 1781882109.892433}
+{
+  "script_id": "7",
+  "original_name": "full-test.jmx",
+  "filename": "7.jmx",
+  "size": 4009,
+  "created_at": 1781882109.892433,
+  "modified_at": 1781882109.892433,
+  "old_ids": [
+    "full-test"
+  ]
+}

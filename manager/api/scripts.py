@@ -8,6 +8,7 @@ import sys
 import os
 import time
 import json
+import uuid
 import xml.etree.ElementTree as ET
 from fastapi import APIRouter, HTTPException, UploadFile, File, Query
 from pydantic import BaseModel
@@ -181,12 +182,14 @@ def get_script(script_id: str):
 
     stat = os.stat(filepath)
     filename = f"{script_id}.jmx"
+    old_ids = []
     meta_path = os.path.join(SCRIPTS_DIR, f"{script_id}.json")
     if os.path.exists(meta_path):
         try:
             with open(meta_path, "r") as mf:
                 meta = json.load(mf)
             filename = meta.get("original_name", filename)
+            old_ids = meta.get("old_ids", [])
         except Exception:
             pass
 
@@ -196,6 +199,7 @@ def get_script(script_id: str):
         "content": content,
         "size": stat.st_size,
         "modified_at": stat.st_mtime,
+        "old_ids": old_ids,
     }
 
 
