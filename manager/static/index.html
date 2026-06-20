@@ -310,6 +310,10 @@
                 </div>
                 <div id="live-monitor" class="hidden"></div>
                 <div class="summary-cards" id="summary-cards"></div>
+                <div id="response-code-section" style="display:none;padding:10px 12px;background:#fafafa;border-radius:6px;margin-bottom:12px;">
+                    <div style="font-size:12px;font-weight:500;margin-bottom:6px;">响应码分布</div>
+                    <div id="response-code-dist" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
+                </div>
 
                 <!-- 场景总览：多曲线合并 -->
                 <div class="chart-box" style="margin-bottom:12px">
@@ -995,6 +999,14 @@
             return `${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
         }
 
+        function formatBytes(bytes) {
+            if (!bytes || bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+        }
+
         // ===== 首页 =====
         async function loadHomePage() {
             try {
@@ -1446,16 +1458,18 @@
         }
 
         function renderLiveMonitor(p) {
-            const el = document.getElementById('live-monitor');
-            el.innerHTML = `
-                <div class="live-bar">
-                    <div class="item"><span class="dot"></span> 实时监控</div>
-                    <div class="item">运行时间: <strong>${p.elapsed}s</strong></div>
-                    <div class="item">吞吐量: <strong>${p.throughput.toFixed(1)}/s</strong></div>
-                    <div class="item">平均RT: <strong>${p.avg_response_time.toFixed(1)}ms</strong></div>
-                    <div class="item">错误率: <strong>${p.error_rate.toFixed(1)}%</strong></div>
-                    <div class="item">总样本: <strong>${p.total_samples}</strong></div>
-                </div>`;
+            var el = document.getElementById('live-monitor');
+            var successRate = p.success_rate != null ? p.success_rate : (100 - (p.error_rate || 0));
+            var bytesRecv = p.bytes_received || 0;
+            el.innerHTML = '<div class="live-bar" style="flex-wrap:wrap;">' +
+                '<div class="item"><span class="dot"></span> 实时监控</div>' +
+                '<div class="item">运行: <strong>' + p.elapsed + 's</strong></div>' +
+                '<div class="item">TPS: <strong>' + p.throughput.toFixed(1) + '</strong></div>' +
+                '<div class="item">平均RT: <strong>' + p.avg_response_time.toFixed(1) + 'ms</strong></div>' +
+                '<div class="item">成功率: <strong style="color:' + (successRate >= 99 ? '#16a34a' : successRate >= 95 ? '#d97706' : '#dc2626') + '">' + successRate.toFixed(1) + '%</strong></div>' +
+                '<div class="item">总样本: <strong>' + p.total_samples + '</strong></div>' +
+                '<div class="item">流量: <strong>' + formatBytes(bytesRecv) + '</strong></div>' +
+                '</div>';
         }
 
         // ===== 并发场景配置 =====
@@ -1798,14 +1812,37 @@
         // ===== 结果渲染 =====
         function renderSummary(data) {
             const s = data.summary;
+            const successRate = s.success_rate != null ? s.success_rate : (100 - (s.error_rate || 0));
+            const avgLatency = s.avg_latency != null ? s.avg_latency : s.avg_response_time || 0;
+            const avgConnect = s.avg_connect_time != null ? s.avg_connect_time : 0;
+            const bytesRecv = s.total_bytes_received || 0;
+            const respDist = s.response_code_dist || {};
             document.getElementById('summary-cards').innerHTML = `
                 <div class="card"><div class="label">总请求数</div><div class="value blue">${s.total_samples}</div></div>
+                <div class="card"><div class="label">成功率</div><div class="value ${successRate >= 99 ? 'green' : successRate >= 95 ? 'yellow' : 'red'}">${successRate}%</div></div>
                 <div class="card"><div class="label">平均RT</div><div class="value green">${s.avg_response_time}ms</div></div>
                 <div class="card"><div class="label">P90</div><div class="value yellow">${s.p90}ms</div></div>
                 <div class="card"><div class="label">P99</div><div class="value red">${s.p99}ms</div></div>
                 <div class="card"><div class="label">最小/最大</div><div class="value" style="font-size:15px">${s.min_response_time}/${s.max_response_time}ms</div></div>
                 <div class="card"><div class="label">错误率</div><div class="value ${s.error_rate > 0 ? 'red' : 'green'}">${s.error_rate}%</div></div>
+                <div class="card"><div class="label">网络流量</div><div class="value blue" style="font-size:14px">${formatBytes(bytesRecv)}</div></div>
+                <div class="card"><div class="label">平均延迟</div><div class="value">${avgLatency}ms</div></div>
+                <div class="card"><div class="label">连接时间</div><div class="value">${avgConnect}ms</div></div>
             `;
+
+            // 响应码分布
+            const codeHtml = Object.entries(respDist).map(function(entry) {
+                var code = entry[0], count = entry[1];
+                var color = code.charAt(0) === '2' ? '#16a34a' : code.charAt(0) === '3' ? '#2563eb' : code.charAt(0) === '4' ? '#d97706' : '#dc2626';
+                return '<span style="display:inline-flex;align-items:center;gap:4px;margin-right:8px;"><span style="background:' + color + ';color:#fff;padding:1px 6px;border-radius:3px;font-size:11px;">' + code + '</span><span style="font-size:12px;">' + count + '</span></span>';
+            }).join('');
+            var respSection = document.getElementById('response-code-section');
+            var respDistEl = document.getElementById('response-code-dist');
+            if (codeHtml && respSection && respDistEl) {
+                respDistEl.innerHTML = codeHtml;
+                respSection.style.display = 'block';
+            }
+
             document.getElementById('label-stats-tbody').innerHTML = (data.label_stats || []).map(l => `
                 <tr>
                     <td>${l.label}</td><td>${l.count}</td>
@@ -3688,6 +3725,18 @@
         }
 
         // ===== 初始化 =====
+
+        function diff(a, b) {
+            if (b === 0) return '-';
+            var pct = ((a - b) / b * 100).toFixed(1);
+            return (pct > 0 ? '+' : '') + pct + '%';
+        }
+
+        function diffColor(a, b) {
+            if (b === 0) return '#888';
+            return a > b ? '#dc2626' : a < b ? '#16a34a' : '#888';
+        }
+
         loadHomePage();
     </script>
 </body>
