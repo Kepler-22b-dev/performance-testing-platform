@@ -1,6 +1,6 @@
 # 性能测试平台 - 分布式部署指南
 
-> 版本：2.0 | 更新时间：2026-06-20
+> 版本：3.0 | 更新时间：2026-06-20
 
 ---
 
@@ -8,13 +8,14 @@
 
 - [一、架构概览](#一架构概览)
 - [二、环境准备](#二环境准备)
-- [三、单机部署](#三单机部署)
-- [四、分布式部署](#四分布式部署)
-- [五、Docker 部署](#五docker-部署)
-- [六、生产环境配置](#六生产环境配置)
-- [七、监控与运维](#七监控与运维)
-- [八、故障排查](#八故障排查)
-- [九、性能调优](#九性能调优)
+- [三、JMeter 安装](#三jmeter-安装)
+- [四、单机部署](#四单机部署)
+- [五、分布式部署](#五分布式部署)
+- [六、Docker 部署](#六docker-部署)
+- [七、生产环境配置](#七生产环境配置)
+- [八、监控与运维](#八监控与运维)
+- [九、故障排查](#九故障排查)
+- [十、性能调优](#十性能调优)
 
 ---
 
@@ -80,7 +81,7 @@
 | Python | 3.10+ | 运行 Manager 和 Agent |
 | Java | 8+ | JMeter 运行需要 |
 | Redis | 6.0+ | 消息队列和数据存储 |
-| JMeter | 5.6.3 | 已内置在项目中 |
+| JMeter | 5.6.3 | 需要单独下载（见第三章） |
 
 ### 2.2 检查环境
 
@@ -109,7 +110,75 @@ redis-cli ping
 
 ---
 
-## 三、单机部署
+## 三、JMeter 安装
+
+JMeter 不在 Git 仓库中（文件太大），需要单独下载。
+
+### 3.1 下载 JMeter
+
+```bash
+# 进入项目目录
+cd performance-testing-platform
+
+# 下载 JMeter 5.6.3
+wget https://archive.apache.org/dist/jmeter/binaries/apache-jmeter-5.6.3.tgz
+
+# 解压
+tar -xzf apache-jmeter-5.6.3.tgz
+
+# 删除压缩包
+rm apache-jmeter-5.6.3.tgz
+```
+
+### 3.2 配置 JMeter
+
+```bash
+# 禁用 SSL（分布式模式需要）
+sed -i 's/^#server.rmi.ssl.disable=false/server.rmi.ssl.disable=true/' apache-jmeter-5.6.3/bin/jmeter.properties
+```
+
+### 3.3 验证 JMeter
+
+```bash
+# 检查 JMeter 版本
+./apache-jmeter-5.6.3/bin/jmeter --version
+
+# 检查 Java 连接
+./apache-jmeter-5.6.3/bin/jmeter -n -t /dev/null 2>&1 | head -5
+```
+
+### 3.4 Slave 节点（可选）
+
+如果需要分布式模式，为每台施压机准备 Slave：
+
+```bash
+# 复制 JMeter 作为 Slave
+cp -r apache-jmeter-5.6.3 apache-jmeter-5.6.3-slave
+
+# 配置 Slave 禁用 SSL
+sed -i 's/^#server.rmi.ssl.disable=false/server.rmi.ssl.disable=true/' apache-jmeter-5.6.3-slave/bin/jmeter.properties
+```
+
+### 3.5 目录结构（下载后）
+
+```
+performance-testing-platform/
+├── apache-jmeter-5.6.3/          ← 主 JMeter（必须）
+├── apache-jmeter-5.6.3-slave/    ← Slave 节点（可选）
+├── common/
+├── manager/
+├── agent/
+├── scripts/
+├── reports/
+├── config/
+├── cli.py
+├── deploy.sh
+└── ...
+```
+
+---
+
+## 四、单机部署
 
 **适用场景：** 个人使用、功能测试、小规模压测
 
@@ -120,14 +189,33 @@ git clone https://github.com/Kepler-22b-dev/performance-testing-platform.git
 cd performance-testing-platform
 ```
 
-### 步骤 2：安装依赖
+### 步骤 2：安装 JMeter
+
+```bash
+# 下载 JMeter 5.6.3
+wget https://archive.apache.org/dist/jmeter/binaries/apache-jmeter-5.6.3.tgz
+
+# 解压
+tar -xzf apache-jmeter-5.6.3.tgz
+
+# 删除压缩包
+rm apache-jmeter-5.6.3.tgz
+
+# 禁用 SSL（分布式模式需要）
+sed -i 's/^#server.rmi.ssl.disable=false/server.rmi.ssl.disable=true/' apache-jmeter-5.6.3/bin/jmeter.properties
+
+# 验证
+./apache-jmeter-5.6.3/bin/jmeter --version
+```
+
+### 步骤 3：安装依赖
 
 ```bash
 pip install -r manager/requirements.txt
 pip install -r agent/requirements.txt
 ```
 
-### 步骤 3：启动服务
+### 步骤 4：启动服务
 
 ```bash
 # 一键启动所有服务
@@ -188,10 +276,16 @@ bash deploy.sh clean    # 清理数据
 git clone https://github.com/Kepler-22b-dev/performance-testing-platform.git
 cd performance-testing-platform
 
-# 2. 安装依赖
+# 2. 安装 JMeter
+wget https://archive.apache.org/dist/jmeter/binaries/apache-jmeter-5.6.3.tgz
+tar -xzf apache-jmeter-5.6.3.tgz
+rm apache-jmeter-5.6.3.tgz
+sed -i 's/^#server.rmi.ssl.disable=false/server.rmi.ssl.disable=true/' apache-jmeter-5.6.3/bin/jmeter.properties
+
+# 3. 安装依赖
 pip install -r manager/requirements.txt
 
-# 3. 安装并启动 Redis
+# 4. 安装并启动 Redis
 # Ubuntu/Debian:
 sudo apt update && sudo apt install -y redis-server
 sudo systemctl start redis
@@ -230,10 +324,16 @@ curl http://localhost:8000/api/health
 git clone https://github.com/Kepler-22b-dev/performance-testing-platform.git
 cd performance-testing-platform
 
-# 2. 安装依赖
+# 2. 安装 JMeter
+wget https://archive.apache.org/dist/jmeter/binaries/apache-jmeter-5.6.3.tgz
+tar -xzf apache-jmeter-5.6.3.tgz
+rm apache-jmeter-5.6.3.tgz
+sed -i 's/^#server.rmi.ssl.disable=false/server.rmi.ssl.disable=true/' apache-jmeter-5.6.3/bin/jmeter.properties
+
+# 3. 安装依赖
 pip install -r agent/requirements.txt
 
-# 3. 配置 Redis 连接
+# 4. 配置 Redis 连接
 # 方法 1: 环境变量
 export REDIS_HOST=192.168.1.100
 
@@ -241,22 +341,21 @@ export REDIS_HOST=192.168.1.100
 echo 'export REDIS_HOST=192.168.1.100' >> ~/.bashrc
 source ~/.bashrc
 
-# 4. 启动 Agent
+# 5. 启动 Agent
 nohup python3 -m agent.main > agent.log 2>&1 &
 
-# 5. 启动 JMeter Slave
-nohup /tmp/jmeter-slave/bin/jmeter-server \
+# 6. 启动 JMeter Slave
+nohup apache-jmeter-5.6.3/bin/jmeter-server \
     -Dserver_port=1100 \
     -Dserver.rmi.ssl.disable=true \
     -Djava.rmi.server.hostname=当前机器IP \
     > slave.log 2>&1 &
 
-# 6. 验证
+# 7. 验证
 cat agent.log
-# 应看到: [agent-xxxx] Starting agent on 当前IP:9999
 
-# 7. 可选：启动多个 Slave 增加并发
-nohup /tmp/jmeter-slave/bin/jmeter-server \
+# 8. 可选：启动多个 Slave 增加并发
+nohup apache-jmeter-5.6.3/bin/jmeter-server \
     -Dserver_port=1101 \
     -Dserver.rmi.ssl.disable=true \
     -Djava.rmi.server.hostname=当前机器IP \
