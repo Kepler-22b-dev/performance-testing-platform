@@ -80,6 +80,10 @@
         .form-group label { display: block; font-size: 13px; color: #555; margin-bottom: 6px; font-weight: 500; }
         .form-group input, .form-group select { width: 100%; padding: 8px 12px; border: 1px solid #d0d0d0; border-radius: 4px; font-size: 13px; color: #333; background: #fff; outline: none; transition: border 0.2s; }
         .form-group input:focus, .form-group select:focus { border-color: #2563eb; }
+        .form-group select[multiple] { height: auto; min-height: 80px; }
+        .form-group select[multiple] option { padding: 6px 8px; margin: 2px 0; border-radius: 4px; }
+        .form-group select[multiple] option:checked { background: #2563eb; color: #fff; }
+        .form-group select[multiple] optgroup { font-weight: 600; color: #666; font-style: normal; }
         .form-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
         .form-actions { display: flex; gap: 8px; margin-top: 20px; }
         .live-bar { display: flex; gap: 16px; padding: 12px 16px; background: #f0f7ff; border: 1px solid #bfdbfe; border-radius: 6px; margin-bottom: 16px; font-size: 13px; }
@@ -393,8 +397,8 @@
                         </div>
                         <div class="form-group">
                             <label>施压节点（可多选）</label>
-                            <select id="create-nodes" multiple style="height:100px;"></select>
-                            <div style="font-size:11px;color:#888;margin-top:4px;">按住 Ctrl/Command 可多选，将同时在多个节点上执行</div>
+                            <select id="create-nodes" multiple onchange="updateNodeSelection()"></select>
+                            <div id="node-selection-info" style="font-size:11px;color:#888;margin-top:4px;">按住 Ctrl/Command 可多选</div>
                         </div>
                         <div class="form-group">
                             <label>压测场景</label>
@@ -1714,6 +1718,7 @@
                         '</optgroup>';
                 }
                 nodeSel.innerHTML = nodeOptions || '<option>无可用节点</option>';
+                updateNodeSelection();
 
                 const csvSel = document.getElementById('create-csv-file');
                 csvSel.innerHTML = '<option value="">不使用 CSV</option>' +
@@ -1729,6 +1734,24 @@
                 setTimeout(function() { updateScenarioPreview(); }, 200);
             } catch (e) {
                 console.error('loadCreateForm error:', e);
+            }
+        }
+
+        function updateNodeSelection() {
+            const nodeSelect = document.getElementById('create-nodes');
+            const selected = Array.from(nodeSelect.selectedOptions);
+            const info = document.getElementById('node-selection-info');
+            if (selected.length === 0) {
+                info.textContent = '按住 Ctrl/Command 可多选';
+                info.style.color = '#888';
+            } else {
+                const agentCount = selected.filter(o => o.dataset.type === 'agent').length;
+                const slaveCount = selected.filter(o => o.dataset.type === 'slave').length;
+                const parts = [];
+                if (agentCount > 0) parts.push(`${agentCount} 个 Agent`);
+                if (slaveCount > 0) parts.push(`${slaveCount} 个 Slave`);
+                info.innerHTML = `已选择: <strong>${parts.join(' + ')}</strong>`;
+                info.style.color = '#2563eb';
             }
         }
 
