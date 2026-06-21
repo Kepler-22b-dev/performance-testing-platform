@@ -2025,9 +2025,9 @@
             const useCsv = document.getElementById('create-use-csv').checked;
             const csvFile = useCsv ? document.getElementById('create-csv-file').value : null;
             const csvVars = useCsv ? document.getElementById('create-csv-vars').value.trim() : null;
-            const csvDelimiter = document.getElementById('create-csv-delimiter').value || ',';
-            const csvRecycle = document.getElementById('create-csv-recycle').checked;
-            const csvStop = document.getElementById('create-csv-stop').checked;
+            const csvDelimiter = document.getElementById('create-csv-delimiter')?.value || ',';
+            const csvRecycle = document.getElementById('create-csv-recycle')?.checked ?? true;
+            const csvStop = document.getElementById('create-csv-stop')?.checked ?? false;
 
             if (useCsv && !csvFile) { alert('请选择 CSV 文件或取消参数化'); return; }
 
