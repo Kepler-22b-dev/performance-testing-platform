@@ -437,11 +437,6 @@
                             </div>
                             <div id="scenario-desc" style="font-size:12px;color:#666;margin-top:10px;padding-top:10px;border-top:1px solid #e0e0e0;">选择场景后显示说明</div>
                         </div>
-                        <div style="margin-top:10px;">
-                            <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;">
-                                <input type="checkbox" id="create-distributed"> 分布式模式
-                            </label>
-                        </div>
                     </div>
                     <div>
                         <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
@@ -1733,10 +1728,6 @@
                         `<option value="${c.csv_id}">${c.filename} (${c.row_count} 行, ${(c.size/1024).toFixed(1)}KB)</option>`
                     ).join('');
 
-                document.getElementById('create-distributed').onchange = function() {
-                    document.getElementById('create-remote-hosts').style.display = this.checked ? 'block' : 'none';
-                };
-
                 // 初始化场景预览
                 setTimeout(function() { updateScenarioPreview(); }, 200);
             } catch (e) {
@@ -1757,7 +1748,11 @@
                 const parts = [];
                 if (agentCount > 0) parts.push(`${agentCount} 个 Agent`);
                 if (slaveCount > 0) parts.push(`${slaveCount} 个 Slave`);
-                info.innerHTML = `已选择: <strong>${parts.join(' + ')}</strong>`;
+                let text = `已选择: <strong>${parts.join(' + ')}</strong>`;
+                if (slaveCount > 0) {
+                    text += ` <span style="color:#16a34a">(自动启用分布式模式)</span>`;
+                }
+                info.innerHTML = text;
                 info.style.color = '#2563eb';
             }
         }
@@ -1886,13 +1881,16 @@
         async function submitTask() {
             const scriptId = document.getElementById('create-script').value;
             const nodeSelect = document.getElementById('create-nodes');
-            const selectedNodes = Array.from(nodeSelect.selectedOptions).map(o => o.value);
+            const selectedOptions = Array.from(nodeSelect.selectedOptions);
+            const selectedNodes = selectedOptions.map(o => o.value);
             const threads = parseInt(document.getElementById('create-threads').value) || 1;
             const ramp = parseInt(document.getElementById('create-ramp').value) || 1;
             const duration = parseInt(document.getElementById('create-duration').value) || 10;
             const timeout = parseInt(document.getElementById('create-timeout').value) || 300;
-            const distributed = document.getElementById('create-distributed').checked;
-            const remoteHosts = document.getElementById('create-remote-hosts').value.trim() || null;
+
+            const selectedSlaves = selectedOptions.filter(o => o.dataset.type === 'slave');
+            const distributed = selectedSlaves.length > 0;
+            const remoteHosts = distributed ? selectedSlaves.map(o => o.value).join(',') : null;
 
             if (!scriptId) { alert('请选择脚本'); return; }
             if (selectedNodes.length === 0) { alert('请选择至少一个施压节点'); return; }
