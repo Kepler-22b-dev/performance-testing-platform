@@ -133,14 +133,16 @@ class JMeterAgent:
 
         last_total = 0
         last_time = time.time()
+        last_bytes_recv = 0
 
         def on_progress(raw):
-            nonlocal last_total, last_time
+            nonlocal last_total, last_time, last_bytes_recv
             now = time.time()
             elapsed = int(now - start_time)
             total = raw.get("total_samples", 0)
             errors = raw.get("error_count", 0)
             times = raw.get("elapsed_times", [])
+            bytes_recv = raw.get("bytes_received", 0)
 
             interval = now - last_time
             interval_count = total - last_total if total >= last_total else total
@@ -148,9 +150,15 @@ class JMeterAgent:
 
             avg_rt = round(sum(times) / len(times), 2) if times else 0
             error_rate = round(errors / total * 100, 2) if total > 0 else 0
+            success_rate = round((total - errors) / total * 100, 2) if total > 0 else 100.0
+
+            # 网络吞吐量
+            interval_bytes = bytes_recv - last_bytes_recv if bytes_recv >= last_bytes_recv else 0
+            bytes_per_sec = round(interval_bytes / interval) if interval > 0 else 0
 
             last_total = total
             last_time = now
+            last_bytes_recv = bytes_recv
 
             update = ProgressUpdate(
                 task_id=command.task_id,
@@ -161,7 +169,12 @@ class JMeterAgent:
                 throughput=current_tps,
                 avg_response_time=avg_rt,
                 error_rate=error_rate,
+                success_rate=success_rate,
                 total_samples=total,
+                bytes_received=bytes_recv,
+                bytes_sent=bytes_per_sec,
+                avg_latency=raw.get("avg_latency", 0),
+                avg_connect_time=raw.get("avg_connect_time", 0),
             )
             self.redis.publish(REDIS_CHANNEL_PROGRESS, update.to_json())
 

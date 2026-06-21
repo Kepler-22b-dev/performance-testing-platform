@@ -374,7 +374,9 @@ class JMeterRunner:
         summary = {
             "total_samples": 0,
             "error_count": 0,
+            "success_count": 0,
             "error_rate": 0.0,
+            "success_rate": 100.0,
             "avg_response_time": 0.0,
             "min_response_time": 0,
             "max_response_time": 0,
@@ -383,42 +385,164 @@ class JMeterRunner:
             "p95": 0,
             "p99": 0,
             "throughput": 0.0,
+            "total_bytes_received": 0,
+            "total_bytes_sent": 0,
+            "avg_bytes_per_request": 0,
+            "avg_latency": 0,
+            "avg_connect_time": 0,
+            "response_code_dist": {},
         }
 
         if not os.path.exists(jtl_path):
             return summary
 
         try:
-            elapsed_times = []
-            with open(jtl_path, "r") as f:
-                lines = f.readlines()
-                total = len(lines) - 1 if lines else 0
-                error_count = 0
+            file_size = os.path.getsize(jtl_path)
+            if file_size == 0:
+                return summary
 
-                for line in lines[1:]:
-                    parts = line.strip().split(",")
-                    if len(parts) >= 4:
-                        elapsed = int(parts[1])
-                        success = parts[3].strip() == "true"
-                        elapsed_times.append(elapsed)
-                        if not success:
-                            error_count += 1
+            with open(jtl_path, "r", encoding="utf-8", errors="replace") as f:
+                first_line = f.readline().strip()
 
-            if elapsed_times:
-                elapsed_times.sort()
-                summary["total_samples"] = total
-                summary["error_count"] = error_count
-                summary["error_rate"] = round(error_count / total * 100, 2) if total > 0 else 0
-                summary["avg_response_time"] = round(sum(elapsed_times) / len(elapsed_times), 2)
-                summary["min_response_time"] = min(elapsed_times)
-                summary["max_response_time"] = max(elapsed_times)
-                summary["p50"] = self._percentile(elapsed_times, 50)
-                summary["p90"] = self._percentile(elapsed_times, 90)
-                summary["p95"] = self._percentile(elapsed_times, 95)
-                summary["p99"] = self._percentile(elapsed_times, 99)
+                if first_line.startswith("<?xml") or first_line.startswith("<testResults"):
+                    summary = self._parse_xml_final(f, summary)
+                else:
+                    summary = self._parse_csv_final(f, summary)
 
         except Exception:
             pass
+
+        return summary
+
+    def _parse_xml_final(self, f, summary):
+        """解析 XML 格式的最终结果"""
+        import xml.etree.ElementTree as ET
+
+        elapsed_times = []
+        latency_times = []
+        connect_times = []
+        bytes_received = 0
+        bytes_sent = 0
+        error_count = 0
+        response_codes = {}
+        timestamps = []
+
+        try:
+            content = f.read()
+            root = ET.fromstring(content)
+
+            for elem in root:
+                if elem.tag in ("httpSample", "sample"):
+                    attrs = elem.attrib
+                    elapsed = int(attrs.get("t", 0))
+                    success = attrs.get("s", "true") == "true"
+                    ts = int(attrs.get("ts", 0))
+                    by = int(attrs.get("by", 0))
+                    lt = int(attrs.get("lt", 0))
+                    ct = int(attrs.get("ct", 0))
+                    rc = attrs.get("rc", "")
+
+                    elapsed_times.append(elapsed)
+                    timestamps.append(ts)
+                    bytes_received += by
+                    latency_times.append(lt)
+                    connect_times.append(ct)
+
+                    if not success:
+                        error_count += 1
+
+                    response_codes[rc] = response_codes.get(rc, 0) + 1
+
+        except Exception:
+            pass
+
+        if elapsed_times:
+            elapsed_times.sort()
+            duration = (max(timestamps) - min(timestamps)) / 1000 if timestamps and len(timestamps) > 1 else 1
+            total = len(elapsed_times)
+
+            summary["total_samples"] = total
+            summary["error_count"] = error_count
+            summary["success_count"] = total - error_count
+            summary["error_rate"] = round(error_count / total * 100, 2) if total > 0 else 0
+            summary["success_rate"] = round((total - error_count) / total * 100, 2) if total > 0 else 100.0
+            summary["avg_response_time"] = round(sum(elapsed_times) / len(elapsed_times), 2)
+            summary["min_response_time"] = min(elapsed_times)
+            summary["max_response_time"] = max(elapsed_times)
+            summary["p50"] = self._percentile(elapsed_times, 50)
+            summary["p90"] = self._percentile(elapsed_times, 90)
+            summary["p95"] = self._percentile(elapsed_times, 95)
+            summary["p99"] = self._percentile(elapsed_times, 99)
+            summary["throughput"] = round(total / duration, 2) if duration > 0 else 0
+            summary["total_bytes_received"] = bytes_received
+            summary["avg_bytes_per_request"] = round(bytes_received / total) if total > 0 else 0
+            summary["avg_latency"] = round(sum(latency_times) / len(latency_times), 2) if latency_times else 0
+            summary["avg_connect_time"] = round(sum(connect_times) / len(connect_times), 2) if connect_times else 0
+            summary["response_code_dist"] = response_codes
+
+        return summary
+
+    def _parse_csv_final(self, f, summary):
+        """解析 CSV 格式的最终结果"""
+        elapsed_times = []
+        latency_times = []
+        connect_times = []
+        bytes_received = 0
+        bytes_sent = 0
+        error_count = 0
+        response_codes = {}
+        timestamps = []
+
+        for line in f:
+            parts = line.strip().split(",")
+            if len(parts) >= 4:
+                try:
+                    elapsed = int(parts[1])
+                    success = parts[3].strip() == "true"
+                    ts = int(parts[0]) if parts[0].isdigit() else 0
+                    elapsed_times.append(elapsed)
+                    timestamps.append(ts)
+
+                    if not success:
+                        error_count += 1
+
+                    rc = parts[2] if len(parts) > 2 else ""
+                    response_codes[rc] = response_codes.get(rc, 0) + 1
+
+                    if len(parts) > 8 and parts[8].isdigit():
+                        bytes_received += int(parts[8])
+                    if len(parts) > 9 and parts[9].isdigit():
+                        bytes_sent += int(parts[9])
+                    if len(parts) > 13 and parts[13].isdigit():
+                        latency_times.append(int(parts[13]))
+                    if len(parts) > 15 and parts[15].isdigit():
+                        connect_times.append(int(parts[15]))
+                except:
+                    pass
+
+        if elapsed_times:
+            elapsed_times.sort()
+            duration = (max(timestamps) - min(timestamps)) / 1000 if timestamps and len(timestamps) > 1 else 1
+            total = len(elapsed_times)
+
+            summary["total_samples"] = total
+            summary["error_count"] = error_count
+            summary["success_count"] = total - error_count
+            summary["error_rate"] = round(error_count / total * 100, 2) if total > 0 else 0
+            summary["success_rate"] = round((total - error_count) / total * 100, 2) if total > 0 else 100.0
+            summary["avg_response_time"] = round(sum(elapsed_times) / len(elapsed_times), 2)
+            summary["min_response_time"] = min(elapsed_times)
+            summary["max_response_time"] = max(elapsed_times)
+            summary["p50"] = self._percentile(elapsed_times, 50)
+            summary["p90"] = self._percentile(elapsed_times, 90)
+            summary["p95"] = self._percentile(elapsed_times, 95)
+            summary["p99"] = self._percentile(elapsed_times, 99)
+            summary["throughput"] = round(total / duration, 2) if duration > 0 else 0
+            summary["total_bytes_received"] = bytes_received
+            summary["avg_bytes_per_request"] = round(bytes_received / total) if total > 0 else 0
+            summary["avg_latency"] = round(sum(latency_times) / len(latency_times), 2) if latency_times else 0
+            summary["avg_connect_time"] = round(sum(connect_times) / len(connect_times), 2) if connect_times else 0
+            summary["response_code_dist"] = response_codes
 
         return summary
 

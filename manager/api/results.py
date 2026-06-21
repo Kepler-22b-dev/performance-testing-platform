@@ -235,9 +235,14 @@ def list_completed_tasks():
 
         has_result = False
         for agent_dir in os.listdir(task_path):
-            jtl_path = os.path.join(task_path, agent_dir, "result.jtl")
-            if os.path.exists(jtl_path):
-                has_result = True
+            agent_path = os.path.join(task_path, agent_dir)
+            if not os.path.isdir(agent_path):
+                continue
+            for filename in os.listdir(agent_path):
+                if filename.endswith(".jtl") or filename.endswith(".xml"):
+                    has_result = True
+                    break
+            if has_result:
                 break
 
         if has_result:
@@ -440,11 +445,29 @@ def get_full_report(task_id: str):
     agent_summaries = {}
 
     for agent_dir in os.listdir(task_path):
-        jtl_path = os.path.join(task_path, agent_dir, "result.jtl")
-        if os.path.exists(jtl_path):
-            data = _parse_jtl(jtl_path)
-            all_samples.extend(data["samples"])
-            agent_summaries[agent_dir] = data["summary"]
+        agent_path = os.path.join(task_path, agent_dir)
+        if not os.path.isdir(agent_path):
+            continue
+        for filename in os.listdir(agent_path):
+            filepath = os.path.join(agent_path, filename)
+            if filename.endswith(".xml"):
+                from manager.core.sample_cache import _parse_xml_result
+                samples = _parse_xml_result(filepath)
+                all_samples.extend(samples)
+            elif filename.endswith(".jtl"):
+                try:
+                    with open(filepath, "r", encoding="utf-8") as f:
+                        first_line = f.readline().strip()
+                    if first_line.startswith("<?xml") or first_line.startswith("<testResults"):
+                        from manager.core.sample_cache import _parse_xml_result
+                        samples = _parse_xml_result(filepath)
+                        all_samples.extend(samples)
+                    else:
+                        data = _parse_jtl(filepath)
+                        all_samples.extend(data["samples"])
+                        agent_summaries[agent_dir] = data["summary"]
+                except Exception:
+                    pass
 
     all_samples.sort(key=lambda x: x["timestamp"])
 

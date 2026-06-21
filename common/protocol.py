@@ -115,7 +115,12 @@ class ProgressUpdate:
     throughput: float = 0.0                   # 吞吐量(TPS)
     avg_response_time: float = 0.0            # 平均响应时间(ms)
     error_rate: float = 0.0                   # 错误率(%)
+    success_rate: float = 100.0               # 成功率(%)
     total_samples: int = 0                    # 总样本数
+    bytes_received: int = 0                   # 接收字节数
+    bytes_sent: int = 0                       # 发送字节数
+    avg_latency: float = 0.0                  # 平均延迟(ms)
+    avg_connect_time: float = 0.0             # 平均连接时间(ms)
 
     def to_json(self):
         return json.dumps(asdict(self), ensure_ascii=False)
