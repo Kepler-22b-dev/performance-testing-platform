@@ -121,9 +121,52 @@ def _parse_xml_result(xml_path: str) -> list:
                     "response_headers": response_header,
                 }
                 samples.append(sample)
-    except Exception as e:
+    except ET.ParseError:
+        samples = _parse_xml_regex(xml_path)
+    except Exception:
         pass
 
+    return samples
+
+
+def _parse_xml_regex(xml_path: str) -> list:
+    """使用正则表达式解析 JMeter XML 文件（当标准 XML 解析失败时的回退方案）。"""
+    import re
+    samples = []
+    try:
+        with open(xml_path, "r", encoding="utf-8", errors="replace") as f:
+            content = f.read()
+
+        pattern = r'<(?:httpSample|sample)\s+([^>]+)>'
+        for match in re.finditer(pattern, content):
+            attrs_str = match.group(1)
+            attrs = {}
+            for attr_match in re.finditer(r'(\w+)="([^"]*)"', attrs_str):
+                attrs[attr_match.group(1)] = attr_match.group(2)
+
+            sample = {
+                "index": len(samples) + 1,
+                "timestamp": int(attrs.get("ts", 0)),
+                "elapsed": int(attrs.get("t", 0)),
+                "label": attrs.get("lb", ""),
+                "response_code": attrs.get("rc", ""),
+                "response_message": attrs.get("rm", ""),
+                "thread_name": attrs.get("tn", ""),
+                "success": attrs.get("s", "true") == "true",
+                "failure_message": "",
+                "bytes": int(attrs.get("by", 0)),
+                "sent_bytes": int(attrs.get("sby", 0)),
+                "url": "",
+                "latency": int(attrs.get("lt", 0)),
+                "connect_time": int(attrs.get("ct", 0)),
+                "sampler_data": "",
+                "response_data": "",
+                "request_headers": "",
+                "response_headers": "",
+            }
+            samples.append(sample)
+    except Exception:
+        pass
     return samples
 
 
