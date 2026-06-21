@@ -449,7 +449,14 @@
                             <label style="margin-bottom:0;font-weight:500;">CSV 参数化</label>
                         </div>
                         <div id="csv-options" style="display:none;">
-                            <div class="form-group"><label>选择 CSV 文件</label><select id="create-csv-file" onchange="previewSelectedCsv()"><option value="">不使用</option></select></div>
+                            <div class="form-group">
+                                <label>选择 CSV 文件</label>
+                                <div style="display:flex;gap:8px;">
+                                    <select id="create-csv-file" onchange="previewSelectedCsv()" style="flex:1;"><option value="">不使用</option></select>
+                                    <input type="file" id="create-csv-upload" accept=".csv" style="display:none" onchange="quickUploadCsv()">
+                                    <button class="btn-success btn-sm" onclick="document.getElementById('create-csv-upload').click()" type="button">上传</button>
+                                </div>
+                            </div>
                             <div class="form-group"><label>变量名（可选）</label><input type="text" id="create-csv-vars" placeholder="username,password"></div>
                             <div id="csv-preview-section" style="display:none;margin-top:8px;">
                                 <div style="font-size:12px;font-weight:500;margin-bottom:6px;">数据预览</div>
@@ -1829,6 +1836,51 @@
 
         function csvPreviewNext() {
             csvPreviewPage++; loadCsvPreviewData();
+        }
+
+        async function quickUploadCsv() {
+            const fileInput = document.getElementById('create-csv-upload');
+            const file = fileInput.files[0];
+            if (!file) return;
+            if (!file.name.endsWith('.csv')) {
+                alert('只支持 .csv 文件');
+                return;
+            }
+            const formData = new FormData();
+            formData.append('file', file);
+            try {
+                const res = await fetch(`${API}/api/data/csv/upload`, {
+                    method: 'POST',
+                    body: formData,
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    await refreshCsvList();
+                    const csvSel = document.getElementById('create-csv-file');
+                    csvSel.value = data.csv_id;
+                    previewSelectedCsv();
+                    alert(`上传成功: ${file.name}`);
+                } else {
+                    alert(data.detail || '上传失败');
+                }
+            } catch (e) {
+                alert('上传失败: ' + e.message);
+            }
+            fileInput.value = '';
+        }
+
+        async function refreshCsvList() {
+            try {
+                const res = await fetch(`${API}/api/data/csv`);
+                const data = await res.json();
+                const csvSel = document.getElementById('create-csv-file');
+                const currentVal = csvSel.value;
+                csvSel.innerHTML = '<option value="">不使用 CSV</option>' +
+                    (data.csvs || []).map(c =>
+                        `<option value="${c.csv_id}">${c.filename} (${c.row_count} 行, ${(c.size/1024).toFixed(1)}KB)</option>`
+                    ).join('');
+                if (currentVal) csvSel.value = currentVal;
+            } catch (e) {}
         }
 
         async function submitTask() {
