@@ -44,6 +44,23 @@ class TaskScheduler:
         self._node_manager = node_manager
         # 从 Redis 加载已有任务
         self._load_tasks_from_redis()
+        self._cleanup_stuck_tasks()
+
+    def _cleanup_stuck_tasks(self):
+        """检测并清理卡住的任务（running 状态但无结果且超时）"""
+        now = time.time()
+        stuck_timeout = 600  # 10 分钟
+        for task_id, task in list(self._tasks.items()):
+            if task.get("status") == "running":
+                start_time = task.get("start_time", 0)
+                elapsed = now - start_time
+                has_results = len(task.get("results", {})) > 0
+                if elapsed > stuck_timeout and not has_results:
+                    task["status"] = "failed"
+                    task["end_time"] = now
+                    task["results"] = {}
+                    task["error_message"] = f"任务超时：运行超过 {int(elapsed)}s 但未收到结果"
+                    self._sync_task(task)
 
     def _load_tasks_from_redis(self):
         """从 Redis 加载所有任务数据，实现持久化"""

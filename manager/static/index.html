@@ -1465,10 +1465,20 @@
 
                     loadRequestLogs(0);
                 } else {
+                    const isRunning = task && task.status === 'running';
+                    const noResults = task && Object.keys(task.results || {}).length === 0;
+                    let statusText = isRunning ? '运行中...' : (task ? task.status : '未知');
+                    let statusColor = isRunning ? 'blue' : 'yellow';
+                    let extraInfo = '';
+                    if (isRunning && noResults) {
+                        const elapsed = task.start_time ? Math.round(Date.now() / 1000 - task.start_time) : 0;
+                        extraInfo = `<div style="margin-top:8px;font-size:12px;color:#d97706">⚠️ 任务已运行 ${elapsed}s 但尚未收到结果，可能 Agent 未响应</div>`;
+                    }
                     document.getElementById('summary-cards').innerHTML =
-                        `<div class="card"><div class="label">状态</div><div class="value blue">运行中...</div></div>
-                         <div class="card"><div class="label">脚本</div><div class="value" style="font-size:16px">${task.script_id || '-'}</div></div>
-                         <div class="card"><div class="label">节点</div><div class="value" style="font-size:14px">${resolveNodesDisplay(task.target_agents).join(', ')}</div></div>`;
+                        `<div class="card"><div class="label">状态</div><div class="value ${statusColor}">${statusText}</div></div>
+                         <div class="card"><div class="label">脚本</div><div class="value" style="font-size:16px">${task?.script_id || '-'}</div></div>
+                         <div class="card"><div class="label">节点</div><div class="value" style="font-size:14px">${resolveNodesDisplay(task?.target_agents).join(', ')}</div></div>
+                         ${extraInfo}`;
                 }
             } catch (e) {
                 console.error('loadTaskDetail error:', e);

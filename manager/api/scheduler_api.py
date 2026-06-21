@@ -229,6 +229,7 @@ def _start_scheduler_loop():
     _scheduler_running = True
 
     def loop():
+        last_cleanup = 0
         while _scheduler_running:
             _load_schedules()
             now = time.time()
@@ -238,6 +239,11 @@ def _start_scheduler_loop():
                 next_run = s.get("next_run")
                 if next_run and now >= next_run:
                     _execute_schedule(s)
+            # 每 60 秒检测一次卡住的任务
+            if now - last_cleanup > 60:
+                if _scheduler:
+                    _scheduler._cleanup_stuck_tasks()
+                last_cleanup = now
             time.sleep(10)
 
     _scheduler_thread = threading.Thread(target=loop, daemon=True)
