@@ -449,7 +449,14 @@
                             <div id="csv-preview-section" style="display:none;margin-top:8px;">
                                 <div style="font-size:12px;font-weight:500;margin-bottom:6px;">数据预览</div>
                                 <div id="csv-preview-content" style="border:1px solid #d0d0d0;border-radius:6px;overflow:auto;height:200px;background:#fff;"></div>
-                                <div id="csv-preview-info" style="font-size:11px;color:#888;margin-top:4px;"></div>
+                                <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;">
+                                    <div id="csv-preview-info" style="font-size:11px;color:#888;"></div>
+                                    <div style="display:flex;gap:6px;align-items:center;">
+                                        <button class="filter-btn btn-sm" id="csv-preview-prev" onclick="csvPreviewPrev()" disabled>上一页</button>
+                                        <span id="csv-preview-page" style="font-size:11px;color:#888;"></span>
+                                        <button class="filter-btn btn-sm" id="csv-preview-next" onclick="csvPreviewNext()" disabled>下一页</button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                         <div id="script-history" style="display:none;border:1px solid #e8f0fe;border-radius:6px;padding:10px;margin-top:10px;background:#f8fbff;">
@@ -1723,7 +1730,29 @@
             document.getElementById('csv-preview-section').style.display = 'none';
         }
 
+        let csvPreviewPage = 0;
+        const csvPreviewPageSize = 20;
+
         async function previewSelectedCsv() {
+            csvPreviewPage = 0;
+            await loadCsvPreviewData();
+            const csvId = document.getElementById('create-csv-file').value;
+            if (csvId) {
+                try {
+                    const res = await fetch(`${API}/api/data/csv/${csvId}/data?limit=1`);
+                    const data = await res.json();
+                    const headers = data.headers || [];
+                    if (headers.length > 0) {
+                        const varsInput = document.getElementById('create-csv-vars');
+                        if (!varsInput.value.trim()) {
+                            varsInput.value = headers.join(',');
+                        }
+                    }
+                } catch (e) {}
+            }
+        }
+
+        async function loadCsvPreviewData() {
             const csvId = document.getElementById('create-csv-file').value;
             const previewSection = document.getElementById('csv-preview-section');
             const previewContent = document.getElementById('csv-preview-content');
@@ -1732,7 +1761,8 @@
             previewSection.style.display = 'block';
             previewContent.innerHTML = '<div style="padding:20px;text-align:center;color:#888;font-size:12px;">加载中...</div>';
             try {
-                const res = await fetch(`${API}/api/data/csv/${csvId}/data?limit=20`);
+                const offset = csvPreviewPage * csvPreviewPageSize;
+                const res = await fetch(`${API}/api/data/csv/${csvId}/data?offset=${offset}&limit=${csvPreviewPageSize}`);
                 const data = await res.json();
                 let html = '<table style="width:100%;border-collapse:collapse;font-size:12px;">';
                 html += '<thead><tr style="background:#f0f0f0;">';
@@ -1745,10 +1775,24 @@
                 });
                 html += '</tbody></table>';
                 previewContent.innerHTML = html;
-                previewInfo.textContent = `显示前 ${Math.min(20, data.total)} 行，共 ${data.total} 行数据 | ${(data.headers || []).length} 列`;
+
+                const totalPages = Math.ceil(data.total / csvPreviewPageSize);
+                const currentDisplay = Math.min(offset + csvPreviewPageSize, data.total);
+                previewInfo.textContent = `共 ${data.total} 行 | ${(data.headers || []).length} 列`;
+                document.getElementById('csv-preview-page').textContent = `第 ${csvPreviewPage + 1}/${totalPages} 页`;
+                document.getElementById('csv-preview-prev').disabled = csvPreviewPage === 0;
+                document.getElementById('csv-preview-next').disabled = currentDisplay >= data.total;
             } catch (e) {
                 previewContent.innerHTML = '<div style="padding:20px;text-align:center;color:#dc2626;font-size:12px;">预览失败</div>';
             }
+        }
+
+        function csvPreviewPrev() {
+            if (csvPreviewPage > 0) { csvPreviewPage--; loadCsvPreviewData(); }
+        }
+
+        function csvPreviewNext() {
+            csvPreviewPage++; loadCsvPreviewData();
         }
 
         async function submitTask() {
