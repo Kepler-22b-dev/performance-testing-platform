@@ -521,7 +521,7 @@
                     </div>
                 </div>
                 <table>
-                    <thead><tr><th>节点名称</th><th>地址</th><th>状态</th><th>最后验证</th><th>操作</th></tr></thead>
+                    <thead><tr><th>地址</th><th>备注名</th><th>状态</th><th>最后验证</th><th>操作</th></tr></thead>
                     <tbody id="registry-tbody"></tbody>
                 </table>
                 <div id="no-registry" class="empty-tip">暂无注册节点，请在上方添加</div>
@@ -534,7 +534,7 @@
                     <button class="filter-btn" onclick="loadNodes()">刷新</button>
                 </div>
                 <table>
-                    <thead><tr><th>节点 ID</th><th>地址</th><th>状态</th><th>CPU</th><th>内存</th><th>当前任务</th></tr></thead>
+                    <thead><tr><th>地址</th><th>节点 ID</th><th>状态</th><th>CPU</th><th>内存</th><th>当前任务</th></tr></thead>
                     <tbody id="nodes-tbody"></tbody>
                 </table>
             </div>
@@ -1699,7 +1699,7 @@
 
                 const nodeSel = document.getElementById('create-nodes');
                 nodeSel.innerHTML = nodes.agents.map(a =>
-                    `<option value="${a.agent_id}">${a.agent_id} (${a.host})</option>`
+                    `<option value="${a.agent_id}">${a.host} (${a.agent_id})</option>`
                 ).join('') || '<option>无可用节点</option>';
 
                 const csvSel = document.getElementById('create-csv-file');
@@ -2266,8 +2266,8 @@
                 const data = await res.json();
                 document.getElementById('nodes-tbody').innerHTML = (data.agents || []).map(a => `
                     <tr>
-                        <td style="font-family:monospace;font-size:12px">${a.agent_id}</td>
-                        <td>${a.host}:${a.port}</td>
+                        <td style="font-family:monospace;font-size:12px">${a.host}:${a.port}</td>
+                        <td style="font-size:12px;color:#888">${a.agent_id}</td>
                         <td><span class="status-badge ${a.status === 'online' ? 'status-completed' : 'status-failed'}">${a.status === 'online' ? '在线' : '离线'}</span></td>
                         <td>${a.cpu_usage}%</td>
                         <td>${a.memory_usage}%</td>
@@ -2305,8 +2305,8 @@
                     const [label, cls] = statusMap[n.status] || [n.status, 'status-pending'];
                     const lastCheck = n.last_check ? new Date(n.last_check * 1000).toLocaleString() : '从未验证';
                     return `<tr>
-                        <td>${n.name || n.node_id}</td>
                         <td style="font-family:monospace;font-size:12px">${n.ip}:${n.port}</td>
+                        <td>${n.name || '-'}</td>
                         <td><span class="status-badge ${cls}">${label}</span></td>
                         <td style="font-size:12px;color:#888">${lastCheck}</td>
                         <td>
