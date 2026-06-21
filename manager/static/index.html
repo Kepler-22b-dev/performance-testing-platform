@@ -399,6 +399,10 @@
                             <label>施压节点（可多选）</label>
                             <select id="create-nodes" multiple onchange="updateNodeSelection()"></select>
                             <div id="node-selection-info" style="font-size:11px;color:#888;margin-top:4px;">按住 Ctrl/Command 可多选</div>
+                            <div style="margin-top:6px;display:flex;gap:6px;align-items:center;">
+                                <input type="text" id="quick-slave-ip" placeholder="快速添加 Slave: IP" style="flex:1;padding:4px 8px;border:1px solid #d0d0d0;border-radius:4px;font-size:12px;">
+                                <button class="filter-btn btn-sm" onclick="quickAddSlave()" type="button">添加</button>
+                            </div>
                         </div>
                         <div class="form-group">
                             <label>压测场景</label>
@@ -1757,6 +1761,42 @@
             }
         }
 
+        async function quickAddSlave() {
+            const ipInput = document.getElementById('quick-slave-ip');
+            const ip = ipInput.value.trim();
+            if (!ip) { alert('请输入 IP 地址'); return; }
+
+            try {
+                // 添加节点
+                const addRes = await fetch(`${API}/api/registry/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ip, port: 1100 }),
+                });
+                const addData = await addRes.json();
+                if (!addRes.ok) {
+                    alert(addData.detail || '添加失败');
+                    return;
+                }
+
+                // 自动验证
+                const verifyRes = await fetch(`${API}/api/registry/${addData.node.node_id}/verify`, { method: 'POST' });
+                const verifyData = await verifyRes.json();
+
+                if (verifyData.overall === 'verified') {
+                    alert(`节点 ${ip} 添加并验证成功`);
+                } else {
+                    const checks = verifyData.checks.map(c => `${c.passed ? '✓' : '✗'} ${c.name}: ${c.detail}`).join('\n');
+                    alert(`节点 ${ip} 已添加，但验证失败:\n${checks}`);
+                }
+
+                ipInput.value = '';
+                loadCreateForm();
+            } catch (e) {
+                alert('添加失败: ' + e.message);
+            }
+        }
+
         function toggleCsvOptions() {
             const checked = document.getElementById('create-use-csv').checked;
             document.getElementById('csv-options').style.display = checked ? 'block' : 'none';
@@ -2423,7 +2463,8 @@
                     document.getElementById('reg-ip').value = '';
                     document.getElementById('reg-name').value = '';
                     loadRegistryNodes();
-                    alert(`节点已添加: ${ip}:${port}`);
+                    // 自动验证新添加的节点
+                    setTimeout(() => verifyRegistryNode(data.node.node_id), 500);
                 } else {
                     alert(data.detail || '添加失败');
                 }
