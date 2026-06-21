@@ -107,6 +107,7 @@
             <button onclick="showPage('data')">数据管理</button>
             <button onclick="showPage('nodes')">施压节点</button>
             <button onclick="showPage('compare')">任务对比</button>
+            <button onclick="showPage('jtl')">JTL 导入</button>
             <button onclick="showPage('templates')">模板管理</button>
             <button onclick="showPage('schedule')">定时调度</button>
             <button onclick="showPage('notify')">通知设置</button>
@@ -764,6 +765,50 @@
             <div id="compare-empty" class="empty-tip" style="margin-top:40px">请选择两个已完成的任务进行对比</div>
         </div>
 
+        <!-- JTL 导入对比 -->
+        <div id="page-jtl" class="hidden">
+            <div class="task-list" style="margin-bottom:12px;">
+                <div class="toolbar">
+                    <h3>JTL 文件导入对比</h3>
+                    <div>
+                        <input type="file" id="jtl-upload" accept=".jtl,.xml,.csv" multiple style="display:none" onchange="uploadJtlFiles()">
+                        <button class="btn-primary" onclick="document.getElementById('jtl-upload').click()">上传 JTL 文件</button>
+                        <button class="filter-btn" style="margin-left:6px" onclick="clearJtlResults()">清空</button>
+                    </div>
+                </div>
+                <div id="jtl-upload-area" style="border:2px dashed #d0d0d0;border-radius:8px;padding:40px;text-align:center;color:#888;cursor:pointer;" onclick="document.getElementById('jtl-upload').click()">
+                    <div style="font-size:14px;margin-bottom:8px;">点击或拖拽上传 JTL 文件</div>
+                    <div style="font-size:12px;">支持 .jtl / .xml / .csv 格式，可同时选择多个文件对比</div>
+                </div>
+                <div id="jtl-file-list" style="margin-top:12px;"></div>
+            </div>
+
+            <div id="jtl-compare-result" class="hidden">
+                <div class="summary-cards" id="jtl-compare-cards"></div>
+
+                <div class="chart-box" style="margin-bottom:12px">
+                    <h3>TPS 对比</h3>
+                    <div class="chart-container" id="chart-jtl-tps" style="height:300px"></div>
+                </div>
+
+                <div class="chart-box" style="margin-bottom:12px">
+                    <h3>平均响应时间对比</h3>
+                    <div class="chart-container" id="chart-jtl-rt" style="height:300px"></div>
+                </div>
+
+                <div class="chart-box" style="margin-bottom:12px">
+                    <h3>接口级对比</h3>
+                    <table>
+                        <thead><tr><th>接口</th></tr><thead>
+                        <tbody id="jtl-compare-label-thead"></tbody>
+                        <tbody id="jtl-compare-label-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="jtl-empty" class="empty-tip" style="margin-top:40px">上传 JTL 文件后自动解析对比</div>
+        </div>
+
         <!-- 性能趋势 -->
         <div id="page-trend" class="hidden">
             <div class="task-list" style="margin-bottom:12px;">
@@ -1160,6 +1205,7 @@
                     (page === 'data' && b.textContent === '数据管理') ||
                     (page === 'nodes' && b.textContent === '施压节点') ||
                     (page === 'compare' && b.textContent === '任务对比') ||
+                    (page === 'jtl' && b.textContent === 'JTL 导入') ||
                     (page === 'templates' && b.textContent === '模板管理') ||
                     (page === 'schedule' && b.textContent === '定时调度') ||
                     (page === 'notify' && b.textContent === '通知设置') ||
@@ -3927,6 +3973,192 @@
                     if (charts.compareRt) charts.compareRt.resize();
                 });
             } catch (e) { alert('对比失败: ' + e.message); }
+        }
+
+        // ===== JTL 导入对比 =====
+        let jtlFiles = [];
+
+        async function uploadJtlFiles() {
+            const fileInput = document.getElementById('jtl-upload');
+            const files = Array.from(fileInput.files);
+            if (files.length === 0) return;
+
+            const uploadArea = document.getElementById('jtl-upload-area');
+            uploadArea.innerHTML = '<div style="font-size:14px;color:#2563eb;">解析中...</div>';
+
+            for (const file of files) {
+                try {
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    const res = await fetch(`${API}/api/jtl/upload`, {
+                        method: 'POST',
+                        body: formData,
+                    });
+                    const data = await res.json();
+                    if (res.ok) {
+                        jtlFiles.push(data);
+                    } else {
+                        alert(`${file.name}: ${data.detail || '解析失败'}`);
+                    }
+                } catch (e) {
+                    alert(`${file.name}: 上传失败`);
+                }
+            }
+
+            fileInput.value = '';
+            renderJtlFileList();
+            if (jtlFiles.length >= 2) {
+                renderJtlCompare();
+            }
+        }
+
+        function renderJtlFileList() {
+            const uploadArea = document.getElementById('jtl-upload-area');
+            const fileList = document.getElementById('jtl-file-list');
+
+            if (jtlFiles.length === 0) {
+                uploadArea.style.display = 'block';
+                fileList.innerHTML = '';
+                document.getElementById('jtl-compare-result').classList.add('hidden');
+                document.getElementById('jtl-empty').classList.remove('hidden');
+                return;
+            }
+
+            uploadArea.style.display = 'none';
+            document.getElementById('jtl-empty').classList.add('hidden');
+
+            const colors = ['#2563eb', '#16a34a', '#d97706', '#dc2626', '#9333ea', '#0891b2'];
+            fileList.innerHTML = '<div style="display:flex;flex-wrap:wrap;gap:8px;">' +
+                jtlFiles.map((f, i) => {
+                    const color = colors[i % colors.length];
+                    const s = f.summary || {};
+                    return `<div style="background:#fff;border:2px solid ${color};border-radius:6px;padding:10px 14px;min-width:180px;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                            <span style="font-weight:500;color:${color};font-size:13px;">${f.filename}</span>
+                            <button class="btn-danger btn-sm" onclick="removeJtlFile(${i})" style="padding:2px 6px;font-size:11px;">×</button>
+                        </div>
+                        <div style="font-size:11px;color:#666;">
+                            <div>请求数: ${s.total_samples || 0}</div>
+                            <div>平均RT: ${s.avg_response_time || 0}ms</div>
+                            <div>TPS: ${s.tps || 0}</div>
+                        </div>
+                    </div>`;
+                }).join('') + '</div>';
+
+            if (jtlFiles.length >= 2) {
+                document.getElementById('jtl-compare-result').classList.remove('hidden');
+            }
+        }
+
+        function removeJtlFile(index) {
+            jtlFiles.splice(index, 1);
+            renderJtlFileList();
+            if (jtlFiles.length >= 2) {
+                renderJtlCompare();
+            } else {
+                document.getElementById('jtl-compare-result').classList.add('hidden');
+                if (jtlFiles.length > 0) document.getElementById('jtl-empty').classList.remove('hidden');
+            }
+        }
+
+        function clearJtlResults() {
+            jtlFiles = [];
+            renderJtlFileList();
+        }
+
+        function renderJtlCompare() {
+            const colors = ['#2563eb', '#16a34a', '#d97706', '#dc2626', '#9333ea', '#0891b2'];
+
+            // 汇总卡片
+            const cardsHtml = jtlFiles.map((f, i) => {
+                const s = f.summary || {};
+                const color = colors[i % colors.length];
+                return `<div class="card" style="border-top:3px solid ${color}">
+                    <div class="label">${f.filename}</div>
+                    <div class="value blue" style="font-size:16px">${s.total_samples || 0} 请求</div>
+                    <div style="font-size:12px;color:#666;margin-top:4px;">
+                        TPS: ${s.tps || 0} | RT: ${s.avg_response_time || 0}ms | P99: ${s.p99 || 0}ms | 错误: ${s.error_rate || 0}%
+                    </div>
+                </div>`;
+            }).join('');
+            document.getElementById('jtl-compare-cards').innerHTML = cardsHtml;
+
+            // TPS 对比图
+            if (charts.jtlTps) charts.jtlTps.dispose();
+            const tpsData = jtlFiles.map((f, i) => ({
+                name: f.filename,
+                type: 'line',
+                data: (f.time_series || {}).tps || [],
+                smooth: true,
+                lineStyle: { width: 2.5, color: colors[i % colors.length] },
+                itemStyle: { color: colors[i % colors.length] },
+                symbol: 'circle',
+                symbolSize: 4,
+            }));
+            charts.jtlTps = echarts.init(document.getElementById('chart-jtl-tps'));
+            charts.jtlTps.setOption({
+                backgroundColor: 'transparent',
+                tooltip: { trigger: 'axis' },
+                legend: { data: jtlFiles.map(f => f.filename), top: 0, textStyle: { fontSize: 12 } },
+                xAxis: { type: 'category', data: ((jtlFiles[0] || {}).time_series || {}).timestamps || [], axisLabel: { color: '#666' }, boundaryGap: false },
+                yAxis: { type: 'value', name: 'TPS', axisLabel: { color: '#666' }, splitLine: { lineStyle: { color: '#f0f0f0' } } },
+                series: tpsData,
+                grid: { left: 60, right: 20, top: 40, bottom: 30 },
+            });
+
+            // RT 对比图
+            if (charts.jtlRt) charts.jtlRt.dispose();
+            const rtData = jtlFiles.map((f, i) => ({
+                name: f.filename,
+                type: 'line',
+                data: (f.time_series || {}).avg_rt || [],
+                smooth: true,
+                lineStyle: { width: 2.5, color: colors[i % colors.length] },
+                itemStyle: { color: colors[i % colors.length] },
+                symbol: 'circle',
+                symbolSize: 4,
+            }));
+            charts.jtlRt = echarts.init(document.getElementById('chart-jtl-rt'));
+            charts.jtlRt.setOption({
+                backgroundColor: 'transparent',
+                tooltip: { trigger: 'axis' },
+                legend: { data: jtlFiles.map(f => f.filename), top: 0, textStyle: { fontSize: 12 } },
+                xAxis: { type: 'category', data: ((jtlFiles[0] || {}).time_series || {}).timestamps || [], axisLabel: { color: '#666' }, boundaryGap: false },
+                yAxis: { type: 'value', name: 'ms', axisLabel: { color: '#666' }, splitLine: { lineStyle: { color: '#f0f0f0' } } },
+                series: rtData,
+                grid: { left: 60, right: 20, top: 40, bottom: 30 },
+            });
+
+            // 接口级对比表
+            const allLabelsMap = {};
+            jtlFiles.forEach((f, i) => {
+                (f.labels || []).forEach(l => {
+                    if (!allLabelsMap[l.label]) allLabelsMap[l.label] = {};
+                    allLabelsMap[l.label][i] = l;
+                });
+            });
+
+            const theadHtml = '<tr><th>接口</th>' +
+                jtlFiles.map((f, i) => `<th colspan="3" style="text-align:center;color:${colors[i % colors.length]}">${f.filename}</th>`).join('') +
+                '</tr><tr><th></th>' +
+                jtlFiles.map(() => '<th>耗时</th><th>TPS</th><th>错误率</th>').join('') +
+                '</tr>';
+            document.getElementById('jtl-compare-label-thead').innerHTML = theadHtml;
+
+            const tbodyHtml = Object.keys(allLabelsMap).map(label => {
+                const cells = jtlFiles.map((f, i) => {
+                    const l = allLabelsMap[label][i];
+                    if (!l) return '<td>-</td><td>-</td><td>-</td>';
+                    return `<td>${l.avg}ms</td><td>${l.tps}</td><td style="color:${l.error_rate > 0 ? '#dc2626' : '#16a34a'}">${l.error_rate}%</td>`;
+                }).join('');
+                return `<tr><td>${label}</td>${cells}</tr>`;
+            }).join('');
+            document.getElementById('jtl-compare-label-tbody').innerHTML = tbodyHtml;
+
+            window.addEventListener('resize', () => {
+                if (charts.jtlTps) charts.jtlTps.resize();
+                if (charts.jtlRt) charts.jtlRt.resize();
+            });
         }
 
         // ===== 初始化 =====
