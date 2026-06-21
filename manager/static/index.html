@@ -1002,6 +1002,29 @@
         let refreshTimer = null;
         let detailTimer = null;
         let allTasks = [];
+        let agentMap = {};
+
+        async function loadAgentMap() {
+            try {
+                const res = await fetch(`${API}/api/nodes/`);
+                const data = await res.json();
+                agentMap = {};
+                (data.agents || []).forEach(a => {
+                    agentMap[a.agent_id] = `${a.host}:${a.port}`;
+                });
+            } catch (e) {}
+        }
+
+        function resolveNodeDisplay(nodeId) {
+            if (agentMap[nodeId]) return agentMap[nodeId];
+            if (nodeId.includes(':')) return nodeId;
+            if (nodeId.startsWith('agent-')) return nodeId;
+            return nodeId;
+        }
+
+        function resolveNodesDisplay(nodes) {
+            return (nodes || []).map(n => resolveNodeDisplay(n));
+        }
 
         function formatTime(ts) {
             if (!ts) return '-';
@@ -1153,7 +1176,7 @@
             clearAutoRefresh();
 
             if (page === 'home') loadHomePage();
-            if (page === 'tasks') { showTaskList(); loadTasks(); startAutoRefresh(); }
+            if (page === 'tasks') { showTaskList(); loadTasks(); loadAgentMap(); startAutoRefresh(); }
             if (page === 'create') loadCreateForm();
             if (page === 'data') { loadVars(); loadCsvs(); }
             if (page === 'nodes') { loadNodes(); startMonitorAutoRefresh(); }
@@ -1233,7 +1256,7 @@
                     stopped: ['已停止', 'status-stopped'],
                 };
                 const [label, cls] = statusMap[t.status] || [t.status, ''];
-                const agents = (t.target_agents || []).join(', ');
+                const agents = resolveNodesDisplay(t.target_agents).join(', ');
                 const created = t.created_at ? new Date(t.created_at * 1000).toLocaleString() : '-';
                 let actions = `<a class="clickable" onclick="viewTask('${t.task_id}')">查看图表</a>`;
                 if (t.status === 'running') actions += ` <button class="btn-danger btn-sm" style="margin-left:8px" onclick="stopTask('${t.task_id}')">停止</button>`;
@@ -1264,7 +1287,7 @@
             const started = t.start_time ? new Date(t.start_time * 1000).toLocaleString() : '-';
             const ended = t.end_time ? new Date(t.end_time * 1000).toLocaleString() : '-';
             const duration = t.start_time && t.end_time ? ((t.end_time - t.start_time)).toFixed(1) + 's' : '-';
-            const agents = (t.target_agents || []).map(a => `<span style="background:#e8e8e8;padding:1px 6px;border-radius:3px;font-size:12px;margin-right:4px">${a}</span>`).join('');
+            const agents = resolveNodesDisplay(t.target_agents).map(a => `<span style="background:#e8e8e8;padding:1px 6px;border-radius:3px;font-size:12px;margin-right:4px">${a}</span>`).join('');
 
             const results = t.results || {};
             let resultSummary = '';
@@ -1282,7 +1305,7 @@
                 <div style="margin-top:16px">
                     <div style="font-size:12px;color:#888;margin-bottom:4px">执行日志</div>
                     <div class="log-tabs" id="log-tabs-${t.task_id}">
-                        ${(t.target_agents || []).map((a, i) => `<div class="log-tab ${i === 0 ? 'active' : ''}" onclick="loadLog('${t.task_id}', '${a}', this)">${a}</div>`).join('')}
+                        ${(t.target_agents || []).map((a, i) => `<div class="log-tab ${i === 0 ? 'active' : ''}" onclick="loadLog('${t.task_id}', '${a}', this)">${resolveNodeDisplay(a)}</div>`).join('')}
                     </div>
                     <div class="log-box" id="log-content-${t.task_id}"><span class="log-loading">点击节点标签查看日志</span></div>
                 </div>` : '';
@@ -1445,7 +1468,7 @@
                     document.getElementById('summary-cards').innerHTML =
                         `<div class="card"><div class="label">状态</div><div class="value blue">运行中...</div></div>
                          <div class="card"><div class="label">脚本</div><div class="value" style="font-size:16px">${task.script_id || '-'}</div></div>
-                         <div class="card"><div class="label">节点</div><div class="value" style="font-size:14px">${(task.target_agents||[]).join(', ')}</div></div>`;
+                         <div class="card"><div class="label">节点</div><div class="value" style="font-size:14px">${resolveNodesDisplay(task.target_agents).join(', ')}</div></div>`;
                 }
             } catch (e) {
                 console.error('loadTaskDetail error:', e);
@@ -3909,6 +3932,7 @@
             return a > b ? '#dc2626' : a < b ? '#16a34a' : '#888';
         }
 
+        loadAgentMap();
         loadHomePage();
     </script>
 </body>
