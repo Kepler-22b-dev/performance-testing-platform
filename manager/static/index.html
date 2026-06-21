@@ -616,6 +616,14 @@
                         <button class="filter-btn" onclick="closeCsvPreview()">关闭</button>
                     </div>
                     <div id="csv-preview-modal-content"></div>
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;padding-top:12px;border-top:1px solid #e0e0e0;">
+                        <div id="csv-preview-modal-info" style="font-size:12px;color:#888;"></div>
+                        <div style="display:flex;gap:6px;align-items:center;">
+                            <button class="filter-btn btn-sm" id="csv-modal-prev" onclick="csvModalPrev()" disabled>上一页</button>
+                            <span id="csv-modal-page" style="font-size:12px;color:#888;"></span>
+                            <button class="filter-btn btn-sm" id="csv-modal-next" onclick="csvModalNext()" disabled>下一页</button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -2780,20 +2788,48 @@
             } catch (e) { alert('删除失败'); }
         }
 
-        async function previewCsv(csvId, filename) {
-            try {
-                const res = await fetch(`${API}/api/data/csv/${csvId}/data?limit=20`);
-                const data = await res.json();
+        let csvModalPage = 0;
+        let csvModalTotal = 0;
+        let csvModalCsvId = '';
+        let csvModalFilename = '';
+        const csvModalPageSize = 20;
 
-                document.getElementById('csv-preview-title').textContent = `${filename} (共 ${data.total} 行)`;
+        async function previewCsv(csvId, filename) {
+            csvModalCsvId = csvId;
+            csvModalFilename = filename;
+            csvModalPage = 0;
+            await loadCsvModalData();
+            document.getElementById('csv-preview-modal').style.display = 'flex';
+        }
+
+        async function loadCsvModalData() {
+            try {
+                const offset = csvModalPage * csvModalPageSize;
+                const res = await fetch(`${API}/api/data/csv/${csvModalCsvId}/data?offset=${offset}&limit=${csvModalPageSize}`);
+                const data = await res.json();
+                csvModalTotal = data.total;
+
+                document.getElementById('csv-preview-title').textContent = `${csvModalFilename} (共 ${data.total} 行)`;
                 let html = '<table style="width:100%;border-collapse:collapse;font-size:12px;">';
                 html += '<thead><tr>' + data.headers.map(h => `<th style="padding:6px 8px;border:1px solid #ddd;background:#f5f5f5;text-align:left">${h}</th>`).join('') + '</tr></thead>';
                 html += '<tbody>' + data.rows.map(row => '<tr>' + row.map(cell => `<td style="padding:6px 8px;border:1px solid #eee;font-family:monospace">${cell}</td>`).join('') + '</tr>').join('') + '</tbody></table>';
-                if (data.total > 20) html += `<p style="margin-top:8px;color:#888;font-size:12px">显示前 20 行，共 ${data.total} 行</p>`;
-
                 document.getElementById('csv-preview-modal-content').innerHTML = html;
-                document.getElementById('csv-preview-modal').style.display = 'flex';
+
+                const totalPages = Math.ceil(data.total / csvModalPageSize);
+                const currentDisplay = Math.min(offset + csvModalPageSize, data.total);
+                document.getElementById('csv-preview-modal-info').textContent = `共 ${data.total} 行 | ${(data.headers || []).length} 列`;
+                document.getElementById('csv-modal-page').textContent = `第 ${csvModalPage + 1}/${totalPages} 页`;
+                document.getElementById('csv-modal-prev').disabled = csvModalPage === 0;
+                document.getElementById('csv-modal-next').disabled = currentDisplay >= data.total;
             } catch (e) { alert('预览失败'); }
+        }
+
+        function csvModalPrev() {
+            if (csvModalPage > 0) { csvModalPage--; loadCsvModalData(); }
+        }
+
+        function csvModalNext() {
+            csvModalPage++; loadCsvModalData();
         }
 
         function closeCsvPreview() {
