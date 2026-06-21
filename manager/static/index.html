@@ -392,8 +392,9 @@
                             <select id="create-script"></select>
                         </div>
                         <div class="form-group">
-                            <label>施压节点</label>
-                            <select id="create-nodes"></select>
+                            <label>施压节点（可多选）</label>
+                            <select id="create-nodes" multiple style="height:100px;"></select>
+                            <div style="font-size:11px;color:#888;margin-top:4px;">按住 Ctrl/Command 可多选，将同时在多个节点上执行</div>
                         </div>
                         <div class="form-group">
                             <label>压测场景</label>
@@ -1683,14 +1684,16 @@
         // ===== 创建任务 =====
         async function loadCreateForm() {
             try {
-                const [scriptsRes, nodesRes, csvsRes] = await Promise.all([
+                const [scriptsRes, nodesRes, csvsRes, registryRes] = await Promise.all([
                     fetch(`${API}/api/scripts/`),
                     fetch(`${API}/api/nodes/available/list`),
                     fetch(`${API}/api/data/csv`),
+                    fetch(`${API}/api/registry/`).catch(() => ({json: () => ({nodes: []})})),
                 ]);
                 const scripts = await scriptsRes.json();
                 const nodes = await nodesRes.json();
                 const csvs = await csvsRes.json();
+                const registry = await registryRes.json();
 
                 const scriptSel = document.getElementById('create-script');
                 scriptSel.innerHTML = scripts.scripts.map(s =>
@@ -1698,9 +1701,19 @@
                 ).join('') || '<option>暂无脚本，请先上传</option>';
 
                 const nodeSel = document.getElementById('create-nodes');
-                nodeSel.innerHTML = nodes.agents.map(a =>
-                    `<option value="${a.agent_id}">${a.host} (${a.agent_id})</option>`
-                ).join('') || '<option>无可用节点</option>';
+                let nodeOptions = '';
+                if (nodes.agents.length > 0) {
+                    nodeOptions += '<optgroup label="Agent 节点">' +
+                        nodes.agents.map(a => `<option value="${a.agent_id}" data-type="agent">${a.host} (${a.agent_id})</option>`).join('') +
+                        '</optgroup>';
+                }
+                const verifiedSlaves = (registry.nodes || []).filter(n => n.status === 'verified');
+                if (verifiedSlaves.length > 0) {
+                    nodeOptions += '<optgroup label="Slave 节点">' +
+                        verifiedSlaves.map(n => `<option value="${n.ip}:${n.port}" data-type="slave">${n.ip}:${n.port}${n.name ? ' (' + n.name + ')' : ''}</option>`).join('') +
+                        '</optgroup>';
+                }
+                nodeSel.innerHTML = nodeOptions || '<option>无可用节点</option>';
 
                 const csvSel = document.getElementById('create-csv-file');
                 csvSel.innerHTML = '<option value="">不使用 CSV</option>' +
@@ -1797,7 +1810,8 @@
 
         async function submitTask() {
             const scriptId = document.getElementById('create-script').value;
-            const nodeId = document.getElementById('create-nodes').value;
+            const nodeSelect = document.getElementById('create-nodes');
+            const selectedNodes = Array.from(nodeSelect.selectedOptions).map(o => o.value);
             const threads = parseInt(document.getElementById('create-threads').value) || 1;
             const ramp = parseInt(document.getElementById('create-ramp').value) || 1;
             const duration = parseInt(document.getElementById('create-duration').value) || 10;
@@ -1806,7 +1820,7 @@
             const remoteHosts = document.getElementById('create-remote-hosts').value.trim() || null;
 
             if (!scriptId) { alert('请选择脚本'); return; }
-            if (!nodeId) { alert('请选择施压节点'); return; }
+            if (selectedNodes.length === 0) { alert('请选择至少一个施压节点'); return; }
 
             const useCsv = document.getElementById('create-use-csv').checked;
             const csvFile = useCsv ? document.getElementById('create-csv-file').value : null;
@@ -1823,7 +1837,7 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         script_id: scriptId,
-                        target_agents: [nodeId],
+                        target_agents: selectedNodes,
                         threads, ramp_time: ramp, duration, timeout,
                         distributed, remote_hosts: remoteHosts,
                         csv_file: csvFile || null,
