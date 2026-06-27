@@ -590,6 +590,8 @@ tr:hover {{ background: #fafafa; }}
         window.addEventListener('resize', () => chartPct.resize());
     }}
 }})();
+// 确保 ECharts 渲染完成
+setTimeout(() => {{ window.__echartsReady = true; }}, 1000);
 </script>
 </body>
 </html>"""
@@ -620,17 +622,27 @@ def export_report_pdf(task_id: str):
         chrome_path = "chromium"
 
     import subprocess
+    import tempfile
+
+    screenshot_path = pdf_path.replace('.pdf', '.png')
+
     try:
         subprocess.run([
             chrome_path,
             "--headless=new",
             "--disable-gpu",
             "--no-sandbox",
-            "--run-all-compositor-stages-before-draw",
-            "--virtual-time-budget=10000",
-            f"--print-to-pdf={pdf_path}",
+            f"--screenshot={screenshot_path}",
+            "--window-size=1200,2000",
+            "--virtual-time-budget=15000",
             f"file://{os.path.abspath(html_path)}",
         ], timeout=30, capture_output=True, check=True)
+
+        # 将截图转为 PDF
+        from PIL import Image
+        img = Image.open(screenshot_path)
+        img.save(pdf_path, "PDF", resolution=150)
+        os.remove(screenshot_path)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"PDF 生成失败: {str(e)}")
 
