@@ -10,21 +10,22 @@ import time
 import json
 import uuid
 import xml.etree.ElementTree as ET
-from fastapi import APIRouter, HTTPException, UploadFile, File, Query
+from fastapi import APIRouter, HTTPException, UploadFile, File, Query, Depends
 from pydantic import BaseModel
 from typing import Optional
-import shutil
+from sqlalchemy.ext.asyncio import AsyncSession
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 from common.config import SCRIPTS_DIR, REPORTS_DIR
+from common.database import get_db
+from manager.core.db import (
+    db_get_all_scripts, db_get_script, db_create_script,
+    db_update_script, db_delete_script, db_search_scripts,
+    db_get_next_script_id,
+)
 
 router = APIRouter(prefix="/api/scripts", tags=["scripts"])
-
-COUNTER_FILE = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-    "config", "script_counter.json",
-)
 
 
 class ScriptSaveRequest(BaseModel):
@@ -32,46 +33,30 @@ class ScriptSaveRequest(BaseModel):
     name: Optional[str] = None
 
 
-def _get_next_script_id() -> int:
-    """生成下一个自增的脚本 ID。"""
-    os.makedirs(os.path.dirname(COUNTER_FILE), exist_ok=True)
-    if os.path.exists(COUNTER_FILE):
-        with open(COUNTER_FILE, "r") as f:
-            data = json.load(f)
-        counter = data.get("counter", 0) + 1
-    else:
-        counter = 1
-    with open(COUNTER_FILE, "w") as f:
-        json.dump({"counter": counter}, f)
-    return counter
-
-
 @router.post("/upload")
-async def upload_script(file: UploadFile = File(...), name: Optional[str] = None):
-    """上传 JMeter 脚本文件（.jmx），自动生成脚本 ID 并保存元数据。"""
+async def upload_script(file: UploadFile = File(...), name: Optional[str] = None,
+                        db: AsyncSession = Depends(get_db)):
+    """上传 JMeter 脚本文件（.jmx），自动生成脚本 ID 并保存。"""
     if not file.filename.endswith(".jmx"):
         raise HTTPException(status_code=400, detail="Only .jmx files are supported")
 
-    script_id_num = _get_next_script_id()
+    script_id_num = await db_get_next_script_id(db)
     script_id = str(script_id_num)
     original_name = file.filename
     filename = f"{script_id}.jmx"
-    filepath = os.path.join(SCRIPTS_DIR, filename)
+
+    content = await file.read()
+    content_str = content.decode("utf-8", errors="replace")
+
+    await db_create_script(
+        db, script_id=script_id, original_name=original_name,
+        filename=filename, content=content_str, size=len(content),
+    )
 
     os.makedirs(SCRIPTS_DIR, exist_ok=True)
-    with open(filepath, "wb") as f:
-        content = await file.read()
-        f.write(content)
-
-    meta_path = os.path.join(SCRIPTS_DIR, f"{script_id}.json")
-    with open(meta_path, "w") as f:
-        json.dump({
-            "script_id": script_id,
-            "original_name": original_name,
-            "filename": filename,
-            "size": len(content),
-            "created_at": time.time(),
-        }, f)
+    script_path = os.path.join(SCRIPTS_DIR, filename)
+    with open(script_path, "w", encoding="utf-8") as f:
+        f.write(content_str)
 
     return {
         "script_id": script_id,
@@ -83,140 +68,80 @@ async def upload_script(file: UploadFile = File(...), name: Optional[str] = None
 
 
 @router.get("/")
-def list_scripts():
+async def list_scripts(db: AsyncSession = Depends(get_db)):
     """获取所有已上传脚本的列表，按修改时间倒序排列。"""
-    scripts = []
-    if os.path.exists(SCRIPTS_DIR):
-        for f in os.listdir(SCRIPTS_DIR):
-            if f.endswith(".jmx"):
-                filepath = os.path.join(SCRIPTS_DIR, f)
-                stat = os.stat(filepath)
-                script_id = f.replace(".jmx", "")
-                original_name = f
-                meta_path = os.path.join(SCRIPTS_DIR, f"{script_id}.json")
-                if os.path.exists(meta_path):
-                    try:
-                        with open(meta_path, "r") as mf:
-                            meta = json.load(mf)
-                        original_name = meta.get("original_name", f)
-                    except Exception:
-                        pass
-                scripts.append({
-                    "script_id": script_id,
-                    "filename": original_name,
-                    "size": stat.st_size,
-                    "created_at": stat.st_ctime,
-                    "modified_at": stat.st_mtime,
-                })
-    scripts.sort(key=lambda x: x.get("modified_at", 0), reverse=True)
+    scripts = await db_get_all_scripts(db)
     return {"total": len(scripts), "scripts": scripts}
 
 
 @router.get("/search")
-def search_scripts(q: str = ""):
+async def search_scripts(q: str = "", db: AsyncSession = Depends(get_db)):
     """根据关键词搜索脚本，支持文件名匹配和内容匹配。"""
     if not q:
         return {"results": []}
 
+    scripts = await db_search_scripts(db, q)
     results = []
     q_lower = q.lower()
 
-    if os.path.exists(SCRIPTS_DIR):
-        for f in os.listdir(SCRIPTS_DIR):
-            if f.endswith(".jmx"):
-                filepath = os.path.join(SCRIPTS_DIR, f)
-                script_id = f.replace(".jmx", "")
-                original_name = f
-                meta_path = os.path.join(SCRIPTS_DIR, f"{script_id}.json")
-                if os.path.exists(meta_path):
-                    try:
-                        with open(meta_path, "r") as mf:
-                            meta = json.load(mf)
-                        original_name = meta.get("original_name", f)
-                    except Exception:
-                        pass
+    for s in scripts:
+        match_type = None
+        matched_labels = []
 
-                match_type = None
-                matched_labels = []
+        if q_lower in s["original_name"].lower() or q_lower in s["script_id"].lower():
+            match_type = "name"
 
-                if q_lower in original_name.lower() or q_lower in script_id.lower():
-                    match_type = "name"
+        if q_lower in s["content"].lower():
+            match_type = "content"
+            for line in s["content"].split("\n"):
+                if 'testname="' in line:
+                    start = line.find('testname="') + 10
+                    end = line.find('"', start)
+                    if end > start:
+                        label = line[start:end]
+                        if q_lower in label.lower():
+                            matched_labels.append(label)
 
-                try:
-                    with open(filepath, "r", encoding="utf-8", errors="replace") as cf:
-                        content = cf.read()
-                    if q_lower in content.lower():
-                        match_type = "content"
-                        for line in content.split("\n"):
-                            if 'testname="' in line:
-                                start = line.find('testname="') + 10
-                                end = line.find('"', start)
-                                if end > start:
-                                    label = line[start:end]
-                                    if q_lower in label.lower():
-                                        matched_labels.append(label)
-                except Exception:
-                    pass
-
-                if match_type:
-                    results.append({
-                        "script_id": script_id,
-                        "filename": original_name,
-                        "size": os.path.getsize(filepath),
-                        "matched_labels": matched_labels[:10],
-                        "match_type": match_type,
-                    })
+        if match_type:
+            results.append({
+                "script_id": s["script_id"],
+                "filename": s["original_name"],
+                "size": s["size"],
+                "matched_labels": matched_labels[:10],
+                "match_type": match_type,
+            })
 
     return {"total": len(results), "results": results}
 
 
 @router.get("/{script_id}")
-def get_script(script_id: str):
+async def get_script(script_id: str, db: AsyncSession = Depends(get_db)):
     """获取指定脚本的完整内容和元数据。"""
-    filepath = os.path.join(SCRIPTS_DIR, f"{script_id}.jmx")
-    if not os.path.exists(filepath):
+    script = await db_get_script(db, script_id)
+    if not script:
         raise HTTPException(status_code=404, detail="Script not found")
 
-    with open(filepath, "r") as f:
-        content = f.read()
-
-    stat = os.stat(filepath)
-    filename = f"{script_id}.jmx"
-    old_ids = []
-    meta_path = os.path.join(SCRIPTS_DIR, f"{script_id}.json")
-    if os.path.exists(meta_path):
-        try:
-            with open(meta_path, "r") as mf:
-                meta = json.load(mf)
-            filename = meta.get("original_name", filename)
-            old_ids = meta.get("old_ids", [])
-        except Exception:
-            pass
-
     return {
-        "script_id": script_id,
-        "filename": filename,
-        "content": content,
-        "size": stat.st_size,
-        "modified_at": stat.st_mtime,
-        "old_ids": old_ids,
+        "script_id": script["script_id"],
+        "filename": script["original_name"],
+        "content": script["content"],
+        "size": script["size"],
+        "modified_at": script["modified_at"],
+        "old_ids": [],
     }
 
 
 @router.get("/{script_id}/structure")
-def get_script_structure(script_id: str):
+async def get_script_structure(script_id: str, db: AsyncSession = Depends(get_db)):
     """解析并返回 JMX 脚本的元素结构树。"""
-    filepath = os.path.join(SCRIPTS_DIR, f"{script_id}.jmx")
-    if not os.path.exists(filepath):
+    script = await db_get_script(db, script_id)
+    if not script:
         raise HTTPException(status_code=404, detail="Script not found")
 
     try:
-        tree = ET.parse(filepath)
-        root = tree.getroot()
-
+        root = ET.fromstring(script["content"])
         elements = []
         _parse_jmx_tree(root, elements, depth=0)
-
         return {"script_id": script_id, "elements": elements}
     except ET.ParseError as e:
         raise HTTPException(status_code=400, detail=f"XML解析错误: {str(e)}")
@@ -291,6 +216,7 @@ def _parse_jmx_tree(element, elements, depth):
                 etype = child.get("elementType", "")
                 if name:
                     sub_items = {}
+                    # 递归查找 Argument.value
                     for sub in child:
                         sub_text = (sub.text or "").strip()
                         if sub_text:
@@ -312,6 +238,18 @@ def _parse_jmx_tree(element, elements, depth):
                                             sss_name = subsubsub.get("name", subsubsub.tag)
                                             key2 = f"{inner2_name}.{sss_name}" if inner2_name else sss_name
                                             sub_items[key2] = sss_text
+                        elif sub.tag == "collectionProp":
+                            # 从 collectionProp 中提取 Argument.value
+                            for item in sub:
+                                if item.tag == "elementProp":
+                                    for subsub in item:
+                                        sss_text = (subsub.text or "").strip()
+                                        if sss_text:
+                                            sss_name = subsub.get("name", subsub.tag)
+                                            if sss_name == "Argument.value":
+                                                sub_items["body"] = sss_text
+                                            else:
+                                                sub_items[sss_name] = sss_text
                     if sub_items:
                         props[name] = sub_items
                     elif child_text:
@@ -331,10 +269,11 @@ def _parse_jmx_tree(element, elements, depth):
 
 
 @router.post("/{script_id}/save")
-def save_script_content(script_id: str, req: ScriptSaveRequest):
+async def save_script_content(script_id: str, req: ScriptSaveRequest,
+                              db: AsyncSession = Depends(get_db)):
     """保存脚本内容到指定脚本文件，会验证 XML 格式。"""
-    filepath = os.path.join(SCRIPTS_DIR, f"{script_id}.jmx")
-    if not os.path.exists(filepath):
+    script = await db_get_script(db, script_id)
+    if not script:
         raise HTTPException(status_code=404, detail="Script not found")
 
     try:
@@ -342,34 +281,42 @@ def save_script_content(script_id: str, req: ScriptSaveRequest):
     except ET.ParseError as e:
         raise HTTPException(status_code=400, detail=f"XML格式错误: {str(e)}")
 
-    with open(filepath, "w") as f:
+    await db_update_script(db, script_id, content=req.content, size=len(req.content.encode()))
+
+    script_path = os.path.join(SCRIPTS_DIR, script["filename"])
+    with open(script_path, "w", encoding="utf-8") as f:
         f.write(req.content)
 
-    stat = os.stat(filepath)
     return {
         "status": "saved",
         "script_id": script_id,
-        "size": stat.st_size,
-        "modified_at": stat.st_mtime,
+        "size": len(req.content.encode()),
+        "modified_at": time.time(),
     }
 
 
 @router.put("/{script_id}")
-async def update_script(script_id: str, file: UploadFile = File(...)):
+async def update_script(script_id: str, file: UploadFile = File(...),
+                        db: AsyncSession = Depends(get_db)):
     """通过上传文件更新指定脚本的内容。"""
-    filepath = os.path.join(SCRIPTS_DIR, f"{script_id}.jmx")
-    if not os.path.exists(filepath):
+    script = await db_get_script(db, script_id)
+    if not script:
         raise HTTPException(status_code=404, detail="Script not found")
 
     content = await file.read()
-    with open(filepath, "wb") as f:
-        f.write(content)
+    content_str = content.decode("utf-8", errors="replace")
+    await db_update_script(db, script_id, content=content_str, size=len(content))
+
+    script_path = os.path.join(SCRIPTS_DIR, script["filename"])
+    with open(script_path, "w", encoding="utf-8") as f:
+        f.write(content_str)
 
     return {"message": "Script updated", "size": len(content)}
 
 
 @router.post("/create")
-def create_script_from_content(req: ScriptSaveRequest):
+async def create_script_from_content(req: ScriptSaveRequest,
+                                     db: AsyncSession = Depends(get_db)):
     """从提供的 XML 内容创建新的 JMeter 脚本。"""
     try:
         ET.fromstring(req.content)
@@ -378,34 +325,121 @@ def create_script_from_content(req: ScriptSaveRequest):
 
     script_id = f"script-{uuid.uuid4().hex[:8]}"
     filename = f"{script_id}.jmx"
-    filepath = os.path.join(SCRIPTS_DIR, filename)
+
+    await db_create_script(
+        db, script_id=script_id, original_name=filename,
+        filename=filename, content=req.content, size=len(req.content.encode()),
+    )
 
     os.makedirs(SCRIPTS_DIR, exist_ok=True)
-    with open(filepath, "w") as f:
+    script_path = os.path.join(SCRIPTS_DIR, filename)
+    with open(script_path, "w", encoding="utf-8") as f:
         f.write(req.content)
 
-    stat = os.stat(filepath)
     return {
         "status": "created",
         "script_id": script_id,
         "filename": filename,
-        "size": stat.st_size,
-        "created_at": stat.st_ctime,
+        "size": len(req.content.encode()),
+        "created_at": time.time(),
     }
 
 
 @router.delete("/{script_id}")
-def delete_script(script_id: str):
-    """删除指定脚本及其元数据文件。"""
-    filepath = os.path.join(SCRIPTS_DIR, f"{script_id}.jmx")
-    if not os.path.exists(filepath):
+async def delete_script(script_id: str, db: AsyncSession = Depends(get_db)):
+    """删除指定脚本。"""
+    deleted = await db_delete_script(db, script_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Script not found")
+    return {"message": "Script deleted"}
+
+
+@router.get("/{script_id}/csv-hints")
+async def get_csv_hints(script_id: str, db: AsyncSession = Depends(get_db)):
+    """分析脚本内容，返回 CSV 参数化提示：JMX 中引用的 CSV 信息 + 匹配的已上传文件 + 历史使用记录。"""
+    script = await db_get_script(db, script_id)
+    if not script:
         raise HTTPException(status_code=404, detail="Script not found")
 
-    os.remove(filepath)
-    meta_path = os.path.join(SCRIPTS_DIR, f"{script_id}.json")
-    if os.path.exists(meta_path):
-        os.remove(meta_path)
-    return {"message": "Script deleted"}
+    jmx_csv_refs = []
+    try:
+        root = ET.fromstring(script["content"])
+        for elem in root.iter("CSVDataSet"):
+            filename = ""
+            variable_names = ""
+            delimiter = ","
+            for child in elem:
+                name = child.get("name", "")
+                if name == "filename":
+                    filename = child.text or ""
+                elif name == "variableNames":
+                    variable_names = child.text or ""
+                elif name == "delimiter":
+                    delimiter = child.text or ","
+            if filename or variable_names:
+                jmx_csv_refs.append({
+                    "filename": filename,
+                    "variable_names": variable_names,
+                    "delimiter": delimiter,
+                })
+    except ET.ParseError:
+        pass
+
+    from manager.core.db import db_get_all_csvs
+    all_csvs = await db_get_all_csvs(db)
+
+    matched_csvs = []
+    for csv_meta in all_csvs:
+        csv_name = csv_meta.get("filename", "").lower()
+        csv_id = csv_meta.get("csv_id", "")
+        for ref in jmx_csv_refs:
+            ref_name = ref["filename"].lower()
+            if csv_name in ref_name or ref_name in csv_name or csv_id in ref_name:
+                matched_csvs.append({
+                    "csv_id": csv_id,
+                    "filename": csv_meta.get("filename"),
+                    "row_count": csv_meta.get("row_count", 0),
+                    "matched_by": "filename",
+                    "jmx_variable_names": ref["variable_names"],
+                })
+                break
+
+    from common.config import REPORTS_DIR
+    history_csvs = []
+    if os.path.exists(REPORTS_DIR):
+        csv_usage = {}
+        for task_dir in os.listdir(REPORTS_DIR):
+            task_path = os.path.join(REPORTS_DIR, task_dir)
+            if not os.path.isdir(task_path):
+                continue
+            try:
+                task_meta_path = os.path.join(task_path, "task.json")
+                if os.path.exists(task_meta_path):
+                    with open(task_meta_path) as f:
+                        task_meta = json.load(f)
+                else:
+                    continue
+            except Exception:
+                continue
+            if task_meta.get("script_id") != script_id:
+                continue
+            csv_file = task_meta.get("csv_file")
+            if csv_file and csv_file not in csv_usage:
+                csv_usage[csv_file] = {"csv_file": csv_file, "task_count": 0, "last_used": 0}
+            if csv_file:
+                csv_usage[csv_file]["task_count"] += 1
+                created = task_meta.get("created_at", 0)
+                if created > csv_usage[csv_file]["last_used"]:
+                    csv_usage[csv_file]["last_used"] = created
+        history_csvs = sorted(csv_usage.values(), key=lambda x: x["last_used"], reverse=True)
+
+    return {
+        "script_id": script_id,
+        "jmx_csv_refs": jmx_csv_refs,
+        "matched_csvs": matched_csvs,
+        "history_csvs": history_csvs,
+        "all_csvs": [{"csv_id": c.get("csv_id"), "filename": c.get("filename"), "row_count": c.get("row_count", 0)} for c in all_csvs],
+    }
 
 
 class ReorderRequest(BaseModel):
@@ -414,15 +448,15 @@ class ReorderRequest(BaseModel):
 
 
 @router.post("/{script_id}/reorder")
-def reorder_elements(script_id: str, req: ReorderRequest):
+async def reorder_elements(script_id: str, req: ReorderRequest,
+                           db: AsyncSession = Depends(get_db)):
     """在同层级内拖拽排序 JMX 脚本中的测试元素。"""
-    filepath = os.path.join(SCRIPTS_DIR, f"{script_id}.jmx")
-    if not os.path.exists(filepath):
+    script = await db_get_script(db, script_id)
+    if not script:
         raise HTTPException(status_code=404, detail="Script not found")
 
     try:
-        tree = ET.parse(filepath)
-        root = tree.getroot()
+        root = ET.fromstring(script["content"])
 
         root_ht = root.find("hashTree") if root.tag == "jmeterTestPlan" else root
         children = list(root_ht)
@@ -486,7 +520,13 @@ def reorder_elements(script_id: str, req: ReorderRequest):
         if from_ht is not None:
             parent_ht.insert(insert_pos + 1, from_ht)
 
-        tree.write(filepath, encoding="UTF-8", xml_declaration=True)
+        from io import BytesIO
+        tree = ET.ElementTree(root)
+        buf = BytesIO()
+        tree.write(buf, encoding="UTF-8", xml_declaration=True)
+        new_content = buf.getvalue().decode("UTF-8")
+
+        await db_update_script(db, script_id, content=new_content, size=len(new_content.encode()))
 
         return {"status": "reordered", "from": req.from_index, "to": req.to_index}
     except ET.ParseError as e:

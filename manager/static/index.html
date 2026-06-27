@@ -3693,10 +3693,11 @@
                         var qs = pa.substring(pa.indexOf('?') + 1);
                         s += ' → ' + (qs.length > 30 ? qs.substring(0, 30) + '...' : qs);
                     } else if (m !== 'GET') {
-                        var args = p['HTTPsampler.Arguments'] || p.Arguments || '';
-                        if (typeof args === 'object' && args['Argument.value']) {
-                            var body = args['Argument.value'].trim();
-                            if (body) s += ' → ' + (body.length > 25 ? body.substring(0, 25) + '...' : body);
+                        var args = p['HTTPsampler.Arguments'] || {};
+                        var body = args.body || args['Argument.value'] || '';
+                        if (typeof body === 'string' && body.trim()) {
+                            body = body.trim();
+                            s += ' → ' + (body.length > 30 ? body.substring(0, 30) + '...' : body);
                         }
                     }
                     return s;
