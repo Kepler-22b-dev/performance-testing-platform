@@ -721,6 +721,7 @@ def get_performance_trend(label: str = None, limit: int = 20):
         pass
 
     task_data = []
+    label_stats = {}
     label_set = set()
 
     for task_dir, task_path, mtime in reversed(task_dirs):
@@ -731,7 +732,9 @@ def get_performance_trend(label: str = None, limit: int = 20):
 
             # 收集所有 label
             for s in all_samples:
-                label_set.add(s.get("label", ""))
+                lbl = s.get("label", "")
+                if lbl:
+                    label_set.add(lbl)
 
             # 如果指定了 label，过滤
             filtered = all_samples
@@ -741,35 +744,44 @@ def get_performance_trend(label: str = None, limit: int = 20):
             if not filtered:
                 continue
 
-            filtered.sort(key=lambda x: x["timestamp"])
-            elapsed_times = sorted([s["elapsed"] for s in filtered])
-            error_count = sum(1 for s in filtered if not s["success"])
-            total = len(filtered)
+            # 按 label 分组统计
+            by_label = {}
+            for s in filtered:
+                lbl = s.get("label", "unknown")
+                if lbl not in by_label:
+                    by_label[lbl] = []
+                by_label[lbl].append(s)
 
-            ts = [s["timestamp"] for s in filtered]
-            duration = (max(ts) - min(ts)) / 1000 if len(ts) > 1 else 1
-            tps = round(total / duration, 2) if duration > 0 else 0
+            for lbl, samples in by_label.items():
+                if lbl not in label_stats:
+                    label_stats[lbl] = {"samples": [], "errors": 0, "total": 0}
+                label_stats[lbl]["samples"].extend([s["elapsed"] for s in samples])
+                label_stats[lbl]["errors"] += sum(1 for s in samples if not s["success"])
+                label_stats[lbl]["total"] += len(samples)
 
-            script_id = script_map.get(task_dir, "")
-            script_name = script_name_map.get(script_id, script_id)
-
-            task_data.append({
-                "task_id": task_dir,
-                "script_name": script_name,
-                "created_at": mtime,
-                "total_samples": total,
-                "error_count": error_count,
-                "error_rate": round(error_count / total * 100, 2) if total > 0 else 0,
-                "avg_response_time": round(sum(elapsed_times) / len(elapsed_times), 2),
-                "p50": _percentile(elapsed_times, 50),
-                "p90": _percentile(elapsed_times, 90),
-                "p99": _percentile(elapsed_times, 99),
-                "tps": tps,
-            })
         except Exception:
             continue
 
-    task_data.sort(key=lambda x: x["created_at"])
+    # 按接口维度汇总
+    for lbl, stats in label_stats.items():
+        if not stats["samples"]:
+            continue
+        elapsed = sorted(stats["samples"])
+        total = stats["total"]
+        errors = stats["errors"]
+        label_stats_entry = {
+            "label": lbl,
+            "total_samples": total,
+            "error_count": errors,
+            "error_rate": round(errors / total * 100, 2) if total > 0 else 0,
+            "avg_response_time": round(sum(elapsed) / len(elapsed), 2),
+            "p50": _percentile(elapsed, 50),
+            "p90": _percentile(elapsed, 90),
+            "p99": _percentile(elapsed, 99),
+        }
+        task_data.append(label_stats_entry)
+
+    task_data.sort(key=lambda x: x["total_samples"], reverse=True)
 
     return {
         "tasks": task_data,
