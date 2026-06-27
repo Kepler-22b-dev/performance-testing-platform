@@ -39,7 +39,8 @@ class VarUpdateRequest(BaseModel):
 @router.get("/vars")
 def list_vars():
     """获取所有全局变量的列表。"""
-    return {"total": len(get_all_vars()), "vars": get_all_vars()}
+    vars_list = get_all_vars()
+    return {"total": len(vars_list), "vars": vars_list}
 
 
 @router.post("/vars")
@@ -74,7 +75,8 @@ def delete_var_endpoint(var_id: str):
 @router.get("/csv")
 def list_csvs():
     """获取所有已上传 CSV 文件的列表。"""
-    return {"total": len(get_all_csvs()), "csvs": get_all_csvs()}
+    csvs_list = get_all_csvs()
+    return {"total": len(csvs_list), "csvs": csvs_list}
 
 
 @router.post("/csv/upload")

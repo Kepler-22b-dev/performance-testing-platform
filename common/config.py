@@ -9,6 +9,12 @@ REDIS_HOST = os.getenv("REDIS_HOST", "127.0.0.1")
 REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
 REDIS_DB = int(os.getenv("REDIS_DB", 0))
 
+# PostgreSQL 配置
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql+asyncpg://postgres:postgres@localhost:5432/perftest"
+)
+
 # 项目根目录
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(__file__))
 

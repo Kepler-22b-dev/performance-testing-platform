@@ -1,2 +1,4 @@
 psutil
 redis
+sqlalchemy[asyncio]
+asyncpg

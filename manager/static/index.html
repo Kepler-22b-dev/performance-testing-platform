@@ -3695,6 +3695,8 @@
                     } else if (m !== 'GET') {
                         var args = p['HTTPsampler.Arguments'] || {};
                         var body = args.body || args['Argument.value'] || '';
+                        console.log('[DEBUG] getNodeSummary args:', typeof args, Object.keys(args));
+                        console.log('[DEBUG] getNodeSummary body:', body ? body.substring(0, 50) : 'EMPTY');
                         if (typeof body === 'string' && body.trim()) {
                             body = body.trim().replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ');
                             s += ' → ' + (body.length > 40 ? body.substring(0, 40) + '...' : body);

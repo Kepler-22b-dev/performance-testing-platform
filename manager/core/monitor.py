@@ -7,10 +7,24 @@
 import sys
 import os
 import time
+import threading
 import psutil
 import socket
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
+
+_cpu_sample_interval = 1
+_last_cpu_percent = 0
+
+
+def _sample_cpu():
+    global _last_cpu_percent
+    while True:
+        _last_cpu_percent = psutil.cpu_percent(interval=_cpu_sample_interval)
+
+
+_cpu_thread = threading.Thread(target=_sample_cpu, daemon=True)
+_cpu_thread.start()
 
 
 def get_system_metrics() -> dict:
@@ -19,7 +33,7 @@ def get_system_metrics() -> dict:
     包含 CPU 使用率与频率、内存与 Swap、磁盘使用、
     网络流量统计及系统负载等信息。
     """
-    cpu_percent = psutil.cpu_percent(interval=0.5)
+    cpu_percent = _last_cpu_percent
     cpu_count = psutil.cpu_count()
 
     try:

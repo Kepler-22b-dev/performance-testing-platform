@@ -1,47 +1,24 @@
-"""告警规则管理 API 模块。
-
-提供基于性能指标的告警规则的创建、更新、删除和触发检测接口，
-支持对平均响应时间、百分位响应时间、错误率、TPS 等指标设置阈值告警。
-"""
+"""告警规则管理 API 模块。"""
 
 import sys
 import os
 import json
 import time
 import uuid
-import redis
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import Optional
+from sqlalchemy.ext.asyncio import AsyncSession
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
-from common.config import REDIS_HOST, REDIS_PORT, REDIS_DB
+from common.database import get_db, get_sync_db
+from manager.core.db import (
+    db_get_all_alert_rules, db_create_alert_rule,
+    db_update_alert_rule, db_delete_alert_rule,
+)
 
 router = APIRouter(prefix="/api/alerts", tags=["alerts"])
-
-
-def _get_redis():
-    """获取 Redis 连接实例。"""
-    return redis.Redis(
-        host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB,
-        decode_responses=True,
-    )
-
-
-def _load_rules() -> list:
-    """从 Redis 加载所有告警规则。"""
-    r = _get_redis()
-    data = r.hget("jmeter:config", "alert_rules")
-    if data:
-        return json.loads(data)
-    return []
-
-
-def _save_rules(rules: list):
-    """将告警规则列表保存到 Redis。"""
-    r = _get_redis()
-    r.hset("jmeter:config", "alert_rules", json.dumps(rules, ensure_ascii=False, default=str))
 
 
 class AlertRuleCreate(BaseModel):
@@ -77,21 +54,17 @@ METRICS = {
 
 @router.get("/metrics")
 def list_metrics():
-    """获取所有支持告警的性能指标列表。"""
     return {"metrics": [{"key": k, "name": v} for k, v in METRICS.items()]}
 
 
 @router.get("/")
-def list_rules():
-    """获取所有告警规则的列表。"""
-    rules = _load_rules()
+async def list_rules(db: AsyncSession = Depends(get_db)):
+    rules = await db_get_all_alert_rules(db)
     return {"total": len(rules), "rules": rules}
 
 
 @router.post("/")
-def create_rule(req: AlertRuleCreate):
-    """创建一条新的告警规则。"""
-    rules = _load_rules()
+async def create_rule(req: AlertRuleCreate, db: AsyncSession = Depends(get_db)):
     rule_id = f"alert-{uuid.uuid4().hex[:8]}"
     rule = {
         "rule_id": rule_id,
@@ -106,51 +79,56 @@ def create_rule(req: AlertRuleCreate):
         "triggered_count": 0,
         "last_triggered": None,
     }
-    rules.append(rule)
-    _save_rules(rules)
+    await db_create_alert_rule(db, rule)
     return {"status": "created", "rule": rule}
 
 
 @router.put("/{rule_id}")
-def update_rule(rule_id: str, req: AlertRuleUpdate):
-    """更新指定告警规则的参数。"""
-    rules = _load_rules()
-    for rule in rules:
-        if rule["rule_id"] == rule_id:
-            if req.name is not None:
-                rule["name"] = req.name
-            if req.metric is not None:
-                rule["metric"] = req.metric
-            if req.operator is not None:
-                rule["operator"] = req.operator
-            if req.threshold is not None:
-                rule["threshold"] = req.threshold
-            if req.enabled is not None:
-                rule["enabled"] = req.enabled
-            if req.notify_webhook is not None:
-                rule["notify_webhook"] = req.notify_webhook
-            if req.description is not None:
-                rule["description"] = req.description
-            _save_rules(rules)
-            return {"status": "updated", "rule": rule}
-    raise HTTPException(status_code=404, detail="规则不存在")
+async def update_rule(rule_id: str, req: AlertRuleUpdate, db: AsyncSession = Depends(get_db)):
+    update_data = {}
+    if req.name is not None:
+        update_data["name"] = req.name
+    if req.metric is not None:
+        update_data["metric"] = req.metric
+    if req.operator is not None:
+        update_data["operator"] = req.operator
+    if req.threshold is not None:
+        update_data["threshold"] = req.threshold
+    if req.enabled is not None:
+        update_data["enabled"] = req.enabled
+    if req.notify_webhook is not None:
+        update_data["notify_webhook"] = req.notify_webhook
+    if req.description is not None:
+        update_data["description"] = req.description
+
+    if not update_data:
+        raise HTTPException(status_code=400, detail="No fields to update")
+
+    updated = await db_update_alert_rule(db, rule_id, **update_data)
+    if not updated:
+        raise HTTPException(status_code=404, detail="规则不存在")
+    return {"status": "updated", "rule_id": rule_id}
 
 
 @router.delete("/{rule_id}")
-def delete_rule(rule_id: str):
-    """删除指定的告警规则。"""
-    rules = _load_rules()
-    original = len(rules)
-    rules = [r for r in rules if r["rule_id"] != rule_id]
-    if len(rules) == original:
+async def delete_rule(rule_id: str, db: AsyncSession = Depends(get_db)):
+    deleted = await db_delete_alert_rule(db, rule_id)
+    if not deleted:
         raise HTTPException(status_code=404, detail="规则不存在")
-    _save_rules(rules)
     return {"status": "deleted", "rule_id": rule_id}
 
 
 def check_alerts(task_result: dict) -> list:
     """检查任务结果是否触发告警规则，返回触发的规则列表。"""
-    rules = _load_rules()
+    from manager.core.db_sync import db_get_all_alert_rules as sync_db_get_all_alert_rules
+    from manager.core.db_sync import db_update_alert_rule as sync_db_update_alert_rule
+
+    db = get_sync_db()
+    try:
+        rules = sync_db_get_all_alert_rules(db)
+    finally:
+        db.close()
+
     triggered = []
 
     summary = {}
@@ -188,8 +166,6 @@ def check_alerts(task_result: dict) -> list:
             exceeded = True
 
         if exceeded:
-            rule["triggered_count"] = rule.get("triggered_count", 0) + 1
-            rule["last_triggered"] = time.time()
             triggered.append({
                 "rule_id": rule["rule_id"],
                 "name": rule["name"],
@@ -201,12 +177,14 @@ def check_alerts(task_result: dict) -> list:
             })
 
     if triggered:
-        rules_updated = _load_rules()
-        for r in rules_updated:
+        db = get_sync_db()
+        try:
             for t in triggered:
-                if r["rule_id"] == t["rule_id"]:
-                    r["triggered_count"] = r.get("triggered_count", 0) + 1
-                    r["last_triggered"] = time.time()
-        _save_rules(rules_updated)
+                sync_db_update_alert_rule(db, t["rule_id"],
+                    triggered_count=rule.get("triggered_count", 0) + 1,
+                    last_triggered=time.time(),
+                )
+        finally:
+            db.close()
 
     return triggered

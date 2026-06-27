@@ -17,7 +17,7 @@ from typing import Optional
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 from common.config import REPORTS_DIR
-from manager.api.results import _parse_jtl, _build_time_series, _build_label_stats, _percentile
+from manager.api.results import _build_time_series, _build_label_stats, _percentile
 
 router = APIRouter(prefix="/api/jtl", tags=["jtl-compare"])
 

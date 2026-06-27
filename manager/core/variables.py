@@ -1,8 +1,4 @@
-"""变量与 CSV 数据文件管理模块。
-
-提供 JMeter 测试脚本中使用的用户自定义变量和 CSV 数据文件的
-增删查改功能。变量和 CSV 元数据以 JSON 格式持久化存储。
-"""
+"""变量与 CSV 数据文件管理模块。"""
 
 import sys
 import os
@@ -15,10 +11,10 @@ from typing import Optional
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 from common.config import SCRIPTS_DIR
-
-VARS_FILE = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-    "config", "variables.json",
+from common.database import get_sync_db
+from manager.core.db_sync import (
+    db_get_all_vars, db_create_var, db_update_var, db_delete_var,
+    db_get_all_csvs, db_get_csv, db_create_csv, db_delete_csv,
 )
 
 CSV_DIR = os.path.join(
@@ -28,98 +24,81 @@ CSV_DIR = os.path.join(
 
 
 def _ensure_dirs():
-    """确保变量和 CSV 配置目录存在。"""
-    os.makedirs(os.path.dirname(VARS_FILE), exist_ok=True)
     os.makedirs(CSV_DIR, exist_ok=True)
-
-
-def _load_vars() -> list:
-    """从 JSON 文件加载变量列表。"""
-    if not os.path.exists(VARS_FILE):
-        return []
-    with open(VARS_FILE, "r") as f:
-        return json.load(f)
-
-
-def _save_vars(vars_list: list):
-    """将变量列表持久化到 JSON 文件。"""
-    _ensure_dirs()
-    with open(VARS_FILE, "w") as f:
-        json.dump(vars_list, f, indent=2, ensure_ascii=False)
 
 
 # ===== 变量管理 =====
 
 def get_all_vars() -> list:
-    """获取所有已定义的变量列表。"""
-    return _load_vars()
+    db = get_sync_db()
+    try:
+        return db_get_all_vars(db)
+    finally:
+        db.close()
 
 
 def add_var(name: str, value: str, description: str = "", scope: str = "global") -> dict:
-    """添加一个新的用户变量。"""
-    vars_list = _load_vars()
+    db = get_sync_db()
+    try:
+        vars_list = db_get_all_vars(db)
+        for v in vars_list:
+            if v["name"] == name:
+                return {"status": "error", "message": f"变量已存在: {name}"}
 
-    for v in vars_list:
-        if v["name"] == name:
-            return {"status": "error", "message": f"变量已存在: {name}"}
-
-    var = {
-        "id": f"var-{int(time.time()*1000)}",
-        "name": name,
-        "value": value,
-        "description": description,
-        "scope": scope,
-        "created_at": time.time(),
-        "updated_at": time.time(),
-    }
-
-    vars_list.append(var)
-    _save_vars(vars_list)
-    return {"status": "added", "var": var}
+        var = {
+            "id": f"var-{int(time.time()*1000)}",
+            "name": name,
+            "value": value,
+            "description": description,
+            "scope": scope,
+            "created_at": time.time(),
+            "updated_at": time.time(),
+        }
+        db_create_var(db, var)
+        return {"status": "added", "var": var}
+    finally:
+        db.close()
 
 
 def update_var(var_id: str, name: str = None, value: str = None, description: str = None) -> dict:
-    """更新指定变量的属性。"""
-    vars_list = _load_vars()
+    db = get_sync_db()
+    try:
+        update_data = {}
+        if name is not None:
+            update_data["name"] = name
+        if value is not None:
+            update_data["value"] = value
+        if description is not None:
+            update_data["description"] = description
 
-    for v in vars_list:
-        if v["id"] == var_id:
-            if name is not None:
-                v["name"] = name
-            if value is not None:
-                v["value"] = value
-            if description is not None:
-                v["description"] = description
-            v["updated_at"] = time.time()
-            _save_vars(vars_list)
-            return {"status": "updated", "var": v}
-
-    return {"status": "error", "message": f"变量不存在: {var_id}"}
+        if update_data:
+            updated = db_update_var(db, var_id, **update_data)
+            if updated:
+                return {"status": "updated", "var_id": var_id}
+        return {"status": "error", "message": f"变量不存在: {var_id}"}
+    finally:
+        db.close()
 
 
 def delete_var(var_id: str) -> dict:
-    """删除指定变量。"""
-    vars_list = _load_vars()
-    original_len = len(vars_list)
-    vars_list = [v for v in vars_list if v["id"] != var_id]
-
-    if len(vars_list) == original_len:
+    db = get_sync_db()
+    try:
+        deleted = db_delete_var(db, var_id)
+        if deleted:
+            return {"status": "deleted", "var_id": var_id}
         return {"status": "error", "message": f"变量不存在: {var_id}"}
-
-    _save_vars(vars_list)
-    return {"status": "deleted", "var_id": var_id}
+    finally:
+        db.close()
 
 
 def get_vars_dict() -> dict:
-    """获取变量字典（名称: 值），用于注入到 JMeter 脚本中。"""
-    vars_list = _load_vars()
+    vars_list = get_all_vars()
     return {v["name"]: v["value"] for v in vars_list}
 
 
 # ===== CSV 数据文件管理 =====
 
 def upload_csv(filename: str, content: bytes) -> dict:
-    """上传 CSV 数据文件并解析其元数据（表头、行数、预览）。"""
     _ensure_dirs()
 
     csv_id = f"csv-{int(time.time()*1000)}"
@@ -160,42 +139,33 @@ def upload_csv(filename: str, content: bytes) -> dict:
         "created_at": time.time(),
     }
 
-    meta_path = os.path.join(CSV_DIR, f"{csv_id}.json")
-    with open(meta_path, "w") as f:
-        json.dump(meta, f, indent=2, ensure_ascii=False)
+    db = get_sync_db()
+    try:
+        db_create_csv(db, meta)
+    finally:
+        db.close()
 
     return {"status": "uploaded", "csv": meta}
 
 
 def get_all_csvs() -> list:
-    """获取所有已上传的 CSV 文件元数据列表。"""
-    _ensure_dirs()
-    csvs = []
-    for f in os.listdir(CSV_DIR):
-        if f.endswith(".json"):
-            meta_path = os.path.join(CSV_DIR, f)
-            try:
-                with open(meta_path, "r") as meta_f:
-                    meta = json.load(meta_f)
-                if os.path.exists(meta.get("filepath", "")):
-                    csvs.append(meta)
-            except Exception:
-                pass
-    csvs.sort(key=lambda x: x.get("created_at", 0), reverse=True)
-    return csvs
+    db = get_sync_db()
+    try:
+        csvs = db_get_all_csvs(db)
+        return [c for c in csvs if os.path.exists(c.get("filepath", ""))]
+    finally:
+        db.close()
 
 
 def get_csv(csv_id: str) -> Optional[dict]:
-    """根据 CSV ID 获取单个 CSV 文件的元数据。"""
-    meta_path = os.path.join(CSV_DIR, f"{csv_id}.json")
-    if not os.path.exists(meta_path):
-        return None
-    with open(meta_path, "r") as f:
-        return json.load(f)
+    db = get_sync_db()
+    try:
+        return db_get_csv(db, csv_id)
+    finally:
+        db.close()
 
 
 def get_csv_data(csv_id: str, offset: int = 0, limit: int = 100) -> Optional[dict]:
-    """获取 CSV 文件的数据行（支持分页）。"""
     meta = get_csv(csv_id)
     if not meta:
         return None
@@ -249,7 +219,6 @@ def get_csv_data(csv_id: str, offset: int = 0, limit: int = 100) -> Optional[dic
 
 
 def delete_csv(csv_id: str) -> dict:
-    """删除指定 CSV 文件及其元数据。"""
     meta = get_csv(csv_id)
     if not meta:
         return {"status": "error", "message": f"CSV不存在: {csv_id}"}
@@ -258,15 +227,16 @@ def delete_csv(csv_id: str) -> dict:
     if os.path.exists(filepath):
         os.remove(filepath)
 
-    meta_path = os.path.join(CSV_DIR, f"{csv_id}.json")
-    if os.path.exists(meta_path):
-        os.remove(meta_path)
+    db = get_sync_db()
+    try:
+        db_delete_csv(db, csv_id)
+    finally:
+        db.close()
 
     return {"status": "deleted", "csv_id": csv_id}
 
 
 def get_csv_preview(csv_id: str) -> Optional[dict]:
-    """获取 CSV 文件的预览信息（表头和前几行数据）。"""
     meta = get_csv(csv_id)
     if not meta:
         return None
