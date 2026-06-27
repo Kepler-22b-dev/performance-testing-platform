@@ -592,21 +592,37 @@ tr:hover {{ background: #fafafa; }}
 
 @router.get("/tasks/{task_id}/export-pdf")
 def export_report_pdf(task_id: str):
-    """导出指定任务的 PDF 格式测试报告（需要 weasyprint 依赖）。"""
+    """导出指定任务的 PDF 格式测试报告（使用 Chrome headless 渲染）。"""
     task_path = os.path.join(REPORTS_DIR, task_id)
     if not os.path.exists(task_path):
         raise HTTPException(status_code=404, detail="Task not found")
-
-    try:
-        from weasyprint import HTML
-    except ImportError:
-        raise HTTPException(status_code=500, detail="PDF 导出需要安装 weasyprint: pip install weasyprint")
 
     html_resp = export_report(task_id)
     html_content = html_resp.body.decode("utf-8")
 
     pdf_path = os.path.join(task_path, f"{task_id}_report.pdf")
-    HTML(string=html_content).write_pdf(pdf_path)
+    html_path = os.path.join(task_path, f"{task_id}_report.html")
+
+    # 先保存 HTML，再用 Chrome 渲染 PDF
+    with open(html_path, "w", encoding="utf-8") as f:
+        f.write(html_content)
+
+    chrome_path = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+    if not os.path.exists(chrome_path):
+        chrome_path = "chromium"
+
+    import subprocess
+    try:
+        subprocess.run([
+            chrome_path,
+            "--headless",
+            "--disable-gpu",
+            "--no-sandbox",
+            f"--print-to-pdf={pdf_path}",
+            f"file://{os.path.abspath(html_path)}",
+        ], timeout=30, capture_output=True, check=True)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"PDF 生成失败: {str(e)}")
 
     from fastapi.responses import FileResponse
     return FileResponse(
