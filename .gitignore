@@ -11,6 +11,7 @@ config/csv/
 config/nodes.json
 config/variables.json
 config/templates.json
+scripts/task-*.jmx
 apache-jmeter-5.6.3/
 apache-jmeter-5.6.3-slave/
 apache-jmeter-5.6.3-slave2/

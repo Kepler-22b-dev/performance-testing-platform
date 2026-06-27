@@ -87,7 +87,7 @@ class JMeterRunner:
             print(f"CSV injection failed: {e}")
             return script_path
 
-    def _inject_thread_config(self, script_path: str, threads: int, ramp_time: int, duration: int, scenario: dict = None) -> str:
+    def _inject_thread_config(self, script_path: str, threads: int, ramp_time: int, duration: int, scenario: dict = None, error_data_path: str = None) -> str:
         """
         动态注入线程组配置到 JMX 脚本
         覆盖 JMX 中的线程数、预热时间、持续时间
@@ -98,6 +98,7 @@ class JMeterRunner:
             ramp_time: 预热时间(秒)
             duration: 持续时间(秒)
             scenario: 场景配置(可选)
+            error_data_path: 错误响应数据输出路径(可选)
         Returns:
             修改后的脚本路径
         """
@@ -133,12 +134,65 @@ class JMeterRunner:
                 if loop is not None:
                     loop.text = "-1"
 
+                # 注入 JSR223 PostProcessor 以捕获错误响应数据
+                if error_data_path:
+                    self._inject_error_response_capture(root, thread_group, error_data_path)
+
             modified_path = script_path.replace(".jmx", "_exec.jmx")
             tree.write(modified_path, encoding="UTF-8", xml_declaration=True)
             return modified_path
         except Exception as e:
             print(f"Thread config injection failed: {e}")
             return script_path
+
+    def _inject_error_response_capture(self, root, thread_group, error_data_path: str):
+        """在 ThreadGroup 的 hashTree 中注入 JSR223 PostProcessor，仅在请求失败时捕获响应体。"""
+        # 找到 ThreadGroup 所在的 hashTree
+        target_hash_tree = None
+        for ht in root.iter("hashTree"):
+            if thread_group in list(ht):
+                target_hash_tree = ht
+                break
+
+        if target_hash_tree is None:
+            return
+
+        # 创建 JSR223 PostProcessor
+        jsr223 = ET.SubElement(target_hash_tree, "JSR223PostProcessor")
+        jsr223.set("guiclass", "TestBeanGUI")
+        jsr223.set("testclass", "JSR223PostProcessor")
+        jsr223.set("testname", "Error Response Capture")
+        jsr223.set("enabled", "true")
+
+        ET.SubElement(jsr223, "stringProp", name="cacheKey").text = "true"
+        ET.SubElement(jsr223, "stringProp", name="filename").text = ""
+        ET.SubElement(jsr223, "stringProp", name="parameters").text = ""
+        ET.SubElement(jsr223, "boolProp", name="executeOnEveryIteration").text = "false"
+
+        script_text = (
+            'import groovy.json.JsonOutput\n'
+            'import java.io.File\n'
+            '\n'
+            'if (!prev.isSuccessful()) {\n'
+            '    def responseData = prev.getResponseDataAsString()\n'
+            '    def data = [\n'
+            '        ts: prev.getStartTime(),\n'
+            '        label: prev.getLabel(),\n'
+            '        responseCode: prev.getResponseCode(),\n'
+            '        responseData: responseData\n'
+            '    ]\n'
+            '    def line = JsonOutput.toJson(data)\n'
+            f'    def file = new File("{error_data_path}")\n'
+            '    synchronized(file) {\n'
+            '        file.append(line + "\\n")\n'
+            '    }\n'
+            '}'
+        )
+        ET.SubElement(jsr223, "stringProp", name="script").text = script_text
+        ET.SubElement(jsr223, "stringProp", name="scriptLanguage").text = "groovy"
+
+        # 添加对应的空 hashTree
+        ET.SubElement(target_hash_tree, "hashTree")
 
     def execute(
         self,
@@ -204,38 +258,42 @@ class JMeterRunner:
                 pass
 
         if jmeter_args.get("threads") or jmeter_args.get("duration") or jmeter_args.get("ramp_time"):
+            error_data_path = os.path.join(result_dir, "error_responses.jsonl")
             script_path = self._inject_thread_config(
                 script_path,
                 threads=int(jmeter_args.get("threads", 10)),
                 ramp_time=int(jmeter_args.get("ramp_time", 1)),
                 duration=int(jmeter_args.get("duration", 60)),
                 scenario=scenario,
+                error_data_path=error_data_path,
             )
 
         # 构建 JMeter 命令
         cmd = [
             self.jmeter_bin,
-            "-n",  # 非 GUI 模式
-            "-t", script_path,  # 测试脚本
-            "-l", jtl_path,     # 结果文件
-            "-j", os.path.join(result_dir, "jmeter.log"),  # 日志文件
-            "-Jjmeter.save.saveservice.output_format=csv",
+            "-n",
+            "-t", script_path,
+            "-l", jtl_path,
+            "-j", os.path.join(result_dir, "jmeter.log"),
+            "-Jjmeter.save.saveservice.output_format=xml",
             "-Jjmeter.save.saveservice.print_field_names=true",
             "-Jjmeter.save.saveservice.successful=true",
             "-Jjmeter.save.saveservice.label=true",
             "-Jjmeter.save.saveservice.response_code=true",
             "-Jjmeter.save.saveservice.response_message=true",
             "-Jjmeter.save.saveservice.thread_name=true",
-            "-Jjmeter.save.saveservice.data_type=true",
             "-Jjmeter.save.saveservice.assertion_results_failure_message=true",
             "-Jjmeter.save.saveservice.bytes=true",
             "-Jjmeter.save.saveservice.sent_bytes=true",
             "-Jjmeter.save.saveservice.url=true",
             "-Jjmeter.save.saveservice.thread_counts=true",
-            "-Jjmeter.save.saveservice.idle_time=true",
             "-Jjmeter.save.saveservice.connect_time=true",
             "-Jjmeter.save.saveservice.latency=true",
             "-Jjmeter.save.saveservice.timestamp=true",
+            "-Jjmeter.save.saveservice.samplerData=true",
+            "-Jjmeter.save.saveservice.requestHeaders=true",
+            "-Jjmeter.save.saveservice.responseData=true",
+            "-Jjmeter.save.saveservice.responseHeaders=true",
         ]
 
         # 分布式模式
@@ -262,7 +320,11 @@ class JMeterRunner:
             last_progress_time = start_time
 
             # 主循环：监控进程状态和上报进度
-            while self._process.poll() is None:
+            while True:
+                exit_code = self._process.poll()
+                if exit_code is not None:
+                    break
+
                 elapsed = time.time() - start_time
                 if elapsed > timeout:
                     self.stop()
@@ -277,11 +339,23 @@ class JMeterRunner:
                 time.sleep(0.5)
 
             exit_code = self._process.returncode
+
+            # 等待文件系统刷新，确保 XML 写入完成
+            time.sleep(1)
+
+            # 确保 XML 文件完整（JMeter 被终止时可能缺少闭合标签）
+            self._ensure_xml_complete(jtl_path)
+
             summary = self._parse_final_result(jtl_path)
 
             if exit_code != 0:
-                stderr = self._process.stderr.read().decode()
-                return {"status": "failed", "error": stderr, "summary": summary}
+                # JMeter 有时在测试成功时也返回非零 exit code（macOS 常见）
+                # 如果 JTL 有有效数据，视为成功
+                if summary.get("total_samples", 0) > 0:
+                    self.logger.warning(f"JMeter exit code {exit_code} but {summary['total_samples']} samples found, treating as success")
+                else:
+                    stderr = self._process.stderr.read().decode()
+                    return {"status": "failed", "error": stderr, "summary": summary}
 
             # 生成 HTML 报告
             self._generate_report(jtl_path, report_path)
@@ -295,6 +369,22 @@ class JMeterRunner:
         except Exception as e:
             self.stop()
             return {"status": "failed", "error": str(e)}
+
+    def _ensure_xml_complete(self, jtl_path: str):
+        """确保 XML 结果文件有正确的闭合标签。"""
+        if not os.path.exists(jtl_path):
+            return
+        try:
+            with open(jtl_path, "r", encoding="utf-8", errors="replace") as f:
+                content = f.read()
+            if content.strip().endswith("</testResults>"):
+                return
+            if not content.strip():
+                return
+            with open(jtl_path, "a", encoding="utf-8") as f:
+                f.write("\n</testResults>\n")
+        except Exception:
+            pass
 
     def stop(self):
         """停止 JMeter 进程(包括子进程)"""
@@ -470,31 +560,27 @@ class JMeterRunner:
                 if first_line.startswith("<?xml") or first_line.startswith("<testResults"):
                     summary = self._parse_xml_final(f, summary)
                 else:
-                    summary = self._parse_csv_final(f, summary)
+                    summary = self._parse_csv_final(f, summary, first_line)
 
-        except Exception:
-            pass
+        except Exception as e:
+            self.logger.warning(f"解析 JTL 结果失败: {e}")
 
         return summary
 
     def _parse_xml_final(self, f, summary):
-        """解析 XML 格式的最终结果"""
+        """解析 XML 格式的最终结果（流式，支持大文件）"""
         import xml.etree.ElementTree as ET
 
         elapsed_times = []
         latency_times = []
         connect_times = []
         bytes_received = 0
-        bytes_sent = 0
         error_count = 0
         response_codes = {}
         timestamps = []
 
         try:
-            content = f.read()
-            root = ET.fromstring(content)
-
-            for elem in root:
+            for event, elem in ET.iterparse(f, events=("end",)):
                 if elem.tag in ("httpSample", "sample"):
                     attrs = elem.attrib
                     elapsed = int(attrs.get("t", 0))
@@ -516,6 +602,7 @@ class JMeterRunner:
 
                     response_codes[rc] = response_codes.get(rc, 0) + 1
 
+                elem.clear()
         except Exception:
             pass
 
@@ -545,7 +632,7 @@ class JMeterRunner:
 
         return summary
 
-    def _parse_csv_final(self, f, summary):
+    def _parse_csv_final(self, f, summary, header_line=None):
         """解析 CSV 格式的最终结果"""
         elapsed_times = []
         latency_times = []
@@ -556,32 +643,39 @@ class JMeterRunner:
         response_codes = {}
         timestamps = []
 
+        # 解析 header 以动态确定列索引
+        if header_line is None:
+            header_line = f.readline().strip()
+        header = header_line.split(",")
+        col = {h.strip().lower(): i for i, h in enumerate(header)}
+
         for line in f:
             parts = line.strip().split(",")
-            if len(parts) >= 4:
-                try:
-                    elapsed = int(parts[1])
-                    success = parts[3].strip() == "true"
-                    ts = int(parts[0]) if parts[0].isdigit() else 0
-                    elapsed_times.append(elapsed)
-                    timestamps.append(ts)
+            if len(parts) < 4:
+                continue
+            try:
+                elapsed = int(parts[col.get("elapsed", 1)])
+                success = parts[col.get("success", 7)].strip() == "true" if col.get("success") is not None else True
+                ts = int(parts[col.get("timestamp", 0)]) if parts[col.get("timestamp", 0)].isdigit() else 0
+                elapsed_times.append(elapsed)
+                timestamps.append(ts)
 
-                    if not success:
-                        error_count += 1
+                if not success:
+                    error_count += 1
 
-                    rc = parts[2] if len(parts) > 2 else ""
-                    response_codes[rc] = response_codes.get(rc, 0) + 1
+                rc = parts[col.get("responsecode", 3)] if col.get("responsecode") is not None and len(parts) > col["responsecode"] else ""
+                response_codes[rc] = response_codes.get(rc, 0) + 1
 
-                    if len(parts) > 8 and parts[8].isdigit():
-                        bytes_received += int(parts[8])
-                    if len(parts) > 9 and parts[9].isdigit():
-                        bytes_sent += int(parts[9])
-                    if len(parts) > 13 and parts[13].isdigit():
-                        latency_times.append(int(parts[13]))
-                    if len(parts) > 15 and parts[15].isdigit():
-                        connect_times.append(int(parts[15]))
-                except:
-                    pass
+                if col.get("bytes") is not None and len(parts) > col["bytes"] and parts[col["bytes"]].isdigit():
+                    bytes_received += int(parts[col["bytes"]])
+                if col.get("sentbytes") is not None and len(parts) > col["sentbytes"] and parts[col["sentbytes"]].isdigit():
+                    bytes_sent += int(parts[col["sentbytes"]])
+                if col.get("latency") is not None and len(parts) > col["latency"] and parts[col["latency"]].isdigit():
+                    latency_times.append(int(parts[col["latency"]]))
+                if col.get("connect_time") is not None and len(parts) > col["connect_time"] and parts[col["connect_time"]].isdigit():
+                    connect_times.append(int(parts[col["connect_time"]]))
+            except:
+                pass
 
         if elapsed_times:
             elapsed_times.sort()

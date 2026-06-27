@@ -73,6 +73,7 @@ class JMeterAgent:
         )
 
         self._running = True
+        self._stopping_task_id = None
         signal.signal(signal.SIGINT, self._shutdown)
         signal.signal(signal.SIGTERM, self._shutdown)
 
@@ -194,10 +195,16 @@ class JMeterAgent:
             csv_stop_on_eof=command.csv_stop_on_eof,
         )
 
+        if self._stopping_task_id == command.task_id:
+            status = TaskStatus.STOPPED
+            self._stopping_task_id = None
+        else:
+            status = TaskStatus.COMPLETED if result["status"] == "completed" else TaskStatus.FAILED
+
         task_result = TaskResult(
             task_id=command.task_id,
             agent_id=self.agent_id,
-            status=TaskStatus.COMPLETED if result["status"] == "completed" else TaskStatus.FAILED,
+            status=status,
             start_time=start_time,
             end_time=time.time(),
             report_path=result.get("report_path"),
@@ -220,12 +227,8 @@ class JMeterAgent:
         """处理任务停止指令。终止正在执行的 JMeter 进程。"""
         if self.current_task and self.current_task.task_id == command.task_id:
             log_task_event(self.task_logger, command.task_id, "收到停止指令")
+            self._stopping_task_id = command.task_id
             self.runner.stop()
-            self._send_result(TaskResult(
-                task_id=command.task_id,
-                agent_id=self.agent_id,
-                status=TaskStatus.STOPPED,
-            ))
 
     def _prepare_script(self, command: TaskCommand) -> str:
         """准备 JMX 脚本文件。根据指令写入脚本内容或复制外部脚本到执行目录。"""

@@ -44,7 +44,7 @@
         .status-stopped { background: #fef3c7; color: #d97706; }
         .clickable { cursor: pointer; color: #2563eb; text-decoration: none; }
         .clickable:hover { text-decoration: underline; }
-        .hidden { display: none; }
+        .hidden { display: none !important; }
         .back-btn { background: none; border: none; color: #2563eb; cursor: pointer; font-size: 13px; margin-bottom: 12px; padding: 0; }
         .back-btn:hover { text-decoration: underline; }
         .btn-primary { background: #2563eb; border: none; color: #fff; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 13px; transition: background 0.2s; }
@@ -95,6 +95,11 @@
         .filter-btn { background: transparent; border: 1px solid #d0d0d0; color: #555; padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; }
         .filter-btn.active { background: #1a1a1a; border-color: #1a1a1a; color: #fff; }
         .progress-text { font-size: 12px; color: #888; }
+        @media (max-width: 900px) {
+            #page-create div[style*="grid-template-columns:1fr 1fr"] { grid-template-columns: 1fr !important; }
+            #page-create { height: auto !important; }
+            #page-create .task-list:last-child { flex: none !important; height: 300px; }
+        }
     </style>
 </head>
 <body>
@@ -387,11 +392,14 @@
         </div>
 
         <!-- 创建任务 -->
-        <div id="page-create" class="hidden">
-            <div class="task-list" style="margin-bottom:16px;">
+        <div id="page-create" class="hidden" style="display:flex;flex-direction:column;height:calc(100vh - 96px);gap:12px;">
+            <div class="task-list" style="margin-bottom:0;overflow-y:auto;flex-shrink:0;">
                 <h3>创建测试任务</h3>
-                <div style="max-width:680px;">
-                    <div class="form-group">
+                <div id="csv-hints" style="display:none;border:1px solid #e0e0e0;border-radius:6px;padding:10px;margin-bottom:12px;background:#f8fafc;">
+                    <div id="csv-hints-content"></div>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;">
+                    <div class="form-group" style="margin-bottom:0;">
                         <label>选择脚本</label>
                         <div style="display:flex;gap:8px;align-items:center;">
                             <select id="create-script" onchange="onScriptSelectChange()" style="flex:1;"></select>
@@ -399,21 +407,7 @@
                             <button class="btn-primary" type="button" onclick="document.getElementById('create-script-upload').click()" style="white-space:nowrap;">上传脚本</button>
                         </div>
                     </div>
-                    <div id="csv-hints" style="display:none;border:1px solid #e0e0e0;border-radius:6px;padding:10px;margin:-8px 0 12px;background:#f8fafc;">
-                        <div id="csv-hints-content"></div>
-                    </div>
-                    <div class="form-group">
-                        <label>施压节点</label>
-                        <div style="border:1px solid #d0d0d0;border-radius:6px;background:#fff;overflow:hidden;">
-                            <div id="create-nodes-checkboxes" style="max-height:160px;overflow-y:auto;padding:4px 0;"></div>
-                            <div style="border-top:1px solid #f0f0f0;padding:6px 10px;display:flex;gap:6px;align-items:center;background:#fafafa;">
-                                <input type="text" id="quick-slave-ip" placeholder="添加 Slave 节点: 输入 IP" style="flex:1;padding:5px 8px;border:1px solid #d0d0d0;border-radius:4px;font-size:12px;">
-                                <button class="btn-success btn-sm" onclick="quickAddSlave()" type="button" style="padding:5px 10px;">添加</button>
-                            </div>
-                        </div>
-                        <div id="node-selection-info" style="font-size:11px;color:#888;margin-top:4px;min-height:16px;"></div>
-                    </div>
-                    <div class="form-group">
+                    <div class="form-group" style="margin-bottom:0;">
                         <label>压测场景</label>
                         <select id="create-scenario" onchange="onScenarioChange()">
                             <option value="custom">自定义配置</option>
@@ -429,78 +423,95 @@
                             <option value="double-peak">双峰测试 - 300并发/10分钟</option>
                         </select>
                     </div>
-                    <div style="border:1px solid #e0e0e0;border-radius:6px;padding:12px;background:#fafafa;">
-                        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;">
-                            <div style="text-align:center;">
-                                <div style="font-size:11px;color:#888;margin-bottom:4px;">并发数</div>
-                                <input type="number" id="create-threads" value="10" min="1" max="10000" oninput="updateScenarioPreview()" style="width:100%;padding:8px;border:1px solid #d0d0d0;border-radius:4px;font-size:16px;font-weight:bold;text-align:center;">
-                            </div>
-                            <div style="text-align:center;">
-                                <div style="font-size:11px;color:#888;margin-bottom:4px;">预热(s)</div>
-                                <input type="number" id="create-ramp" value="10" min="0" oninput="updateScenarioPreview()" style="width:100%;padding:8px;border:1px solid #d0d0d0;border-radius:4px;font-size:16px;font-weight:bold;text-align:center;">
-                            </div>
-                            <div style="text-align:center;">
-                                <div style="font-size:11px;color:#888;margin-bottom:4px;">持续(s)</div>
-                                <input type="number" id="create-duration" value="60" min="1" oninput="updateScenarioPreview()" style="width:100%;padding:8px;border:1px solid #d0d0d0;border-radius:4px;font-size:16px;font-weight:bold;text-align:center;">
-                            </div>
-                            <div style="text-align:center;">
-                                <div style="font-size:11px;color:#888;margin-bottom:4px;">超时(s)</div>
-                                <input type="number" id="create-timeout" value="300" min="10" style="width:100%;padding:8px;border:1px solid #d0d0d0;border-radius:4px;font-size:16px;font-weight:bold;text-align:center;">
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label>施压节点</label>
+                        <div style="border:1px solid #d0d0d0;border-radius:6px;background:#fff;overflow:hidden;">
+                            <div id="create-nodes-checkboxes" style="max-height:72px;overflow-y:auto;padding:2px 0;"></div>
+                            <div style="border-top:1px solid #f0f0f0;padding:4px 8px;display:flex;gap:6px;align-items:center;background:#fafafa;">
+                                <input type="text" id="quick-slave-ip" placeholder="添加 Slave 节点: 输入 IP" style="flex:1;padding:4px 8px;border:1px solid #d0d0d0;border-radius:4px;font-size:12px;">
+                                <button class="btn-success btn-sm" onclick="quickAddSlave()" type="button" style="padding:4px 10px;">添加</button>
                             </div>
                         </div>
-                        <div id="scenario-desc" style="font-size:12px;color:#666;margin-top:10px;padding-top:10px;border-top:1px solid #e0e0e0;">选择场景后显示说明</div>
+                        <div id="node-selection-info" style="font-size:11px;color:#888;margin-top:4px;min-height:16px;"></div>
                     </div>
-                    <div id="scenario-advanced" style="display:none;border:1px solid #e0e0e0;border-radius:6px;padding:10px;margin-top:10px;">
-                        <div style="font-size:12px;color:#888;margin-bottom:4px;">高级参数</div>
-                        <div style="display:flex;gap:8px;">
-                            <div class="form-group" style="flex:1;"><label>阶梯数</label><input type="number" id="create-steps" value="5" min="2" oninput="updateScenarioPreview()"></div>
-                            <div class="form-group" style="flex:1;"><label>每阶梯(s)</label><input type="number" id="create-step-duration" value="30" min="5" oninput="updateScenarioPreview()"></div>
-                        </div>
-                    </div>
-                    <div id="custom-scenario-builder" style="display:none;border:1px solid #e0e0e0;border-radius:6px;padding:10px;margin-top:10px;">
-                        <div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span style="font-size:12px;color:#888;">自定义阶段</span><button class="btn-success btn-sm" onclick="addCustomStep()">+ 添加</button></div>
-                        <div id="custom-steps-list"></div>
-                    </div>
-                    <div style="margin-top:12px;padding:12px;border:1px solid #e0e0e0;border-radius:6px;background:#fafafa;">
-                        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-                            <label style="margin:0;font-weight:500;font-size:13px;">CSV 参数化</label>
-                            <select id="create-csv-file" onchange="onCsvSelectChange()" style="flex:1;padding:6px 10px;border:1px solid #d0d0d0;border-radius:4px;font-size:13px;">
-                                <option value="">不使用 CSV</option>
-                            </select>
-                            <input type="file" id="create-csv-upload" accept=".csv" style="display:none" onchange="quickUploadCsv()">
-                            <button class="btn-success btn-sm" onclick="document.getElementById('create-csv-upload').click()" type="button">上传</button>
-                        </div>
-                        <div id="csv-extra-options" style="display:none;">
-                            <div style="display:flex;gap:8px;margin-bottom:8px;">
-                                <div class="form-group" style="flex:1;margin:0;"><label style="font-size:12px;">变量名（可选）</label><input type="text" id="create-csv-vars" placeholder="username,password" style="font-size:12px;padding:5px 8px;"></div>
+                    <div style="margin-bottom:0;">
+                        <div class="form-group" style="margin-bottom:0;">
+                            <label>CSV 参数化</label>
+                            <div style="display:flex;gap:8px;align-items:center;">
+                                <select id="create-csv-file" onchange="onCsvSelectChange()" style="flex:1;">
+                                    <option value="">不使用 CSV</option>
+                                </select>
+                                <input type="file" id="create-csv-upload" accept=".csv" style="display:none" onchange="quickUploadCsv()">
+                                <button class="btn-success btn-sm" onclick="document.getElementById('create-csv-upload').click()" type="button">上传</button>
                             </div>
-                            <div id="csv-preview-section" style="display:none;">
-                                <div style="font-size:11px;font-weight:500;margin-bottom:4px;color:#666;">数据预览</div>
-                                <div id="csv-preview-content" style="border:1px solid #d0d0d0;border-radius:4px;overflow:auto;height:160px;background:#fff;font-size:11px;"></div>
-                                <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;">
-                                    <div id="csv-preview-info" style="font-size:10px;color:#888;"></div>
-                                    <div style="display:flex;gap:4px;align-items:center;">
-                                        <button class="filter-btn btn-sm" id="csv-preview-prev" onclick="csvPreviewPrev()" disabled style="font-size:10px;padding:2px 6px;">上一页</button>
-                                        <span id="csv-preview-page" style="font-size:10px;color:#888;"></span>
-                                        <button class="filter-btn btn-sm" id="csv-preview-next" onclick="csvPreviewNext()" disabled style="font-size:10px;padding:2px 6px;">下一页</button>
-                                    </div>
+                        </div>
+                        <div id="scenario-advanced" style="display:none;border:1px solid #e0e0e0;border-radius:6px;padding:6px;margin-top:6px;background:#fafafa;">
+                            <div style="font-size:11px;color:#888;margin-bottom:4px;">高级参数</div>
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+                                <div class="form-group" style="margin-bottom:0;"><label style="font-size:12px;">阶梯数</label><input type="number" id="create-steps" value="5" min="2" oninput="updateScenarioPreview()"></div>
+                                <div class="form-group" style="margin-bottom:0;"><label style="font-size:12px;">每阶梯(s)</label><input type="number" id="create-step-duration" value="30" min="5" oninput="updateScenarioPreview()"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div style="border:1px solid #e0e0e0;border-radius:6px;padding:8px;background:#fafafa;margin-top:8px;">
+                    <div style="font-size:11px;color:#888;margin-bottom:4px;font-weight:500;">场景参数</div>
+                    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;">
+                        <div style="text-align:center;">
+                            <div style="font-size:11px;color:#888;margin-bottom:2px;">并发数</div>
+                            <input type="number" id="create-threads" value="10" min="1" max="10000" oninput="updateScenarioPreview()" style="width:100%;padding:4px;border:1px solid #d0d0d0;border-radius:4px;font-size:13px;font-weight:bold;text-align:center;">
+                        </div>
+                        <div style="text-align:center;">
+                            <div style="font-size:11px;color:#888;margin-bottom:2px;">预热(s)</div>
+                            <input type="number" id="create-ramp" value="10" min="0" oninput="updateScenarioPreview()" style="width:100%;padding:4px;border:1px solid #d0d0d0;border-radius:4px;font-size:13px;font-weight:bold;text-align:center;">
+                        </div>
+                        <div style="text-align:center;">
+                            <div style="font-size:11px;color:#888;margin-bottom:2px;">持续(s)</div>
+                            <input type="number" id="create-duration" value="60" min="1" oninput="updateScenarioPreview()" style="width:100%;padding:4px;border:1px solid #d0d0d0;border-radius:4px;font-size:13px;font-weight:bold;text-align:center;">
+                        </div>
+                        <div style="text-align:center;">
+                            <div style="font-size:11px;color:#888;margin-bottom:2px;">超时(s)</div>
+                            <input type="number" id="create-timeout" value="300" min="10" style="width:100%;padding:4px;border:1px solid #d0d0d0;border-radius:4px;font-size:13px;font-weight:bold;text-align:center;">
+                        </div>
+                    </div>
+                    <div id="scenario-desc" style="font-size:11px;color:#666;margin-top:6px;padding-top:6px;border-top:1px solid #e0e0e0;">选择场景后显示说明</div>
+                </div>
+                <div id="csv-extra-options-create" style="display:none;border:1px solid #e0e0e0;border-radius:6px;padding:8px;margin-top:8px;background:#f8fafc;">
+                    <div style="display:flex;gap:12px;align-items:start;">
+                        <div class="form-group" style="margin-bottom:0;flex-shrink:0;">
+                            <label style="font-size:12px;">变量名（可选）</label>
+                            <input type="text" id="create-csv-vars" placeholder="username,password" style="font-size:12px;padding:5px 8px;">
+                        </div>
+                        <div id="csv-preview-section" style="display:none;flex:1;min-width:0;">
+                            <div style="font-size:11px;font-weight:500;margin-bottom:4px;color:#666;">数据预览</div>
+                            <div id="csv-preview-content" style="border:1px solid #d0d0d0;border-radius:4px;overflow:auto;height:80px;background:#fff;font-size:11px;"></div>
+                            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;">
+                                <div id="csv-preview-info" style="font-size:10px;color:#888;"></div>
+                                <div style="display:flex;gap:4px;align-items:center;">
+                                    <button class="filter-btn btn-sm" id="csv-preview-prev" onclick="csvPreviewPrev()" disabled style="font-size:10px;padding:2px 6px;">上一页</button>
+                                    <span id="csv-preview-page" style="font-size:10px;color:#888;"></span>
+                                    <button class="filter-btn btn-sm" id="csv-preview-next" onclick="csvPreviewNext()" disabled style="font-size:10px;padding:2px 6px;">下一页</button>
                                 </div>
                             </div>
                         </div>
                     </div>
-                    <div id="script-history" style="display:none;border:1px solid #e8f0fe;border-radius:6px;padding:10px;margin-top:10px;background:#f8fbff;">
-                        <div style="font-size:12px;font-weight:500;color:#2563eb;margin-bottom:4px;">历史压测记录</div>
-                        <div id="script-history-content" style="font-size:12px;color:#666;"></div>
-                    </div>
                 </div>
-                <div style="display:flex;gap:8px;margin-top:16px;padding-top:16px;border-top:1px solid #e0e0e0;">
-                    <button class="btn-primary" onclick="submitTask()" style="padding:10px 24px;">启动压测</button>
+                <div id="custom-scenario-builder" style="display:none;border:1px solid #e0e0e0;border-radius:6px;padding:8px;margin-top:8px;">
+                    <div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span style="font-size:12px;color:#888;">自定义阶段</span><button class="btn-success btn-sm" onclick="addCustomStep()">+ 添加</button></div>
+                    <div id="custom-steps-list"></div>
+                </div>
+                <div id="script-history" style="display:none;border:1px solid #e8f0fe;border-radius:6px;padding:8px;margin-top:8px;background:#f8fbff;">
+                    <div style="font-size:12px;font-weight:500;color:#2563eb;margin-bottom:4px;">历史压测记录</div>
+                    <div id="script-history-content" style="font-size:12px;color:#666;"></div>
+                </div>
+                <div style="display:flex;gap:8px;padding-top:8px;margin-top:8px;border-top:1px solid #e0e0e0;">
+                    <button class="btn-primary" onclick="submitTask()" style="padding:8px 20px;">启动压测</button>
                     <button class="filter-btn" onclick="showPage('tasks')">取消</button>
                 </div>
             </div>
-            <div class="task-list">
-                <h3>并发用户曲线预览</h3>
-                <div id="scenario-preview-chart" style="height:350px;"></div>
+            <div class="task-list" style="margin-bottom:0;flex:1;min-height:0;display:flex;flex-direction:column;">
+                <h3 style="flex-shrink:0;">并发用户曲线预览</h3>
+                <div id="scenario-preview-chart" style="flex:1;min-height:0;"></div>
             </div>
         </div>
 
@@ -1223,8 +1234,8 @@
 
                         const created = t.created_at ? new Date(t.created_at * 1000).toLocaleString() : '-';
                         return `<tr style="cursor:pointer" onclick="viewTask('${t.task_id}')">
-                            <td style="font-family:monospace;font-size:12px">${t.task_id}</td>
-                            <td>${t.script_id || '-'}</td>
+                            <td style="font-family:monospace;font-size:12px">${t.task_id.substring(0, 8)}</td>
+                            <td>${scriptMap[t.script_id] || t.script_id || '-'}</td>
                             <td><span class="status-badge ${cls}">${label}</span></td>
                             <td>${samples}</td>
                             <td>${avgRt}</td>
@@ -1277,8 +1288,22 @@
         }
 
         // ===== 任务列表 =====
+        let scriptMap = {};
+
         async function loadTasks() {
             try {
+                // 加载脚本映射
+                try {
+                    const scriptsRes = await fetch(`${API}/api/scripts/`);
+                    if (scriptsRes.ok) {
+                        const scripts = await scriptsRes.json();
+                        scriptMap = {};
+                        (scripts.scripts || []).forEach(s => {
+                            scriptMap[s.script_id] = s.original_name || s.filename || s.script_id;
+                        });
+                    }
+                } catch (e) {}
+
                 const [tasksRes, resultsRes] = await Promise.allSettled([
                     fetch(`${API}/api/tasks/`),
                     fetch(`${API}/api/results/tasks`, { signal: AbortSignal.timeout(5000) }),
@@ -1355,8 +1380,8 @@
                 const arrowCls = isOpen ? 'arrow open' : 'arrow';
 
                 html += `<tr>
-                    <td><span class="${arrowCls}">&▶</span><span class="task-id-link" onclick="toggleExpand('${t.task_id}')">${t.task_id}</span></td>
-                    <td>${t.script_id || '-'}</td>
+                    <td><span class="${arrowCls}">&▶</span><span class="task-id-link" onclick="toggleExpand('${t.task_id}')">${t.task_id.substring(0, 8)}</span></td>
+                    <td>${scriptMap[t.script_id] || t.script_id || '-'}</td>
                     <td><span class="status-badge ${cls}">${label}</span></td>
                     <td style="font-size:12px">${agents}</td>
                     <td>${created}</td>
@@ -1399,7 +1424,8 @@
                 </div>` : '';
 
             return `<div class="detail-grid">
-                <div class="detail-item"><div class="dl">脚本</div><div class="dv">${t.script_id || '-'}</div></div>
+                <div class="detail-item"><div class="dl">任务 ID</div><div class="dv" style="font-family:monospace">${t.task_id.substring(0, 8)}</div></div>
+                <div class="detail-item"><div class="dl">脚本</div><div class="dv">${scriptMap[t.script_id] || t.script_id || '-'}</div></div>
                 <div class="detail-item"><div class="dl">状态</div><div class="dv">${t.status}</div></div>
                 <div class="detail-item"><div class="dl">并发线程数</div><div class="dv">${args.threads || '-'}</div></div>
                 <div class="detail-item"><div class="dl">预热时间</div><div class="dv">${args.ramp_time ? args.ramp_time + 's' : '-'}</div></div>
@@ -1561,7 +1587,7 @@
             } catch (e) { alert('删除失败'); }
         }
 
-        function viewTask(taskId) {
+        async function viewTask(taskId) {
             document.getElementById('tasks-list-view').classList.add('hidden');
             document.getElementById('task-detail-view').classList.remove('hidden');
             document.getElementById('detail-task-id').textContent = taskId;
@@ -1569,6 +1595,20 @@
             document.getElementById('export-report-btn').style.display = 'inline-block';
             document.getElementById('export-pdf-btn').href = `${API}/api/results/tasks/${taskId}/export-pdf`;
             document.getElementById('export-pdf-btn').style.display = 'inline-block';
+            // 获取脚本名称
+            try {
+                const taskRes = await fetch(`${API}/api/tasks/${taskId}`);
+                if (taskRes.ok) {
+                    const task = await taskRes.json();
+                    const scriptsRes = await fetch(`${API}/api/scripts/`);
+                    if (scriptsRes.ok) {
+                        const scripts = await scriptsRes.json();
+                        const script = (scripts.scripts || []).find(s => s.script_id === task.script_id);
+                        const name = script ? (script.original_name || script.filename) : task.script_id;
+                        document.getElementById('detail-task-id').textContent = `${taskId.substring(0, 8)} — ${name}`;
+                    }
+                }
+            } catch (e) {}
             loadTaskDetail(taskId);
         }
 
@@ -1634,7 +1674,7 @@
                     }
                     document.getElementById('summary-cards').innerHTML =
                         `<div class="card"><div class="label">状态</div><div class="value ${statusColor}">${statusText}</div></div>
-                         <div class="card"><div class="label">脚本</div><div class="value" style="font-size:16px">${task?.script_id || '-'}</div></div>
+                         <div class="card"><div class="label">脚本</div><div class="value" style="font-size:16px">${scriptMap[task?.script_id] || task?.script_id || '-'}</div></div>
                          <div class="card"><div class="label">节点</div><div class="value" style="font-size:14px">${resolveNodesDisplay(task?.target_agents).join(', ')}</div></div>
                          ${extraInfo}`;
                 }
@@ -2367,7 +2407,7 @@
 
         function onCsvSelectChange() {
             const csvId = document.getElementById('create-csv-file').value;
-            const extra = document.getElementById('csv-extra-options');
+            const extra = document.getElementById('csv-extra-options-create');
             const preview = document.getElementById('csv-preview-section');
             if (csvId) {
                 extra.style.display = 'block';
@@ -2567,7 +2607,6 @@
             const s = data.summary;
             const successRate = s.success_rate != null ? s.success_rate : (100 - (s.error_rate || 0));
             const avgLatency = s.avg_latency != null ? s.avg_latency : s.avg_response_time || 0;
-            const avgConnect = s.avg_connect_time != null ? s.avg_connect_time : 0;
             const bytesRecv = s.total_bytes_received || 0;
             const respDist = s.response_code_dist || {};
             document.getElementById('summary-cards').innerHTML = `
@@ -2580,7 +2619,6 @@
                 <div class="card"><div class="label">错误率</div><div class="value ${s.error_rate > 0 ? 'red' : 'green'}">${s.error_rate}%</div></div>
                 <div class="card"><div class="label">网络流量</div><div class="value blue" style="font-size:14px">${formatBytes(bytesRecv)}</div></div>
                 <div class="card"><div class="label">平均延迟</div><div class="value">${avgLatency}ms</div></div>
-                <div class="card"><div class="label">连接时间</div><div class="value">${avgConnect}ms</div></div>
             `;
 
             // 响应码分布

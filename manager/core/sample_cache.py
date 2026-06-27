@@ -71,8 +71,49 @@ def _load_samples(task_id: str) -> list:
                 except Exception:
                     pass
 
+        # 加载错误响应数据并合并到对应的样本中
+        _merge_error_response_data(all_samples, task_path)
+
     all_samples.sort(key=lambda x: x["timestamp"])
     return all_samples
+
+
+def _merge_error_response_data(samples: list, task_path: str):
+    """将 error_responses.jsonl 中的响应体数据合并到对应的样本中。"""
+    import json as json_mod
+
+    # 建立 (timestamp, label) -> sample 的索引
+    sample_index = {}
+    for s in samples:
+        key = (s["timestamp"], s["label"])
+        sample_index[key] = s
+
+    # 遍历各 agent 目录
+    for agent_dir in os.listdir(task_path):
+        agent_path = os.path.join(task_path, agent_dir)
+        if not os.path.isdir(agent_path):
+            continue
+
+        error_file = os.path.join(agent_path, "error_responses.jsonl")
+        if not os.path.exists(error_file):
+            continue
+
+        try:
+            with open(error_file, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        entry = json_mod.loads(line)
+                        key = (entry.get("ts", 0), entry.get("label", ""))
+                        sample = sample_index.get(key)
+                        if sample:
+                            sample["response_data"] = entry.get("responseData", "")
+                    except Exception:
+                        pass
+        except Exception:
+            pass
 
 
 def _parse_xml_result(xml_path: str) -> list:
