@@ -124,10 +124,12 @@ def _build_label_stats(samples: list) -> dict:
     for s in samples:
         label = s["label"]
         if label not in label_data:
-            label_data[label] = {"count": 0, "errors": 0, "elapsed_times": [], "timestamps": []}
+            label_data[label] = {"count": 0, "errors": 0, "elapsed_times": [], "timestamps": [], "url": s.get("url", "")}
         label_data[label]["count"] += 1
         label_data[label]["elapsed_times"].append(s["elapsed"])
         label_data[label]["timestamps"].append(s["timestamp"])
+        if not label_data[label]["url"] and s.get("url"):
+            label_data[label]["url"] = s["url"]
         if not s["success"]:
             label_data[label]["errors"] += 1
 
@@ -139,6 +141,7 @@ def _build_label_stats(samples: list) -> dict:
         tps = round(data["count"] / duration, 2) if duration > 0 else 0
         result.append({
             "label": label,
+            "url": data["url"],
             "count": data["count"],
             "errors": data["errors"],
             "error_rate": round(data["errors"] / data["count"] * 100, 2),

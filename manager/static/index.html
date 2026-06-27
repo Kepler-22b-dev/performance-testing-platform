@@ -823,11 +823,12 @@
 
                 <div class="chart-box" style="margin-bottom:12px">
                     <h3>接口级对比</h3>
-                    <table>
-                        <thead><tr><th>接口</th></tr><thead>
-                        <tbody id="jtl-compare-label-thead"></tbody>
-                        <tbody id="jtl-compare-label-tbody"></tbody>
-                    </table>
+                    <div style="overflow-x:auto">
+                        <table>
+                            <thead id="jtl-compare-label-thead"></thead>
+                            <tbody id="jtl-compare-label-tbody"></tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
 
@@ -4800,12 +4801,14 @@
                 symbol: 'circle',
                 symbolSize: 4,
             }));
+            const maxTpsLen = Math.max(...jtlFiles.map(f => ((f.time_series || {}).tps || []).length));
+            const jtlTimeLabels = Array.from({length: maxTpsLen}, (_, i) => i + 's');
             charts.jtlTps = echarts.init(document.getElementById('chart-jtl-tps'));
             charts.jtlTps.setOption({
                 backgroundColor: 'transparent',
                 tooltip: { trigger: 'axis' },
                 legend: { data: jtlFiles.map(f => f.filename), top: 0, textStyle: { fontSize: 12 } },
-                xAxis: { type: 'category', data: ((jtlFiles[0] || {}).time_series || {}).timestamps || [], axisLabel: { color: '#666' }, boundaryGap: false },
+                xAxis: { type: 'category', data: jtlTimeLabels, axisLabel: { color: '#666' }, boundaryGap: false },
                 yAxis: { type: 'value', name: 'TPS', axisLabel: { color: '#666' }, splitLine: { lineStyle: { color: '#f0f0f0' } } },
                 series: tpsData,
                 grid: { left: 60, right: 20, top: 40, bottom: 30 },
@@ -4828,7 +4831,7 @@
                 backgroundColor: 'transparent',
                 tooltip: { trigger: 'axis' },
                 legend: { data: jtlFiles.map(f => f.filename), top: 0, textStyle: { fontSize: 12 } },
-                xAxis: { type: 'category', data: ((jtlFiles[0] || {}).time_series || {}).timestamps || [], axisLabel: { color: '#666' }, boundaryGap: false },
+                xAxis: { type: 'category', data: jtlTimeLabels, axisLabel: { color: '#666' }, boundaryGap: false },
                 yAxis: { type: 'value', name: 'ms', axisLabel: { color: '#666' }, splitLine: { lineStyle: { color: '#f0f0f0' } } },
                 series: rtData,
                 grid: { left: 60, right: 20, top: 40, bottom: 30 },
@@ -4838,25 +4841,30 @@
             const allLabelsMap = {};
             jtlFiles.forEach((f, i) => {
                 (f.labels || []).forEach(l => {
-                    if (!allLabelsMap[l.label]) allLabelsMap[l.label] = {};
+                    if (!allLabelsMap[l.label]) allLabelsMap[l.label] = { url: l.url || '' };
                     allLabelsMap[l.label][i] = l;
                 });
             });
 
-            const theadHtml = '<tr><th>接口</th>' +
-                jtlFiles.map((f, i) => `<th colspan="3" style="text-align:center;color:${colors[i % colors.length]}">${f.filename}</th>`).join('') +
-                '</tr><tr><th></th>' +
-                jtlFiles.map(() => '<th>耗时</th><th>TPS</th><th>错误率</th>').join('') +
+            const theadHtml = '<tr><th style="min-width:160px">接口</th>' +
+                '<th style="font-size:11px;color:#888">URL</th>' +
+                jtlFiles.map((f, i) => `<th colspan="6" style="text-align:center;color:${colors[i % colors.length]};border-left:2px solid #f0f0f0">${f.filename}</th>`).join('') +
+                '</tr><tr><th></th><th></th>' +
+                jtlFiles.map(() => '<th>请求数</th><th>平均RT</th><th>P50</th><th>P90</th><th>P99</th><th style="border-left:2px solid #f0f0f0">TPS</th><th style="border-left:2px solid #f0f0f0">错误率</th>').join('') +
                 '</tr>';
             document.getElementById('jtl-compare-label-thead').innerHTML = theadHtml;
 
+            let chartIdx = 0;
             const tbodyHtml = Object.keys(allLabelsMap).map(label => {
+                const url = allLabelsMap[label].url || '';
+                const shortUrl = url.length > 50 ? url.substring(0, 50) + '...' : url;
                 const cells = jtlFiles.map((f, i) => {
                     const l = allLabelsMap[label][i];
-                    if (!l) return '<td>-</td><td>-</td><td>-</td>';
-                    return `<td>${l.avg}ms</td><td>${l.tps}</td><td style="color:${l.error_rate > 0 ? '#dc2626' : '#16a34a'}">${l.error_rate}%</td>`;
+                    if (!l) return '<td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td>';
+                    const errColor = l.error_rate > 0 ? '#dc2626' : '#16a34a';
+                    return `<td>${l.count}</td><td>${l.avg}ms</td><td>${l.p50}ms</td><td>${l.p90}ms</td><td>${l.p99}ms</td><td style="border-left:2px solid #f0f0f0">${l.tps}</td><td style="border-left:2px solid #f0f0f0;color:${errColor}">${l.error_rate}%</td>`;
                 }).join('');
-                return `<tr><td>${label}</td>${cells}</tr>`;
+                return `<tr><td style="font-weight:500">${label}</td><td style="font-size:11px;color:#888;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${url}">${shortUrl || '-'}</td>${cells}</tr>`;
             }).join('');
             document.getElementById('jtl-compare-label-tbody').innerHTML = tbodyHtml;
 
