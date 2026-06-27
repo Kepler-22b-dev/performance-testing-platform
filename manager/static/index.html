@@ -273,7 +273,7 @@
         </div>
 
         <!-- 任务管理 -->
-        <div id="page-tasks">
+        <div id="page-tasks" class="hidden">
             <div id="tasks-list-view">
                 <div class="task-list">
                     <div class="toolbar">
@@ -390,102 +390,107 @@
         <div id="page-create" class="hidden">
             <div class="task-list" style="margin-bottom:16px;">
                 <h3>创建测试任务</h3>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
-                    <div>
-                        <div class="form-group">
-                            <label>选择脚本</label>
-                            <select id="create-script"></select>
-                        </div>
-                        <div class="form-group">
-                            <label>施压节点（可多选）</label>
-                            <select id="create-nodes" multiple onchange="updateNodeSelection()"></select>
-                            <div id="node-selection-info" style="font-size:11px;color:#888;margin-top:4px;">按住 Ctrl/Command 可多选</div>
-                            <div style="margin-top:6px;display:flex;gap:6px;align-items:center;">
-                                <input type="text" id="quick-slave-ip" placeholder="快速添加 Slave: IP" style="flex:1;padding:4px 8px;border:1px solid #d0d0d0;border-radius:4px;font-size:12px;">
-                                <button class="filter-btn btn-sm" onclick="quickAddSlave()" type="button">添加</button>
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label>压测场景</label>
-                            <select id="create-scenario" onchange="onScenarioChange()">
-                                <option value="custom">自定义配置</option>
-                                <option value="smoke">冒烟测试 - 5并发/1分钟</option>
-                                <option value="load">负载测试 - 100并发/10分钟</option>
-                                <option value="stress">压力测试 - 500并发/15分钟</option>
-                                <option value="spike">尖刺测试 - 1000并发/2分钟</option>
-                                <option value="step">阶梯加压 - 200并发/10分钟</option>
-                                <option value="peak">峰值测试 - 300并发/30分钟</option>
-                                <option value="endurance">稳定性测试 - 80并发/2小时</option>
-                                <option value="spike-recovery">尖刺恢复 - 800并发/5分钟</option>
-                                <option value="ramp-hold-cool">加压-保持-冷却 - 200并发/10分钟</option>
-                                <option value="double-peak">双峰测试 - 300并发/10分钟</option>
-                            </select>
-                        </div>
-                        <div style="border:1px solid #e0e0e0;border-radius:6px;padding:12px;background:#fafafa;">
-                            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;">
-                                <div style="text-align:center;">
-                                    <div style="font-size:11px;color:#888;margin-bottom:4px;">并发数</div>
-                                    <input type="number" id="create-threads" value="10" min="1" max="10000" oninput="updateScenarioPreview()" style="width:100%;padding:8px;border:1px solid #d0d0d0;border-radius:4px;font-size:16px;font-weight:bold;text-align:center;">
-                                </div>
-                                <div style="text-align:center;">
-                                    <div style="font-size:11px;color:#888;margin-bottom:4px;">预热(s)</div>
-                                    <input type="number" id="create-ramp" value="10" min="0" oninput="updateScenarioPreview()" style="width:100%;padding:8px;border:1px solid #d0d0d0;border-radius:4px;font-size:16px;font-weight:bold;text-align:center;">
-                                </div>
-                                <div style="text-align:center;">
-                                    <div style="font-size:11px;color:#888;margin-bottom:4px;">持续(s)</div>
-                                    <input type="number" id="create-duration" value="60" min="1" oninput="updateScenarioPreview()" style="width:100%;padding:8px;border:1px solid #d0d0d0;border-radius:4px;font-size:16px;font-weight:bold;text-align:center;">
-                                </div>
-                                <div style="text-align:center;">
-                                    <div style="font-size:11px;color:#888;margin-bottom:4px;">超时(s)</div>
-                                    <input type="number" id="create-timeout" value="300" min="10" style="width:100%;padding:8px;border:1px solid #d0d0d0;border-radius:4px;font-size:16px;font-weight:bold;text-align:center;">
-                                </div>
-                            </div>
-                            <div id="scenario-desc" style="font-size:12px;color:#666;margin-top:10px;padding-top:10px;border-top:1px solid #e0e0e0;">选择场景后显示说明</div>
+                <div style="max-width:680px;">
+                    <div class="form-group">
+                        <label>选择脚本</label>
+                        <div style="display:flex;gap:8px;align-items:center;">
+                            <select id="create-script" onchange="onScriptSelectChange()" style="flex:1;"></select>
+                            <input type="file" id="create-script-upload" accept=".jmx" style="display:none" onchange="uploadScriptForCreate()">
+                            <button class="btn-primary" type="button" onclick="document.getElementById('create-script-upload').click()" style="white-space:nowrap;">上传脚本</button>
                         </div>
                     </div>
-                    <div>
-                        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
-                            <input type="checkbox" id="create-use-csv" onchange="toggleCsvOptions()">
-                            <label style="margin-bottom:0;font-weight:500;">CSV 参数化</label>
-                        </div>
-                        <div id="csv-options" style="display:none;">
-                            <div class="form-group">
-                                <label>选择 CSV 文件</label>
-                                <div style="display:flex;gap:8px;">
-                                    <select id="create-csv-file" onchange="previewSelectedCsv()" style="flex:1;"><option value="">不使用</option></select>
-                                    <input type="file" id="create-csv-upload" accept=".csv" style="display:none" onchange="quickUploadCsv()">
-                                    <button class="btn-success btn-sm" onclick="document.getElementById('create-csv-upload').click()" type="button">上传</button>
-                                </div>
+                    <div id="csv-hints" style="display:none;border:1px solid #e0e0e0;border-radius:6px;padding:10px;margin:-8px 0 12px;background:#f8fafc;">
+                        <div id="csv-hints-content"></div>
+                    </div>
+                    <div class="form-group">
+                        <label>施压节点</label>
+                        <div style="border:1px solid #d0d0d0;border-radius:6px;background:#fff;overflow:hidden;">
+                            <div id="create-nodes-checkboxes" style="max-height:160px;overflow-y:auto;padding:4px 0;"></div>
+                            <div style="border-top:1px solid #f0f0f0;padding:6px 10px;display:flex;gap:6px;align-items:center;background:#fafafa;">
+                                <input type="text" id="quick-slave-ip" placeholder="添加 Slave 节点: 输入 IP" style="flex:1;padding:5px 8px;border:1px solid #d0d0d0;border-radius:4px;font-size:12px;">
+                                <button class="btn-success btn-sm" onclick="quickAddSlave()" type="button" style="padding:5px 10px;">添加</button>
                             </div>
-                            <div class="form-group"><label>变量名（可选）</label><input type="text" id="create-csv-vars" placeholder="username,password"></div>
-                            <div id="csv-preview-section" style="display:none;margin-top:8px;">
-                                <div style="font-size:12px;font-weight:500;margin-bottom:6px;">数据预览</div>
-                                <div id="csv-preview-content" style="border:1px solid #d0d0d0;border-radius:6px;overflow:auto;height:200px;background:#fff;"></div>
+                        </div>
+                        <div id="node-selection-info" style="font-size:11px;color:#888;margin-top:4px;min-height:16px;"></div>
+                    </div>
+                    <div class="form-group">
+                        <label>压测场景</label>
+                        <select id="create-scenario" onchange="onScenarioChange()">
+                            <option value="custom">自定义配置</option>
+                            <option value="smoke">冒烟测试 - 5并发/1分钟</option>
+                            <option value="load">负载测试 - 100并发/10分钟</option>
+                            <option value="stress">压力测试 - 500并发/15分钟</option>
+                            <option value="spike">尖刺测试 - 1000并发/2分钟</option>
+                            <option value="step">阶梯加压 - 200并发/10分钟</option>
+                            <option value="peak">峰值测试 - 300并发/30分钟</option>
+                            <option value="endurance">稳定性测试 - 80并发/2小时</option>
+                            <option value="spike-recovery">尖刺恢复 - 800并发/5分钟</option>
+                            <option value="ramp-hold-cool">加压-保持-冷却 - 200并发/10分钟</option>
+                            <option value="double-peak">双峰测试 - 300并发/10分钟</option>
+                        </select>
+                    </div>
+                    <div style="border:1px solid #e0e0e0;border-radius:6px;padding:12px;background:#fafafa;">
+                        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;">
+                            <div style="text-align:center;">
+                                <div style="font-size:11px;color:#888;margin-bottom:4px;">并发数</div>
+                                <input type="number" id="create-threads" value="10" min="1" max="10000" oninput="updateScenarioPreview()" style="width:100%;padding:8px;border:1px solid #d0d0d0;border-radius:4px;font-size:16px;font-weight:bold;text-align:center;">
+                            </div>
+                            <div style="text-align:center;">
+                                <div style="font-size:11px;color:#888;margin-bottom:4px;">预热(s)</div>
+                                <input type="number" id="create-ramp" value="10" min="0" oninput="updateScenarioPreview()" style="width:100%;padding:8px;border:1px solid #d0d0d0;border-radius:4px;font-size:16px;font-weight:bold;text-align:center;">
+                            </div>
+                            <div style="text-align:center;">
+                                <div style="font-size:11px;color:#888;margin-bottom:4px;">持续(s)</div>
+                                <input type="number" id="create-duration" value="60" min="1" oninput="updateScenarioPreview()" style="width:100%;padding:8px;border:1px solid #d0d0d0;border-radius:4px;font-size:16px;font-weight:bold;text-align:center;">
+                            </div>
+                            <div style="text-align:center;">
+                                <div style="font-size:11px;color:#888;margin-bottom:4px;">超时(s)</div>
+                                <input type="number" id="create-timeout" value="300" min="10" style="width:100%;padding:8px;border:1px solid #d0d0d0;border-radius:4px;font-size:16px;font-weight:bold;text-align:center;">
+                            </div>
+                        </div>
+                        <div id="scenario-desc" style="font-size:12px;color:#666;margin-top:10px;padding-top:10px;border-top:1px solid #e0e0e0;">选择场景后显示说明</div>
+                    </div>
+                    <div id="scenario-advanced" style="display:none;border:1px solid #e0e0e0;border-radius:6px;padding:10px;margin-top:10px;">
+                        <div style="font-size:12px;color:#888;margin-bottom:4px;">高级参数</div>
+                        <div style="display:flex;gap:8px;">
+                            <div class="form-group" style="flex:1;"><label>阶梯数</label><input type="number" id="create-steps" value="5" min="2" oninput="updateScenarioPreview()"></div>
+                            <div class="form-group" style="flex:1;"><label>每阶梯(s)</label><input type="number" id="create-step-duration" value="30" min="5" oninput="updateScenarioPreview()"></div>
+                        </div>
+                    </div>
+                    <div id="custom-scenario-builder" style="display:none;border:1px solid #e0e0e0;border-radius:6px;padding:10px;margin-top:10px;">
+                        <div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span style="font-size:12px;color:#888;">自定义阶段</span><button class="btn-success btn-sm" onclick="addCustomStep()">+ 添加</button></div>
+                        <div id="custom-steps-list"></div>
+                    </div>
+                    <div style="margin-top:12px;padding:12px;border:1px solid #e0e0e0;border-radius:6px;background:#fafafa;">
+                        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                            <label style="margin:0;font-weight:500;font-size:13px;">CSV 参数化</label>
+                            <select id="create-csv-file" onchange="onCsvSelectChange()" style="flex:1;padding:6px 10px;border:1px solid #d0d0d0;border-radius:4px;font-size:13px;">
+                                <option value="">不使用 CSV</option>
+                            </select>
+                            <input type="file" id="create-csv-upload" accept=".csv" style="display:none" onchange="quickUploadCsv()">
+                            <button class="btn-success btn-sm" onclick="document.getElementById('create-csv-upload').click()" type="button">上传</button>
+                        </div>
+                        <div id="csv-extra-options" style="display:none;">
+                            <div style="display:flex;gap:8px;margin-bottom:8px;">
+                                <div class="form-group" style="flex:1;margin:0;"><label style="font-size:12px;">变量名（可选）</label><input type="text" id="create-csv-vars" placeholder="username,password" style="font-size:12px;padding:5px 8px;"></div>
+                            </div>
+                            <div id="csv-preview-section" style="display:none;">
+                                <div style="font-size:11px;font-weight:500;margin-bottom:4px;color:#666;">数据预览</div>
+                                <div id="csv-preview-content" style="border:1px solid #d0d0d0;border-radius:4px;overflow:auto;height:160px;background:#fff;font-size:11px;"></div>
                                 <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;">
-                                    <div id="csv-preview-info" style="font-size:11px;color:#888;"></div>
-                                    <div style="display:flex;gap:6px;align-items:center;">
-                                        <button class="filter-btn btn-sm" id="csv-preview-prev" onclick="csvPreviewPrev()" disabled>上一页</button>
-                                        <span id="csv-preview-page" style="font-size:11px;color:#888;"></span>
-                                        <button class="filter-btn btn-sm" id="csv-preview-next" onclick="csvPreviewNext()" disabled>下一页</button>
+                                    <div id="csv-preview-info" style="font-size:10px;color:#888;"></div>
+                                    <div style="display:flex;gap:4px;align-items:center;">
+                                        <button class="filter-btn btn-sm" id="csv-preview-prev" onclick="csvPreviewPrev()" disabled style="font-size:10px;padding:2px 6px;">上一页</button>
+                                        <span id="csv-preview-page" style="font-size:10px;color:#888;"></span>
+                                        <button class="filter-btn btn-sm" id="csv-preview-next" onclick="csvPreviewNext()" disabled style="font-size:10px;padding:2px 6px;">下一页</button>
                                     </div>
                                 </div>
                             </div>
                         </div>
-                        <div id="script-history" style="display:none;border:1px solid #e8f0fe;border-radius:6px;padding:10px;margin-top:10px;background:#f8fbff;">
-                            <div style="font-size:12px;font-weight:500;color:#2563eb;margin-bottom:4px;">📋 历史压测记录</div>
-                            <div id="script-history-content" style="font-size:12px;color:#666;"></div>
-                        </div>
-                        <div id="scenario-advanced" style="display:none;border:1px solid #e0e0e0;border-radius:6px;padding:10px;margin-top:10px;">
-                            <div style="font-size:12px;color:#888;margin-bottom:4px;">高级参数</div>
-                            <div style="display:flex;gap:8px;">
-                                <div class="form-group" style="flex:1;"><label>阶梯数</label><input type="number" id="create-steps" value="5" min="2" oninput="updateScenarioPreview()"></div>
-                                <div class="form-group" style="flex:1;"><label>每阶梯(s)</label><input type="number" id="create-step-duration" value="30" min="5" oninput="updateScenarioPreview()"></div>
-                            </div>
-                        </div>
-                        <div id="custom-scenario-builder" style="display:none;border:1px solid #e0e0e0;border-radius:6px;padding:10px;margin-top:10px;">
-                            <div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span style="font-size:12px;color:#888;">自定义阶段</span><button class="btn-success btn-sm" onclick="addCustomStep()">+ 添加</button></div>
-                            <div id="custom-steps-list"></div>
-                        </div>
+                    </div>
+                    <div id="script-history" style="display:none;border:1px solid #e8f0fe;border-radius:6px;padding:10px;margin-top:10px;background:#f8fbff;">
+                        <div style="font-size:12px;font-weight:500;color:#2563eb;margin-bottom:4px;">历史压测记录</div>
+                        <div id="script-history-content" style="font-size:12px;color:#666;"></div>
                     </div>
                 </div>
                 <div style="display:flex;gap:8px;margin-top:16px;padding-top:16px;border-top:1px solid #e0e0e0;">
@@ -1045,6 +1050,33 @@
             </div>
         </div>
 
+        <div id="adjust-modal" class="hidden" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:1000;display:none;justify-content:center;align-items:center;">
+            <div style="background:#fff;border-radius:8px;padding:20px;width:400px;">
+                <h3 style="font-size:16px;margin-bottom:16px">调整压测参数</h3>
+                <p style="font-size:12px;color:#888;margin-bottom:12px">将停止当前任务并以新参数重启</p>
+                <div class="form-group">
+                    <label>并发用户数</label>
+                    <input type="number" id="adj-threads" min="1" value="10">
+                </div>
+                <div class="form-group">
+                    <label>预热时间 (秒)</label>
+                    <input type="number" id="adj-ramp" min="0" value="1">
+                </div>
+                <div class="form-group">
+                    <label>持续时间 (秒)</label>
+                    <input type="number" id="adj-duration" min="1" value="60">
+                </div>
+                <div class="form-group">
+                    <label>超时时间 (秒)</label>
+                    <input type="number" id="adj-timeout" min="1" value="3600">
+                </div>
+                <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">
+                    <button class="filter-btn" onclick="closeAdjustModal()">取消</button>
+                    <button class="btn-primary" onclick="confirmAdjust()">停止并重启</button>
+                </div>
+            </div>
+        </div>
+
         <div id="loading" class="hidden">加载中...</div>
     </div>
 
@@ -1247,27 +1279,26 @@
         // ===== 任务列表 =====
         async function loadTasks() {
             try {
-                // 并行加载内存任务和历史结果任务
-                const [tasksRes, resultsRes] = await Promise.all([
+                const [tasksRes, resultsRes] = await Promise.allSettled([
                     fetch(`${API}/api/tasks/`),
-                    fetch(`${API}/api/results/tasks`),
+                    fetch(`${API}/api/results/tasks`, { signal: AbortSignal.timeout(5000) }),
                 ]);
-                const tasksData = await tasksRes.json();
-                const resultsData = await resultsRes.json();
 
-                // 合并任务列表
-                const memoryTasks = tasksData.tasks || [];
-                const resultTasks = (resultsData.tasks || []).map(t => ({
-                    task_id: t.task_id,
-                    script_id: '-',
-                    status: 'completed',
-                    created_at: t.created_at,
-                    modified_at: t.modified_at,
-                    results: {},
-                    source: 'result',
-                }));
+                const memoryTasks = tasksRes.status === 'fulfilled' ? (await tasksRes.value.json()).tasks || [] : [];
+                let resultTasks = [];
+                if (resultsRes.status === 'fulfilled') {
+                    const resultsData = await resultsRes.value.json();
+                    resultTasks = (resultsData.tasks || []).map(t => ({
+                        task_id: t.task_id,
+                        script_id: '-',
+                        status: 'completed',
+                        created_at: t.created_at,
+                        modified_at: t.modified_at,
+                        results: {},
+                        source: 'result',
+                    }));
+                }
 
-                // 去重合并
                 const taskMap = new Map();
                 memoryTasks.forEach(t => taskMap.set(t.task_id, t));
                 resultTasks.forEach(t => {
@@ -1313,7 +1344,10 @@
                 const agents = resolveNodesDisplay(t.target_agents).join(', ');
                 const created = t.created_at ? new Date(t.created_at * 1000).toLocaleString() : '-';
                 let actions = `<a class="clickable" onclick="viewTask('${t.task_id}')">查看图表</a>`;
-                if (t.status === 'running') actions += ` <button class="btn-danger btn-sm" style="margin-left:8px" onclick="stopTask('${t.task_id}')">停止</button>`;
+                if (t.status === 'running') {
+                    actions += ` <button class="filter-btn btn-sm" style="margin-left:8px;background:#f0f0f0" onclick="showAdjustModal('${t.task_id}')">调整参数</button>`;
+                    actions += ` <button class="btn-danger btn-sm" style="margin-left:8px" onclick="stopTask('${t.task_id}')">停止</button>`;
+                }
                 if (t.status === 'completed' || t.status === 'failed') actions += ` <button class="filter-btn btn-sm" style="margin-left:8px" onclick="rerunTask('${t.task_id}')">重跑</button>`;
                 if (t.status !== 'running') actions += ` <button class="btn-danger btn-sm" style="margin-left:4px" onclick="deleteTask('${t.task_id}')">删除</button>`;
 
@@ -1361,7 +1395,7 @@
                     <div class="log-tabs" id="log-tabs-${t.task_id}">
                         ${(t.target_agents || []).map((a, i) => `<div class="log-tab ${i === 0 ? 'active' : ''}" onclick="loadLog('${t.task_id}', '${a}', this)">${resolveNodeDisplay(a)}</div>`).join('')}
                     </div>
-                    <div class="log-box" id="log-content-${t.task_id}"><span class="log-loading">点击节点标签查看日志</span></div>
+                    <div class="log-box" id="log-content-${t.task_id}"><span class="log-loading">加载中...</span></div>
                 </div>` : '';
 
             return `<div class="detail-grid">
@@ -1411,6 +1445,12 @@
         function toggleExpand(taskId) {
             expandedTask = expandedTask === taskId ? null : taskId;
             renderTaskList();
+            if (expandedTask) {
+                setTimeout(() => {
+                    const firstTab = document.querySelector(`#log-tabs-${taskId} .log-tab`);
+                    if (firstTab) firstTab.click();
+                }, 150);
+            }
         }
 
         function filterTasks(filter, btn) {
@@ -1440,6 +1480,62 @@
                 loadTasks();
             } catch (e) {
                 alert('停止失败');
+            }
+        }
+
+        let _adjustTaskId = null;
+
+        async function showAdjustModal(taskId) {
+            _adjustTaskId = taskId;
+            try {
+                const res = await fetch(`${API}/api/tasks/${taskId}`);
+                const task = await res.json();
+                const args = task.jmeter_args || {};
+                document.getElementById('adj-threads').value = args.threads || 10;
+                document.getElementById('adj-ramp').value = args.ramp_time || 1;
+                document.getElementById('adj-duration').value = args.duration || 60;
+                document.getElementById('adj-timeout').value = task.timeout || 3600;
+                document.getElementById('adjust-modal').style.display = 'flex';
+            } catch (e) {
+                alert('获取任务参数失败');
+            }
+        }
+
+        function closeAdjustModal() {
+            document.getElementById('adjust-modal').style.display = 'none';
+            _adjustTaskId = null;
+        }
+
+        async function confirmAdjust() {
+            if (!_adjustTaskId) return;
+            const threads = parseInt(document.getElementById('adj-threads').value) || 10;
+            const ramp = parseInt(document.getElementById('adj-ramp').value) || 1;
+            const duration = parseInt(document.getElementById('adj-duration').value) || 60;
+            const timeout = parseInt(document.getElementById('adj-timeout').value) || 3600;
+
+            if (!confirm(`将停止当前任务并以新参数重启：\n并发: ${threads} | 预热: ${ramp}s | 持续: ${duration}s`)) return;
+
+            try {
+                const res = await fetch(`${API}/api/tasks/${_adjustTaskId}/stop-and-restart`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        script_id: '1',
+                        target_agents: [],
+                        jmeter_args: { threads: String(threads), ramp_time: String(ramp), duration: String(duration) },
+                        timeout: timeout,
+                    })
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    closeAdjustModal();
+                    alert(`新任务已启动: ${data.task_id}`);
+                    loadTasks();
+                } else {
+                    alert(data.detail || '操作失败');
+                }
+            } catch (e) {
+                alert('操作失败: ' + e.message);
             }
         }
 
@@ -1484,6 +1580,14 @@
 
         async function loadTaskDetail(taskId) {
             document.getElementById('loading').classList.remove('hidden');
+            document.getElementById('summary-cards').innerHTML = '';
+            document.getElementById('label-stats-tbody').innerHTML = '';
+            document.getElementById('request-log-tbody').innerHTML = '';
+            var respSection = document.getElementById('response-code-section');
+            if (respSection) respSection.style.display = 'none';
+            Object.values(charts).forEach(c => { try { c.dispose(); } catch(e){} });
+            charts = {};
+            currentChartData = null;
             try {
                 // 先尝试从内存获取任务信息
                 let task = null;
@@ -1543,38 +1647,301 @@
 
         function startDetailAutoRefresh(taskId) {
             if (detailTimer) clearInterval(detailTimer);
-            detailTimer = setInterval(async () => {
+            window._liveData = { timestamps: [], tps: [], rt: [], errorRate: [], threads: [] };
+            window._liveTaskStartTime = null;
+            window._liveDesignCurve = null;
+            window._liveRefreshInterval = 1000;
+            window._lastRenderTime = 0;
+            ['_liveTpsChart','_liveRtChart','_liveThreadsChart','_liveErrChart'].forEach(k => {
+                if (window[k]) { window[k].dispose(); window[k] = null; }
+            });
+
+            if (window._detailWs) { try { window._detailWs.close(); } catch(e){} }
+
+            var el = document.getElementById('live-monitor');
+            el.innerHTML =
+                '<div class="live-bar" style="flex-wrap:wrap;margin-bottom:12px;align-items:center;">' +
+                '<div class="item"><span class="dot"></span> 实时监控</div>' +
+                '<div class="item">运行: <strong id="live-elapsed">0s</strong></div>' +
+                '<div class="item">TPS: <strong id="live-tps-val">0</strong></div>' +
+                '<div class="item">平均RT: <strong id="live-rt-val">0ms</strong></div>' +
+                '<div class="item">成功率: <strong id="live-sr-val">100%</strong></div>' +
+                '<div class="item">并发: <strong id="live-threads-val">0</strong></div>' +
+                '<div class="item">总样本: <strong id="live-samples-val">0</strong></div>' +
+                '<div class="item">流量: <strong id="live-bytes-val">0B</strong></div>' +
+                '<div style="margin-left:auto;display:flex;align-items:center;gap:4px;">' +
+                '<span style="font-size:11px;color:#888;">刷新:</span>' +
+                '<button class="live-interval-btn" data-ms="1000" onclick="setLiveRefreshInterval(1000)" style="padding:2px 8px;border:1px solid #d0d0d0;border-radius:3px;font-size:11px;cursor:pointer;background:#1a1a1a;color:#fff;">1s</button>' +
+                '<button class="live-interval-btn" data-ms="5000" onclick="setLiveRefreshInterval(5000)" style="padding:2px 8px;border:1px solid #d0d0d0;border-radius:3px;font-size:11px;cursor:pointer;background:#fff;color:#555;">5s</button>' +
+                '<button class="live-interval-btn" data-ms="10000" onclick="setLiveRefreshInterval(10000)" style="padding:2px 8px;border:1px solid #d0d0d0;border-radius:3px;font-size:11px;cursor:pointer;background:#fff;color:#555;">10s</button>' +
+                '<button class="live-interval-btn" data-ms="30000" onclick="setLiveRefreshInterval(30000)" style="padding:2px 8px;border:1px solid #d0d0d0;border-radius:3px;font-size:11px;cursor:pointer;background:#fff;color:#555;">30s</button>' +
+                '</div></div>' +
+                '<div class="live-chart-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">' +
+                '<div style="background:#fff;border:1px solid #e0e0e0;border-radius:6px;padding:12px;">' +
+                '<div style="font-size:12px;font-weight:500;color:#666;margin-bottom:8px;">TPS 趋势</div>' +
+                '<div id="live-chart-tps" style="height:180px;"></div></div>' +
+                '<div style="background:#fff;border:1px solid #e0e0e0;border-radius:6px;padding:12px;">' +
+                '<div style="font-size:12px;font-weight:500;color:#666;margin-bottom:8px;">响应时间趋势</div>' +
+                '<div id="live-chart-rt" style="height:180px;"></div></div>' +
+                '<div style="background:#fff;border:1px solid #e0e0e0;border-radius:6px;padding:12px;">' +
+                '<div style="font-size:12px;font-weight:500;color:#666;margin-bottom:8px;">并发用户数</div>' +
+                '<div id="live-chart-threads" style="height:180px;"></div></div>' +
+                '<div style="background:#fff;border:1px solid #e0e0e0;border-radius:6px;padding:12px;">' +
+                '<div style="font-size:12px;font-weight:500;color:#666;margin-bottom:8px;">错误率趋势</div>' +
+                '<div id="live-chart-error" style="height:180px;"></div></div>' +
+                '</div>';
+
+            setTimeout(function() {
+                initLiveCharts();
+            }, 100);
+
+            fetch(`${API}/api/tasks/${taskId}`).then(r=>r.json()).then(task => {
+                window._liveTaskStartTime = task.start_time;
+                var args = task.jmeter_args || {};
+                var maxThreads = parseInt(args.threads) || 10;
+                var rampTime = parseInt(args.ramp_time) || 1;
+                var duration = parseInt(args.duration) || 60;
+                window._liveDesignCurve = calcDesignCurve(maxThreads, rampTime, duration);
+            }).catch(()=>{});
+
+            var wsProto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+            var ws = new WebSocket(wsProto + '//' + location.host + '/ws');
+            window._detailWs = ws;
+            ws.onmessage = function(evt) {
                 try {
-                    const taskRes = await fetch(`${API}/api/tasks/${taskId}`);
-                    const task = await taskRes.json();
-                    if (task.status !== 'running') {
-                        clearInterval(detailTimer);
-                        detailTimer = null;
-                        document.getElementById('live-monitor').classList.add('hidden');
-                        loadTaskDetail(taskId);
-                        loadTasks();
-                        return;
+                    var msg = JSON.parse(evt.data);
+                    if (msg.channel && msg.channel.indexOf('progress') >= 0) {
+                        var d = msg.data;
+                        if (d && d.task_id === taskId) throttledRender(d);
                     }
-                    const pRes = await fetch(`${API}/api/tasks/${taskId}/progress`);
-                    const pData = await pRes.json();
-                    if (pData.data) renderLiveMonitor(pData.data);
-                } catch (e) {}
-            }, 2000);
+                    if (msg.channel && msg.channel.indexOf('result') >= 0) {
+                        var r = msg.data;
+                        if (r && r.task_id === taskId) {
+                            clearInterval(detailTimer); detailTimer = null;
+                            document.getElementById('live-monitor').classList.add('hidden');
+                            if (window._detailWs) { try { window._detailWs.close(); } catch(e){} }
+                            loadTaskDetail(taskId);
+                            loadTasks();
+                        }
+                    }
+                } catch(e) {}
+            };
+            ws.onclose = function() {
+                detailTimer = setInterval(async () => {
+                    try {
+                        const taskRes = await fetch(`${API}/api/tasks/${taskId}`);
+                        const task = await taskRes.json();
+                        if (task.status !== 'running') {
+                            clearInterval(detailTimer); detailTimer = null;
+                            document.getElementById('live-monitor').classList.add('hidden');
+                            loadTaskDetail(taskId); loadTasks(); return;
+                        }
+                        const pRes = await fetch(`${API}/api/tasks/${taskId}/progress`);
+                        const pData = await pRes.json();
+                        if (pData.data) throttledRender(pData.data);
+                    } catch (e) {}
+                }, 2000);
+            };
+        }
+
+        function initLiveCharts() {
+            if (!window.echarts) return;
+            var tpsEl = document.getElementById('live-chart-tps');
+            var rtEl = document.getElementById('live-chart-rt');
+            var threadsEl = document.getElementById('live-chart-threads');
+            var errEl = document.getElementById('live-chart-error');
+            if (!tpsEl || !rtEl || !threadsEl || !errEl) return;
+
+            window._liveTpsChart = echarts.init(tpsEl);
+            window._liveRtChart = echarts.init(rtEl);
+            window._liveThreadsChart = echarts.init(threadsEl);
+            window._liveErrChart = echarts.init(errEl);
+
+            var baseXAxis = { type: 'category', data: [], axisLabel: { fontSize: 10 }, boundaryGap: false };
+            var baseGrid = { left: 50, right: 16, top: 16, bottom: 28 };
+
+            window._liveTpsChart.setOption({
+                tooltip: { trigger: 'axis' }, grid: baseGrid,
+                xAxis: baseXAxis,
+                yAxis: { type: 'value', name: 'TPS', axisLabel: { fontSize: 10 } },
+                series: [{ type: 'line', data: [], smooth: true, symbol: 'none',
+                    lineStyle: { color: '#2563eb', width: 2 },
+                    areaStyle: { color: 'rgba(37,99,235,0.08)' } }]
+            });
+            window._liveRtChart.setOption({
+                tooltip: { trigger: 'axis' }, grid: baseGrid,
+                xAxis: baseXAxis,
+                yAxis: { type: 'value', name: 'ms', axisLabel: { fontSize: 10 } },
+                series: [{ type: 'line', data: [], smooth: true, symbol: 'none',
+                    lineStyle: { color: '#16a34a', width: 2 },
+                    areaStyle: { color: 'rgba(22,163,74,0.08)' } }]
+            });
+            window._liveThreadsChart.setOption({
+                tooltip: { trigger: 'axis' }, grid: baseGrid,
+                xAxis: baseXAxis,
+                yAxis: { type: 'value', name: '线程数', axisLabel: { fontSize: 10 } },
+                series: [{ type: 'line', data: [], smooth: true, symbol: 'none',
+                    lineStyle: { color: '#9333ea', width: 2 },
+                    areaStyle: { color: 'rgba(147,51,234,0.08)' } }]
+            });
+            window._liveErrChart.setOption({
+                tooltip: { trigger: 'axis' }, grid: baseGrid,
+                xAxis: baseXAxis,
+                yAxis: { type: 'value', name: '%', axisLabel: { fontSize: 10 }, max: function(v){ return Math.max(v.max * 1.2, 1); } },
+                series: [{ type: 'line', data: [], smooth: true, symbol: 'none',
+                    lineStyle: { color: '#dc2626', width: 2 },
+                    areaStyle: { color: 'rgba(220,38,38,0.08)' } }]
+            });
+        }
+
+        function throttledRender(p) {
+            var now = Date.now();
+            var interval = window._liveRefreshInterval || 1000;
+            if (now - window._lastRenderTime < interval) return;
+            window._lastRenderTime = now;
+            renderLiveMonitor(p);
+        }
+
+        function setLiveRefreshInterval(ms) {
+            window._liveRefreshInterval = ms;
+            var btns = document.querySelectorAll('.live-interval-btn');
+            btns.forEach(b => b.style.background = b.dataset.ms == ms ? '#1a1a1a' : '#fff');
+            btns.forEach(b => b.style.color = b.dataset.ms == ms ? '#fff' : '#555');
+        }
+
+        function calcDesignCurve(maxThreads, rampTime, duration) {
+            var points = [];
+            for (var t = 0; t <= duration; t++) {
+                var threads;
+                if (t < rampTime) {
+                    threads = Math.round((t / Math.max(rampTime, 1)) * maxThreads);
+                } else {
+                    threads = maxThreads;
+                }
+                points.push({ time: t, threads: threads });
+            }
+            return points;
+        }
+
+        function formatElapsed(seconds) {
+            var m = Math.floor(seconds / 60);
+            var s = seconds % 60;
+            return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
         }
 
         function renderLiveMonitor(p) {
             var el = document.getElementById('live-monitor');
             var successRate = p.success_rate != null ? p.success_rate : (100 - (p.error_rate || 0));
             var bytesRecv = p.bytes_received || 0;
-            el.innerHTML = '<div class="live-bar" style="flex-wrap:wrap;">' +
-                '<div class="item"><span class="dot"></span> 实时监控</div>' +
-                '<div class="item">运行: <strong>' + p.elapsed + 's</strong></div>' +
-                '<div class="item">TPS: <strong>' + p.throughput.toFixed(1) + '</strong></div>' +
-                '<div class="item">平均RT: <strong>' + p.avg_response_time.toFixed(1) + 'ms</strong></div>' +
-                '<div class="item">成功率: <strong style="color:' + (successRate >= 99 ? '#16a34a' : successRate >= 95 ? '#d97706' : '#dc2626') + '">' + successRate.toFixed(1) + '%</strong></div>' +
-                '<div class="item">总样本: <strong>' + p.total_samples + '</strong></div>' +
-                '<div class="item">流量: <strong>' + formatBytes(bytesRecv) + '</strong></div>' +
-                '</div>';
+
+            if (!el.querySelector('.live-chart-grid')) return;
+
+            document.getElementById('live-elapsed').textContent = p.elapsed + 's';
+            document.getElementById('live-tps-val').textContent = (p.throughput || 0).toFixed(1);
+            document.getElementById('live-rt-val').textContent = (p.avg_response_time || 0).toFixed(1) + 'ms';
+            var srEl = document.getElementById('live-sr-val');
+            srEl.textContent = successRate.toFixed(1) + '%';
+            srEl.style.color = successRate >= 99 ? '#16a34a' : successRate >= 95 ? '#d97706' : '#dc2626';
+            document.getElementById('live-threads-val').textContent = p.active_threads || 0;
+            document.getElementById('live-samples-val').textContent = p.total_samples || 0;
+            document.getElementById('live-bytes-val').textContent = formatBytes(bytesRecv);
+
+            if (!window._liveData) window._liveData = { timestamps: [], tps: [], rt: [], errorRate: [], threads: [] };
+            var ld = window._liveData;
+            var elapsed = p.elapsed || 0;
+            ld.timestamps.push(formatElapsed(elapsed));
+            ld.tps.push(p.throughput || 0);
+            ld.rt.push(p.avg_response_time || 0);
+            ld.errorRate.push(p.error_rate || 0);
+            ld.threads.push(p.active_threads || 0);
+            if (ld.timestamps.length > 600) {
+                ld.timestamps.shift(); ld.tps.shift(); ld.rt.shift(); ld.errorRate.shift(); ld.threads.shift();
+            }
+
+            setTimeout(function() { renderLiveCharts(ld, elapsed); }, 50);
+        }
+
+        function renderLiveCharts(ld, currentElapsed) {
+            if (!window.echarts) return;
+
+            var tpsEl = document.getElementById('live-chart-tps');
+            var rtEl = document.getElementById('live-chart-rt');
+            var threadsEl = document.getElementById('live-chart-threads');
+            var errEl = document.getElementById('live-chart-error');
+            if (!tpsEl || !rtEl || !threadsEl || !errEl) return;
+
+            if (!window._liveTpsChart) window._liveTpsChart = echarts.init(tpsEl);
+            if (!window._liveRtChart) window._liveRtChart = echarts.init(rtEl);
+            if (!window._liveThreadsChart) window._liveThreadsChart = echarts.init(threadsEl);
+            if (!window._liveErrChart) window._liveErrChart = echarts.init(errEl);
+
+            var baseXAxis = { type: 'category', data: ld.timestamps, axisLabel: { fontSize: 10 }, boundaryGap: false };
+            var baseGrid = { left: 50, right: 16, top: 16, bottom: 28 };
+            var baseTooltip = { trigger: 'axis' };
+
+            window._liveTpsChart.setOption({
+                tooltip: baseTooltip, grid: baseGrid,
+                xAxis: baseXAxis,
+                yAxis: { type: 'value', name: 'TPS', axisLabel: { fontSize: 10 } },
+                series: [{
+                    type: 'line', data: ld.tps, smooth: true, symbol: 'none',
+                    lineStyle: { color: '#2563eb', width: 2 },
+                    areaStyle: { color: 'rgba(37,99,235,0.08)' }
+                }]
+            });
+
+            window._liveRtChart.setOption({
+                tooltip: baseTooltip, grid: baseGrid,
+                xAxis: baseXAxis,
+                yAxis: { type: 'value', name: 'ms', axisLabel: { fontSize: 10 } },
+                series: [{
+                    type: 'line', data: ld.rt, smooth: true, symbol: 'none',
+                    lineStyle: { color: '#16a34a', width: 2 },
+                    areaStyle: { color: 'rgba(22,163,74,0.08)' }
+                }]
+            });
+
+            var threadsSeries = [{
+                type: 'line', data: ld.threads, smooth: true, symbol: 'none',
+                lineStyle: { color: '#9333ea', width: 2 },
+                areaStyle: { color: 'rgba(147,51,234,0.08)' },
+                name: '实际并发'
+            }];
+
+            var designData = [];
+            if (window._liveDesignCurve) {
+                var designMap = {};
+                window._liveDesignCurve.forEach(function(pt) { designMap[pt.time] = pt.threads; });
+                for (var i = 0; i < ld.timestamps.length; i++) {
+                    var sec = i;
+                    if (designMap[sec] !== undefined) designData.push(designMap[sec]);
+                    else designData.push(null);
+                }
+                threadsSeries.push({
+                    type: 'line', data: designData, smooth: false, symbol: 'none',
+                    lineStyle: { color: '#9333ea', width: 1.5, type: 'dashed' },
+                    name: '设计曲线'
+                });
+            }
+
+            window._liveThreadsChart.setOption({
+                tooltip: baseTooltip, grid: baseGrid,
+                legend: { show: window._liveDesignCurve != null, bottom: 0, textStyle: { fontSize: 10 } },
+                xAxis: baseXAxis,
+                yAxis: { type: 'value', name: '线程数', axisLabel: { fontSize: 10 } },
+                series: threadsSeries
+            });
+
+            window._liveErrChart.setOption({
+                tooltip: baseTooltip, grid: baseGrid,
+                xAxis: baseXAxis,
+                yAxis: { type: 'value', name: '%', axisLabel: { fontSize: 10 }, max: function(v){ return Math.max(v.max * 1.2, 1); } },
+                series: [{
+                    type: 'line', data: ld.errorRate, smooth: true, symbol: 'none',
+                    lineStyle: { color: '#dc2626', width: 2 },
+                    areaStyle: { color: 'rgba(220,38,38,0.08)' }
+                }]
+            });
         }
 
         // ===== 并发场景配置 =====
@@ -1794,23 +2161,33 @@
 
                 const scriptSel = document.getElementById('create-script');
                 scriptSel.innerHTML = scripts.scripts.map(s =>
-                    `<option value="${s.script_id}">${s.filename} (${(s.size/1024).toFixed(1)}KB)</option>`
+                    `<option value="${s.script_id}">${s.original_name || s.filename} (${(s.size/1024).toFixed(1)}KB)</option>`
                 ).join('') || '<option>暂无脚本，请先上传</option>';
 
-                const nodeSel = document.getElementById('create-nodes');
-                let nodeOptions = '';
+                const nodesContainer = document.getElementById('create-nodes-checkboxes');
+                let nodesHtml = '';
                 if (nodes.agents.length > 0) {
-                    nodeOptions += '<optgroup label="Agent 节点">' +
-                        nodes.agents.map(a => `<option value="${a.agent_id}" data-type="agent">${a.host} (${a.agent_id})</option>`).join('') +
-                        '</optgroup>';
+                    nodesHtml += '<div style="font-size:11px;color:#888;font-weight:600;padding:6px 12px 2px;">Agent 节点</div>';
+                    nodes.agents.forEach(a => {
+                        nodesHtml += `<label style="display:flex;align-items:center;gap:8px;padding:7px 12px;cursor:pointer;font-size:13px;transition:background 0.15s;" onmouseover="this.style.background='#f0f7ff'" onmouseout="this.style.background=''">
+                            <input type="checkbox" class="create-node-cb" value="${a.agent_id}" data-type="agent" onchange="updateNodeSelection()" style="width:15px;height:15px;accent-color:#2563eb;">
+                            <span style="flex:1;"><span style="font-weight:500;">${a.host}</span> <span style="color:#888;font-size:11px;">${a.agent_id}</span></span>
+                            <span style="font-size:10px;padding:1px 6px;border-radius:3px;background:#dcfce7;color:#166534;">${a.status === 'online' ? '在线' : '离线'}</span>
+                        </label>`;
+                    });
                 }
                 const verifiedSlaves = (registry.nodes || []).filter(n => n.status === 'verified');
                 if (verifiedSlaves.length > 0) {
-                    nodeOptions += '<optgroup label="Slave 节点">' +
-                        verifiedSlaves.map(n => `<option value="${n.ip}:${n.port}" data-type="slave">${n.ip}:${n.port}${n.name ? ' (' + n.name + ')' : ''}</option>`).join('') +
-                        '</optgroup>';
+                    nodesHtml += '<div style="font-size:11px;color:#888;font-weight:600;padding:8px 12px 2px;border-top:1px solid #f0f0f0;margin-top:2px;">Slave 节点</div>';
+                    verifiedSlaves.forEach(n => {
+                        nodesHtml += `<label style="display:flex;align-items:center;gap:8px;padding:7px 12px;cursor:pointer;font-size:13px;transition:background 0.15s;" onmouseover="this.style.background='#f0f7ff'" onmouseout="this.style.background=''">
+                            <input type="checkbox" class="create-node-cb" value="${n.ip}:${n.port}" data-type="slave" onchange="updateNodeSelection()" style="width:15px;height:15px;accent-color:#2563eb;">
+                            <span style="flex:1;"><span style="font-weight:500;">${n.ip}:${n.port}</span>${n.name ? ` <span style="color:#888;font-size:11px;">${n.name}</span>` : ''}</span>
+                            <span style="font-size:10px;padding:1px 6px;border-radius:3px;background:#dbeafe;color:#1e40af;">分布式</span>
+                        </label>`;
+                    });
                 }
-                nodeSel.innerHTML = nodeOptions || '<option>无可用节点</option>';
+                nodesContainer.innerHTML = nodesHtml || '<div style="font-size:12px;color:#888;padding:16px;text-align:center;">暂无可用节点</div>';
                 updateNodeSelection();
 
                 const csvSel = document.getElementById('create-csv-file');
@@ -1826,16 +2203,43 @@
             }
         }
 
+        async function uploadScriptForCreate() {
+            const input = document.getElementById('create-script-upload');
+            if (!input.files.length) return;
+            const file = input.files[0];
+            const formData = new FormData();
+            formData.append('file', file);
+            try {
+                const res = await fetch(`${API}/api/scripts/upload`, { method: 'POST', body: formData });
+                const data = await res.json();
+                if (res.ok) {
+                    alert(`上传成功: ${file.name} (${(file.size/1024).toFixed(1)}KB)`);
+                    input.value = '';
+                    const scriptsRes = await fetch(`${API}/api/scripts/`);
+                    const scripts = await scriptsRes.json();
+                    const scriptSel = document.getElementById('create-script');
+                    scriptSel.innerHTML = scripts.scripts.map(s =>
+                        `<option value="${s.script_id}">${s.original_name || s.filename} (${(s.size/1024).toFixed(1)}KB)</option>`
+                    ).join('') || '<option>暂无脚本，请先上传</option>';
+                    if (data.script_id) {
+                        scriptSel.value = data.script_id;
+                        onScriptSelectChange();
+                    }
+                } else {
+                    alert('上传失败: ' + (data.detail || '未知错误'));
+                }
+            } catch (e) { alert('上传失败: ' + e.message); }
+        }
+
         function updateNodeSelection() {
-            const nodeSelect = document.getElementById('create-nodes');
-            const selected = Array.from(nodeSelect.selectedOptions);
+            const cbs = document.querySelectorAll('.create-node-cb:checked');
             const info = document.getElementById('node-selection-info');
-            if (selected.length === 0) {
-                info.textContent = '按住 Ctrl/Command 可多选';
+            if (cbs.length === 0) {
+                info.textContent = '';
                 info.style.color = '#888';
             } else {
-                const agentCount = selected.filter(o => o.dataset.type === 'agent').length;
-                const slaveCount = selected.filter(o => o.dataset.type === 'slave').length;
+                const agentCount = Array.from(cbs).filter(cb => cb.dataset.type === 'agent').length;
+                const slaveCount = Array.from(cbs).filter(cb => cb.dataset.type === 'slave').length;
                 const parts = [];
                 if (agentCount > 0) parts.push(`${agentCount} 个 Agent`);
                 if (slaveCount > 0) parts.push(`${slaveCount} 个 Slave`);
@@ -1846,6 +2250,83 @@
                 info.innerHTML = text;
                 info.style.color = '#2563eb';
             }
+        }
+
+        function getSelectedNodes() {
+            const cbs = document.querySelectorAll('.create-node-cb:checked');
+            return Array.from(cbs).map(cb => ({ value: cb.value, type: cb.dataset.type }));
+        }
+
+        async function onScriptSelectChange() {
+            const scriptId = document.getElementById('create-script').value;
+            const hintsDiv = document.getElementById('csv-hints');
+            if (!scriptId) { hintsDiv.style.display = 'none'; return; }
+
+            try {
+                const res = await fetch(`${API}/api/scripts/${scriptId}/csv-hints`);
+                const data = await res.json();
+                renderCsvHints(data);
+            } catch (e) {
+                hintsDiv.style.display = 'none';
+            }
+        }
+
+        function renderCsvHints(data) {
+            const hintsDiv = document.getElementById('csv-hints');
+            const content = document.getElementById('csv-hints-content');
+            const { jmx_csv_refs, matched_csvs, history_csvs, all_csvs } = data;
+
+            let html = '';
+
+            if (matched_csvs.length > 0) {
+                html += `<div style="margin-bottom:8px;">
+                    <div style="font-size:12px;font-weight:600;color:#16a34a;margin-bottom:4px;">推荐匹配</div>`;
+                matched_csvs.forEach(c => {
+                    html += `<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:4px;margin-bottom:4px;cursor:pointer;" onclick="selectCsvHint('${c.csv_id}')">
+                        <span style="font-size:13px;font-weight:500;">${c.filename}</span>
+                        <span style="font-size:11px;color:#666;">${c.row_count} 行</span>
+                        ${c.jmx_variable_names ? `<span style="font-size:11px;color:#888;">变量: ${c.jmx_variable_names}</span>` : ''}
+                        <span style="font-size:11px;color:#16a34a;margin-left:auto;">点击选用</span>
+                    </div>`;
+                });
+                html += '</div>';
+            }
+
+            if (jmx_csv_refs.length > 0 && matched_csvs.length === 0) {
+                html += `<div style="padding:8px 10px;background:#fef3c7;border:1px solid #fde68a;border-radius:4px;margin-bottom:8px;">
+                    <div style="font-size:12px;font-weight:500;color:#92400e;">脚本中引用了 CSV 文件</div>`;
+                jmx_csv_refs.forEach(ref => {
+                    html += `<div style="font-size:11px;color:#78350f;margin-top:2px;">
+                        ${ref.filename ? `文件: ${ref.filename}` : ''}
+                        ${ref.variable_names ? ` 变量: ${ref.variable_names}` : ''}
+                    </div>`;
+                });
+                html += `<div style="font-size:11px;color:#92400e;margin-top:4px;">未找到匹配的已上传 CSV，请上传对应文件</div></div>`;
+            }
+
+            if (history_csvs.length > 0) {
+                html += `<div style="margin-bottom:8px;">
+                    <div style="font-size:12px;font-weight:600;color:#2563eb;margin-bottom:4px;">历史使用</div>`;
+                history_csvs.forEach(h => {
+                    const lastUsed = h.last_used ? new Date(h.last_used * 1000).toLocaleDateString() : '';
+                    html += `<div style="font-size:12px;color:#555;padding:3px 0;">${h.csv_file} <span style="color:#888;">(用了 ${h.task_count} 次, ${lastUsed})</span></div>`;
+                });
+                html += '</div>';
+            }
+
+            if (!html) {
+                hintsDiv.style.display = 'none';
+                return;
+            }
+
+            content.innerHTML = html;
+            hintsDiv.style.display = 'block';
+        }
+
+        function selectCsvHint(csvId) {
+            const csvSel = document.getElementById('create-csv-file');
+            csvSel.value = csvId;
+            onCsvSelectChange();
         }
 
         async function quickAddSlave() {
@@ -1884,10 +2365,17 @@
             }
         }
 
-        function toggleCsvOptions() {
-            const checked = document.getElementById('create-use-csv').checked;
-            document.getElementById('csv-options').style.display = checked ? 'block' : 'none';
-            if (!checked) document.getElementById('csv-preview-section').style.display = 'none';
+        function onCsvSelectChange() {
+            const csvId = document.getElementById('create-csv-file').value;
+            const extra = document.getElementById('csv-extra-options');
+            const preview = document.getElementById('csv-preview-section');
+            if (csvId) {
+                extra.style.display = 'block';
+                previewSelectedCsv();
+            } else {
+                extra.style.display = 'none';
+                preview.style.display = 'none';
+            }
         }
 
         function clearCsvSelection() {
@@ -1960,6 +2448,15 @@
             csvPreviewPage++; loadCsvPreviewData();
         }
 
+        async function autoFillCsvVars(csvId) {
+            try {
+                const res = await fetch(`${API}/api/data/csv/${csvId}/data?limit=1`);
+                const data = await res.json();
+                const headers = data.headers || [];
+                return headers.length > 0 ? headers.join(',') : null;
+            } catch (e) { return null; }
+        }
+
         async function quickUploadCsv() {
             const fileInput = document.getElementById('create-csv-upload');
             const file = fileInput.files[0];
@@ -2007,29 +2504,30 @@
 
         async function submitTask() {
             const scriptId = document.getElementById('create-script').value;
-            const nodeSelect = document.getElementById('create-nodes');
-            const selectedOptions = Array.from(nodeSelect.selectedOptions);
-            const selectedNodes = selectedOptions.map(o => o.value);
+            const selectedNodesInfo = getSelectedNodes();
+            const selectedNodes = selectedNodesInfo.map(n => n.value);
             const threads = parseInt(document.getElementById('create-threads').value) || 1;
             const ramp = parseInt(document.getElementById('create-ramp').value) || 1;
             const duration = parseInt(document.getElementById('create-duration').value) || 10;
             const timeout = parseInt(document.getElementById('create-timeout').value) || 300;
 
-            const selectedSlaves = selectedOptions.filter(o => o.dataset.type === 'slave');
+            const selectedSlaves = selectedNodesInfo.filter(n => n.type === 'slave');
             const distributed = selectedSlaves.length > 0;
-            const remoteHosts = distributed ? selectedSlaves.map(o => o.value).join(',') : null;
+            const remoteHosts = distributed ? selectedSlaves.map(n => n.value).join(',') : null;
 
             if (!scriptId) { alert('请选择脚本'); return; }
             if (selectedNodes.length === 0) { alert('请选择至少一个施压节点'); return; }
 
-            const useCsv = document.getElementById('create-use-csv').checked;
-            const csvFile = useCsv ? document.getElementById('create-csv-file').value : null;
-            const csvVars = useCsv ? document.getElementById('create-csv-vars').value.trim() : null;
-            const csvDelimiter = document.getElementById('create-csv-delimiter')?.value || ',';
-            const csvRecycle = document.getElementById('create-csv-recycle')?.checked ?? true;
-            const csvStop = document.getElementById('create-csv-stop')?.checked ?? false;
+            const csvFile = document.getElementById('create-csv-file').value || null;
+            const csvVars = csvFile ? document.getElementById('create-csv-vars').value.trim() : null;
 
-            if (useCsv && !csvFile) { alert('请选择 CSV 文件或取消参数化'); return; }
+            if (csvFile && !csvVars) {
+                const varsInput = document.getElementById('create-csv-vars');
+                if (!varsInput.value.trim()) {
+                    const headers = await autoFillCsvVars(csvFile);
+                    if (headers) varsInput.value = headers;
+                }
+            }
 
             try {
                 const res = await fetch(`${API}/api/tasks/quick-run`, {
@@ -2042,9 +2540,6 @@
                         distributed, remote_hosts: remoteHosts,
                         csv_file: csvFile || null,
                         csv_variable_names: csvVars || null,
-                        csv_delimiter: csvDelimiter,
-                        csv_recycle: csvRecycle,
-                        csv_stop_on_eof: csvStop,
                     }),
                 });
                 const data = await res.json();
@@ -2894,11 +3389,12 @@
                 document.getElementById('scripts-tbody').innerHTML = (data.scripts || []).map(s => `
                     <tr>
                         <td style="font-family:monospace;font-size:12px">${s.script_id}</td>
-                        <td>${s.filename}</td>
+                        <td>${s.original_name || s.filename}</td>
                         <td>${(s.size / 1024).toFixed(1)} KB</td>
                         <td style="font-size:12px;color:#888">${new Date(s.modified_at * 1000).toLocaleString()}</td>
                         <td>
-                            <button class="btn-success btn-sm" onclick="openEditor('${s.script_id}')">编辑</button>
+                            <button class="btn-primary btn-sm" onclick="quickRunScript('${s.script_id}')">快速运行</button>
+                            <button class="btn-success btn-sm" style="margin-left:4px" onclick="openEditor('${s.script_id}')">编辑</button>
                             <button class="btn-danger btn-sm" style="margin-left:4px" onclick="deleteScript('${s.script_id}')">删除</button>
                         </td>
                     </tr>
@@ -2923,6 +3419,40 @@
                     alert('上传失败: ' + (data.detail || '未知错误'));
                 }
             } catch (e) { alert('上传失败: ' + e.message); }
+        }
+
+        async function quickRunScript(scriptId) {
+            try {
+                const nodesRes = await fetch(`${API}/api/nodes/`);
+                const nodesData = await nodesRes.json();
+                const agents = (nodesData.agents || []).filter(a => a.status === 'online');
+                if (agents.length === 0) {
+                    alert('没有在线的 Agent 节点，请先启动 Agent');
+                    return;
+                }
+                const target = [agents[0].agent_id];
+                const res = await fetch(`${API}/api/tasks/quick-run`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        script_id: scriptId,
+                        target_agents: target,
+                        threads: 10,
+                        ramp_time: 10,
+                        duration: 60,
+                        timeout: 300,
+                    }),
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    alert(`任务已启动: ${data.task_id}`);
+                    showPage('tasks');
+                } else {
+                    alert('启动失败: ' + (data.detail || '未知错误'));
+                }
+            } catch (e) {
+                alert('启动失败: ' + e.message);
+            }
         }
 
         async function deleteScript(id) {
@@ -3789,7 +4319,7 @@
                 const res = await fetch(`${API}/api/scripts/`);
                 const data = await res.json();
                 document.getElementById('sch-script').innerHTML = (data.scripts || []).map(s =>
-                    `<option value="${s.script_id}">${s.filename}</option>`
+                    `<option value="${s.script_id}">${s.original_name || s.filename}</option>`
                 ).join('') || '<option>暂无脚本</option>';
             } catch (e) {}
         }

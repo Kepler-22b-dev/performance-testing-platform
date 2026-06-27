@@ -43,6 +43,7 @@ class TaskScheduler:
             decode_responses=True,
         )
         self._progress: dict[str, ProgressUpdate] = {}
+        self._progress_history: dict[str, list[dict]] = {}
         self._node_manager = node_manager
 
     def _cleanup_stuck_tasks(self):
@@ -132,6 +133,9 @@ class TaskScheduler:
 
         if task["status"] not in (TaskStatus.PENDING,):
             return False
+
+        self._progress.pop(task_id, None)
+        self._progress_history.pop(task_id, None)
 
         script_path = os.path.join(SCRIPTS_DIR, f"{task['script_id']}.jmx")
         if not task.get("csv_file") and not os.path.exists(script_path):
@@ -223,6 +227,49 @@ class TaskScheduler:
         self.start_task(new_task_id)
         return new_task_id
 
+    def stop_and_rerun(self, task_id: str, overrides: dict = None) -> Optional[str]:
+        """停止当前任务并用新参数重启"""
+        task = self.get_task(task_id)
+        if not task:
+            return None
+
+        if task["status"] == TaskStatus.RUNNING:
+            self.stop_task(task_id)
+
+        self._progress.pop(task_id, None)
+        self._progress_history.pop(task_id, None)
+
+        jmeter_args = dict(task.get("jmeter_args", {}))
+        if overrides:
+            if "threads" in overrides:
+                jmeter_args["threads"] = str(overrides["threads"])
+            if "ramp_time" in overrides:
+                jmeter_args["ramp_time"] = str(overrides["ramp_time"])
+            if "duration" in overrides:
+                jmeter_args["duration"] = str(overrides["duration"])
+
+        timeout = task.get("timeout", TASK_TIMEOUT)
+        if overrides and "timeout" in overrides:
+            timeout = overrides["timeout"]
+
+        target_agents = overrides.get("target_agents", task["target_agents"]) if overrides else task["target_agents"]
+
+        new_task_id = self.create_task(
+            script_id=task["script_id"],
+            target_agents=target_agents,
+            jmeter_args=jmeter_args,
+            timeout=timeout,
+            distributed=task.get("distributed", False),
+            remote_hosts=task.get("remote_hosts"),
+            csv_file=task.get("csv_file"),
+            csv_variable_names=task.get("csv_variable_names"),
+            csv_delimiter=task.get("csv_delimiter", ","),
+            csv_recycle=task.get("csv_recycle", True),
+            csv_stop_on_eof=task.get("csv_stop_on_eof", False),
+        )
+        self.start_task(new_task_id)
+        return new_task_id
+
     def batch_create_tasks(self, tasks_config: list[dict]) -> list[str]:
         task_ids = []
         for cfg in tasks_config:
@@ -309,14 +356,40 @@ class TaskScheduler:
                 db_update_task(db, result.task_id,
                     status=new_status, end_time=time.time(),
                 )
+                try:
+                    from manager.core.sample_cache import invalidate_cache
+                    invalidate_cache(result.task_id)
+                except Exception:
+                    pass
         finally:
             db.close()
 
     def handle_progress(self, update: ProgressUpdate):
         self._progress[update.task_id] = update
+        if update.task_id not in self._progress_history:
+            self._progress_history[update.task_id] = []
+        history = self._progress_history[update.task_id]
+        history.append({
+            "timestamp": update.timestamp,
+            "elapsed": update.elapsed,
+            "throughput": update.throughput,
+            "avg_response_time": update.avg_response_time,
+            "error_rate": update.error_rate,
+            "success_rate": update.success_rate,
+            "active_threads": update.active_threads,
+            "total_samples": update.total_samples,
+            "bytes_received": update.bytes_received,
+            "avg_latency": update.avg_latency,
+            "avg_connect_time": update.avg_connect_time,
+        })
+        if len(history) > 3600:
+            self._progress_history[update.task_id] = history[-3600:]
 
     def get_progress(self, task_id: str) -> Optional[ProgressUpdate]:
         return self._progress.get(task_id)
+
+    def get_progress_history(self, task_id: str) -> list[dict]:
+        return self._progress_history.get(task_id, [])
 
     def _trigger_notifications(self, task: dict):
         try:

@@ -149,6 +149,13 @@ def get_progress(task_id: str):
     return {"task_id": task_id, "data": asdict(progress)}
 
 
+@router.get("/{task_id}/progress/history")
+def get_progress_history(task_id: str):
+    """获取指定任务的进度历史数据。"""
+    history = _scheduler.get_progress_history(task_id)
+    return {"task_id": task_id, "data": history}
+
+
 @router.post("/batch")
 def batch_create_tasks(req: BatchTaskRequest):
     """批量创建多个压测任务。"""
@@ -172,6 +179,24 @@ def rerun_task(task_id: str):
     if not new_id:
         raise HTTPException(status_code=400, detail="无法重新执行任务")
     return {"task_id": new_id, "message": "任务已重新执行"}
+
+
+@router.post("/{task_id}/stop-and-restart")
+def stop_and_restart(task_id: str, req: Optional[TaskCreateRequest] = None):
+    """停止当前任务并用新参数重启。"""
+    overrides = {}
+    if req:
+        overrides = {
+            "threads": req.jmeter_args.get("threads"),
+            "ramp_time": req.jmeter_args.get("ramp_time"),
+            "duration": req.jmeter_args.get("duration"),
+            "target_agents": req.target_agents,
+            "timeout": req.timeout,
+        }
+    new_id = _scheduler.stop_and_rerun(task_id, overrides if overrides else None)
+    if not new_id:
+        raise HTTPException(status_code=400, detail="无法停止并重启任务")
+    return {"task_id": new_id, "message": "已停止旧任务并启动新任务"}
 
 
 @router.post("/quick-run")

@@ -17,6 +17,7 @@ from common.config import REPORTS_DIR
 _cache = {}
 _cache_lock = threading.Lock()
 _cache_ttl = 300
+_max_cache_size = 100
 
 
 def get_cached_samples(task_id: str) -> list:
@@ -58,11 +59,7 @@ def _load_samples(task_id: str) -> list:
         for filename in os.listdir(agent_path):
             filepath = os.path.join(agent_path, filename)
 
-            if filename.endswith(".xml"):
-                samples = _parse_xml_result(filepath)
-                all_samples.extend(samples)
-            elif filename.endswith(".jtl"):
-                # 检测文件实际格式
+            if filename == "result.xml" or filename.endswith(".xml") or filename.endswith(".jtl"):
                 try:
                     with open(filepath, "r", encoding="utf-8") as f:
                         first_line = f.readline().strip()
@@ -79,13 +76,10 @@ def _load_samples(task_id: str) -> list:
 
 
 def _parse_xml_result(xml_path: str) -> list:
-    """解析 JMeter XML 格式的测试结果文件。"""
+    """使用流式解析 JMeter XML 格式的测试结果文件，支持大文件。"""
     samples = []
     try:
-        tree = ET.parse(xml_path)
-        root = tree.getroot()
-
-        for elem in root:
+        for event, elem in ET.iterparse(xml_path, events=("end",)):
             if elem.tag in ("httpSample", "sample"):
                 attrs = elem.attrib
 
@@ -121,6 +115,7 @@ def _parse_xml_result(xml_path: str) -> list:
                     "response_headers": response_header,
                 }
                 samples.append(sample)
+                elem.clear()
     except ET.ParseError:
         samples = _parse_xml_regex(xml_path)
     except Exception:
@@ -243,11 +238,17 @@ def _safe_int(parts, field_map, key, default=0):
 
 
 def _cleanup_cache():
-    """清理内存缓存中已过期的条目。"""
+    """清理内存缓存中已过期的条目，并限制总缓存大小。"""
     now = time.time()
     expired = [k for k, v in _cache.items() if now - v["time"] > _cache_ttl]
     for k in expired:
         del _cache[k]
+
+    if len(_cache) > _max_cache_size:
+        sorted_keys = sorted(_cache.keys(), key=lambda k: _cache[k]["time"])
+        excess = len(_cache) - _max_cache_size
+        for k in sorted_keys[:excess]:
+            del _cache[k]
 
 
 def invalidate_cache(task_id: str):

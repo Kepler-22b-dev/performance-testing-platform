@@ -19,15 +19,14 @@ class JMeterRunner:
     """
 
     def __init__(self, jmeter_home: str):
-        """
-        初始化执行器
-        Args:
-            jmeter_home: JMeter 安装目录路径
-        """
         self.jmeter_home = jmeter_home
         self.jmeter_bin = os.path.join(jmeter_home, "bin", "jmeter")
         self._process: Optional[subprocess.Popen] = None
         self._result_dir: Optional[str] = None
+        self._jtl_offset = 0
+        self._jtl_line_count = 0
+        self._jtl_error_count = 0
+        self._jtl_recent_times = []
 
     def inject_csv_config(
         self,
@@ -119,11 +118,15 @@ class JMeterRunner:
                 dur = thread_group.find("stringProp[@name='ThreadGroup.duration']")
                 if dur is not None:
                     dur.text = str(duration)
+                else:
+                    ET.SubElement(thread_group, "stringProp", name="ThreadGroup.duration").text = str(duration)
 
                 # 启用调度器
                 sched = thread_group.find("boolProp[@name='ThreadGroup.scheduler']")
                 if sched is not None:
                     sched.text = "true"
+                else:
+                    ET.SubElement(thread_group, "boolProp", name="ThreadGroup.scheduler").text = "true"
 
                 # 设置无限循环
                 loop = thread_group.find(".//intProp[@name='LoopController.loops']")
@@ -173,6 +176,10 @@ class JMeterRunner:
         """
         self._result_dir = result_dir
         os.makedirs(result_dir, exist_ok=True)
+        self._jtl_offset = 0
+        self._jtl_line_count = 0
+        self._jtl_error_count = 0
+        self._jtl_recent_times = []
 
         # 注入 CSV 配置
         if csv_file:
@@ -212,8 +219,23 @@ class JMeterRunner:
             "-t", script_path,  # 测试脚本
             "-l", jtl_path,     # 结果文件
             "-j", os.path.join(result_dir, "jmeter.log"),  # 日志文件
-            "-Jjmeter.save.saveservice.output_format=xml",  # XML 输出格式
+            "-Jjmeter.save.saveservice.output_format=csv",
             "-Jjmeter.save.saveservice.print_field_names=true",
+            "-Jjmeter.save.saveservice.successful=true",
+            "-Jjmeter.save.saveservice.label=true",
+            "-Jjmeter.save.saveservice.response_code=true",
+            "-Jjmeter.save.saveservice.response_message=true",
+            "-Jjmeter.save.saveservice.thread_name=true",
+            "-Jjmeter.save.saveservice.data_type=true",
+            "-Jjmeter.save.saveservice.assertion_results_failure_message=true",
+            "-Jjmeter.save.saveservice.bytes=true",
+            "-Jjmeter.save.saveservice.sent_bytes=true",
+            "-Jjmeter.save.saveservice.url=true",
+            "-Jjmeter.save.saveservice.thread_counts=true",
+            "-Jjmeter.save.saveservice.idle_time=true",
+            "-Jjmeter.save.saveservice.connect_time=true",
+            "-Jjmeter.save.saveservice.latency=true",
+            "-Jjmeter.save.saveservice.timestamp=true",
         ]
 
         # 分布式模式
@@ -223,9 +245,11 @@ class JMeterRunner:
             else:
                 cmd.append("-r")
 
-        # 添加 JMeter 属性参数
+        # 添加 JMeter 属性参数（跳过已通过 XML 注入的参数和非 JMeter 属性）
+        skip_keys = {"threads", "ramp_time", "duration", "scenario"}
         for key, value in jmeter_args.items():
-            cmd.extend([f"-J{key}={value}"])
+            if key not in skip_keys:
+                cmd.extend([f"-J{key}={value}"])
 
         try:
             self._process = subprocess.Popen(
@@ -300,19 +324,14 @@ class JMeterRunner:
                 self._process = None
 
     def _parse_progress(self, jtl_path: str) -> dict:
-        """
-        解析 JTL 结果文件获取实时进度
-        支持 XML 和 CSV 两种格式
-
-        Args:
-            jtl_path: JTL 结果文件路径
-        Returns:
-            dict: 包含 total_samples, error_count, elapsed_times
-        """
         result = {
             "total_samples": 0,
             "error_count": 0,
             "elapsed_times": [],
+            "timestamps": [],
+            "bytes_received": 0,
+            "avg_latency": 0,
+            "avg_connect_time": 0,
         }
         if not os.path.exists(jtl_path):
             return result
@@ -323,46 +342,90 @@ class JMeterRunner:
                 return result
 
             with open(jtl_path, "r", encoding="utf-8", errors="replace") as f:
-                first_line = f.readline().strip()
+                if self._jtl_offset == 0:
+                    first_line = f.readline().strip()
+                    self._jtl_offset = f.tell()
+                    is_xml = first_line.startswith("<?xml") or first_line.startswith("<testResults")
+                    self._jtl_is_xml = is_xml
+                else:
+                    f.seek(self._jtl_offset)
 
-                # XML 格式解析
-                if first_line.startswith("<?xml") or first_line.startswith("<testResults"):
-                    result["elapsed_times"] = []
-                    count = 0
-                    errors = 0
-                    for line in f:
-                        line = line.strip()
+                new_count = 0
+                new_errors = 0
+                new_times = []
+                new_ts = []
+                total_bytes = 0
+                total_latency = 0
+                total_connect = 0
+                latency_count = 0
+
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+
+                    if self._jtl_is_xml:
                         if line.startswith("<httpSample ") or line.startswith("<sample "):
-                            count += 1
+                            new_count += 1
                             t_start = line.find('t="')
                             s_start = line.find(' s="')
-                            if t_start > 0 and s_start > 0:
+                            if t_start > 0:
                                 try:
                                     t_val = int(line[t_start+3:line.find('"', t_start+3)])
-                                    result["elapsed_times"].append(t_val)
+                                    new_times.append(t_val)
                                 except (ValueError, IndexError):
                                     pass
-                                if ' s="false"' in line[s_start:s_start+10]:
-                                    errors += 1
-                    result["total_samples"] = count
-                    result["error_count"] = errors
-                else:
-                    # CSV 格式解析
-                    lines = f.readlines()
-                    result["total_samples"] = len(lines) if lines else 0
-                    for line in lines:
-                        parts = line.strip().split(",")
-                        if len(parts) >= 4:
+                            if s_start > 0 and ' s="false"' in line[s_start:s_start+10]:
+                                new_errors += 1
+                            ts_start = line.find('ts="')
+                            if ts_start > 0:
+                                try:
+                                    ts_val = int(line[ts_start+4:line.find('"', ts_start+4)])
+                                    new_ts.append(ts_val)
+                                except (ValueError, IndexError):
+                                    pass
+                            by_start = line.find('by="')
+                            if by_start > 0:
+                                try:
+                                    total_bytes += int(line[by_start+4:line.find('"', by_start+4)])
+                                except (ValueError, IndexError):
+                                    pass
+                            lt_start = line.find('lt="')
+                            if lt_start > 0:
+                                try:
+                                    total_latency += int(line[lt_start+4:line.find('"', lt_start+4)])
+                                    latency_count += 1
+                                except (ValueError, IndexError):
+                                    pass
+                    else:
+                        parts = line.split(",")
+                        if len(parts) >= 17:
+                            new_count += 1
                             try:
-                                elapsed = int(parts[1])
-                                success = parts[3].strip() == "true"
-                                result["elapsed_times"].append(elapsed)
-                                if not success:
-                                    result["error_count"] += 1
+                                new_times.append(int(parts[1]))
+                                new_ts.append(int(parts[0]))
+                                if parts[3].strip() == "false":
+                                    new_errors += 1
+                                if len(parts) > 8 and parts[8].isdigit():
+                                    total_bytes += int(parts[8])
+                                if len(parts) > 13 and parts[13].isdigit():
+                                    total_latency += int(parts[13])
+                                    latency_count += 1
                             except (ValueError, IndexError):
                                 pass
-                    if first_line:
-                        result["total_samples"] += 1
+
+                self._jtl_offset = f.tell()
+                self._jtl_line_count += new_count
+                self._jtl_error_count += new_errors
+                if new_times:
+                    self._jtl_recent_times = new_times[-500:]
+
+                result["total_samples"] = self._jtl_line_count
+                result["error_count"] = self._jtl_error_count
+                result["elapsed_times"] = self._jtl_recent_times
+                result["timestamps"] = new_ts
+                result["bytes_received"] = total_bytes
+                result["avg_latency"] = round(total_latency / latency_count, 2) if latency_count > 0 else 0
 
         except Exception:
             pass
@@ -560,7 +623,7 @@ class JMeterRunner:
     def _generate_report(self, jtl_path: str, report_path: str):
         """使用 JMeter 生成 HTML Dashboard 报告"""
         try:
-            subprocess.run(
+            result = subprocess.run(
                 [
                     self.jmeter_bin,
                     "-g", jtl_path,
@@ -568,9 +631,12 @@ class JMeterRunner:
                 ],
                 timeout=60,
                 capture_output=True,
+                text=True,
             )
-        except Exception:
-            pass
+            if result.returncode != 0:
+                print(f"JMeter report generation failed: {result.stderr}")
+        except Exception as e:
+            print(f"JMeter report generation error: {e}")
 
     @property
     def is_running(self) -> bool:

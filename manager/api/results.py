@@ -17,92 +17,25 @@ from common.config import REPORTS_DIR, SCRIPTS_DIR
 router = APIRouter(prefix="/api/results", tags=["results"])
 
 
-def _parse_jtl(jtl_path: str) -> dict:
-    """解析 JTL 格式的测试结果文件，提取样本数据和统计摘要。"""
-    if not os.path.exists(jtl_path):
-        return {"samples": [], "summary": {}}
-
-    samples = []
-    elapsed_times = []
-    error_count = 0
-    total = 0
-
-    with open(jtl_path, "r") as f:
-        lines = f.readlines()
-        if not lines:
-            return {"samples": [], "summary": {}}
-
-        header = lines[0].strip().split(",")
-        field_map = {name: i for i, name in enumerate(header)}
-
-        for line in lines[1:]:
-            parts = line.strip().split(",")
-            if len(parts) < 7:
-                continue
-
-            total += 1
-            ts = int(parts[field_map.get("timeStamp", 0)])
-            elapsed = int(parts[field_map.get("elapsed", 1)])
-            label = parts[field_map.get("label", 2)]
-            response_code = parts[field_map.get("responseCode", 3)]
-            response_msg = parts[field_map.get("responseMessage", 4)] if "responseMessage" in field_map and field_map["responseMessage"] < len(parts) else ""
-            thread_name = parts[field_map.get("threadName", 5)] if "threadName" in field_map and field_map["threadName"] < len(parts) else ""
-            data_type = parts[field_map.get("dataType", 6)] if "dataType" in field_map and field_map["dataType"] < len(parts) else ""
-            success = parts[field_map.get("success", 7)] == "true" if "success" in field_map and field_map["success"] < len(parts) else False
-            failure_msg = parts[field_map.get("failureMessage", 8)] if "failureMessage" in field_map and field_map["failureMessage"] < len(parts) else ""
-            bytes_val = int(parts[field_map.get("bytes", 9)]) if "bytes" in field_map and field_map["bytes"] < len(parts) and parts[field_map["bytes"]].isdigit() else 0
-            sent_bytes = int(parts[field_map.get("sentBytes", 10)]) if "sentBytes" in field_map and field_map["sentBytes"] < len(parts) and parts[field_map["sentBytes"]].isdigit() else 0
-            url = parts[field_map.get("URL", 13)] if "URL" in field_map and field_map["URL"] < len(parts) else ""
-            latency = int(parts[field_map.get("Latency", 14)]) if "Latency" in field_map and field_map["Latency"] < len(parts) and parts[field_map["Latency"]].isdigit() else 0
-            connect_time = int(parts[field_map.get("Connect", 16)]) if "Connect" in field_map and field_map["Connect"] < len(parts) and parts[field_map["Connect"]].isdigit() else 0
-
-            sampler_data = parts[field_map.get("samplerData", -1)] if "samplerData" in field_map and field_map["samplerData"] < len(parts) else ""
-            response_data = parts[field_map.get("responseData", -1)] if "responseData" in field_map and field_map["responseData"] < len(parts) else ""
-            request_headers = parts[field_map.get("requestHeaders", -1)] if "requestHeaders" in field_map and field_map["requestHeaders"] < len(parts) else ""
-            response_headers = parts[field_map.get("responseHeaders", -1)] if "responseHeaders" in field_map and field_map["responseHeaders"] < len(parts) else ""
-
-            sample = {
-                "index": total,
-                "timestamp": ts,
-                "elapsed": elapsed,
-                "label": label,
-                "response_code": response_code,
-                "response_message": response_msg,
-                "thread_name": thread_name,
-                "success": success,
-                "failure_message": failure_msg,
-                "bytes": bytes_val,
-                "sent_bytes": sent_bytes,
-                "url": url,
-                "latency": latency,
-                "connect_time": connect_time,
-                "sampler_data": sampler_data,
-                "response_data": response_data,
-                "request_headers": request_headers,
-                "response_headers": response_headers,
-            }
-            samples.append(sample)
-            elapsed_times.append(elapsed)
-            if not success:
-                error_count += 1
-
-    summary = {}
-    if elapsed_times:
-        elapsed_times.sort()
-        summary = {
-            "total_samples": total,
-            "error_count": error_count,
-            "error_rate": round(error_count / total * 100, 2) if total > 0 else 0,
-            "avg_response_time": round(sum(elapsed_times) / len(elapsed_times), 2),
-            "min_response_time": min(elapsed_times),
-            "max_response_time": max(elapsed_times),
-            "p50": _percentile(elapsed_times, 50),
-            "p90": _percentile(elapsed_times, 90),
-            "p95": _percentile(elapsed_times, 95),
-            "p99": _percentile(elapsed_times, 99),
-        }
-
-    return {"samples": samples, "summary": summary}
+def _build_summary_from_samples(samples: list) -> dict:
+    """从样本列表构建统计摘要。"""
+    if not samples:
+        return {}
+    elapsed_times = sorted([s["elapsed"] for s in samples])
+    error_count = sum(1 for s in samples if not s["success"])
+    total = len(samples)
+    return {
+        "total_samples": total,
+        "error_count": error_count,
+        "error_rate": round(error_count / total * 100, 2) if total > 0 else 0,
+        "avg_response_time": round(sum(elapsed_times) / len(elapsed_times), 2),
+        "min_response_time": min(elapsed_times),
+        "max_response_time": max(elapsed_times),
+        "p50": _percentile(elapsed_times, 50),
+        "p90": _percentile(elapsed_times, 90),
+        "p95": _percentile(elapsed_times, 95),
+        "p99": _percentile(elapsed_times, 99),
+    }
 
 
 def _percentile(data: list, p: int) -> int:
@@ -233,25 +166,12 @@ def list_completed_tasks():
         if not os.path.isdir(task_path):
             continue
 
-        has_result = False
-        for agent_dir in os.listdir(task_path):
-            agent_path = os.path.join(task_path, agent_dir)
-            if not os.path.isdir(agent_path):
-                continue
-            for filename in os.listdir(agent_path):
-                if filename.endswith(".jtl") or filename.endswith(".xml"):
-                    has_result = True
-                    break
-            if has_result:
-                break
-
-        if has_result:
-            stat = os.stat(task_path)
-            tasks.append({
-                "task_id": task_dir,
-                "created_at": stat.st_ctime,
-                "modified_at": stat.st_mtime,
-            })
+        stat = os.stat(task_path)
+        tasks.append({
+            "task_id": task_dir,
+            "created_at": stat.st_ctime,
+            "modified_at": stat.st_mtime,
+        })
 
     tasks.sort(key=lambda x: x["modified_at"], reverse=True)
     return {"total": len(tasks), "tasks": tasks}
@@ -260,101 +180,34 @@ def list_completed_tasks():
 @router.get("/tasks/{task_id}/summary")
 def get_task_summary(task_id: str):
     """获取指定任务的完整结果摘要，包括汇总统计、时序数据和标签统计。"""
-    task_path = os.path.join(REPORTS_DIR, task_id)
-    if not os.path.exists(task_path):
-        raise HTTPException(status_code=404, detail="Task result not found")
-
-    all_samples = []
-    agent_summaries = {}
-
-    for agent_dir in os.listdir(task_path):
-        agent_path = os.path.join(task_path, agent_dir)
-        if not os.path.isdir(agent_path):
-            continue
-
-        # 检查所有可能的结果文件
-        for filename in os.listdir(agent_path):
-            filepath = os.path.join(agent_path, filename)
-
-            if filename.endswith(".xml"):
-                from manager.core.sample_cache import _parse_xml_result
-                samples = _parse_xml_result(filepath)
-                all_samples.extend(samples)
-            elif filename.endswith(".jtl"):
-                # 检测文件实际格式
-                try:
-                    with open(filepath, "r", encoding="utf-8") as f:
-                        first_line = f.readline().strip()
-                    if first_line.startswith("<?xml") or first_line.startswith("<testResults"):
-                        from manager.core.sample_cache import _parse_xml_result
-                        samples = _parse_xml_result(filepath)
-                        all_samples.extend(samples)
-                    else:
-                        data = _parse_jtl(filepath)
-                        all_samples.extend(data["samples"])
-                        agent_summaries[agent_dir] = data["summary"]
-                except Exception:
-                    pass
-
+    from manager.core.sample_cache import get_cached_samples
+    all_samples = get_cached_samples(task_id)
     if not all_samples:
         raise HTTPException(status_code=404, detail="No result data found")
 
-    all_samples.sort(key=lambda x: x["timestamp"])
-
-    if agent_summaries:
-        merged_summary = _merge_summaries(list(agent_summaries.values()))
-    else:
-        elapsed_times = sorted([s['elapsed'] for s in all_samples])
-        error_count = sum(1 for s in all_samples if not s['success'])
-        total = len(all_samples)
-        merged_summary = {
-            'total_samples': total,
-            'error_count': error_count,
-            'error_rate': round(error_count / total * 100, 2) if total > 0 else 0,
-            'avg_response_time': round(sum(elapsed_times) / len(elapsed_times), 2) if elapsed_times else 0,
-            'min_response_time': min(elapsed_times) if elapsed_times else 0,
-            'max_response_time': max(elapsed_times) if elapsed_times else 0,
-            'p50': elapsed_times[len(elapsed_times)//2] if elapsed_times else 0,
-            'p90': elapsed_times[int(len(elapsed_times)*0.9)] if elapsed_times else 0,
-            'p95': elapsed_times[int(len(elapsed_times)*0.95)] if elapsed_times else 0,
-            'p99': elapsed_times[int(len(elapsed_times)*0.99)] if elapsed_times else 0,
-        }
-
+    merged_summary = _build_summary_from_samples(all_samples)
     time_series = _build_time_series(all_samples)
     distribution = _build_response_time_distribution(all_samples)
     label_stats = _build_label_stats(all_samples)
-
-    time_series_data = [
-        {"timestamp": s["timestamp"], "elapsed": s["elapsed"], "label": s["label"], "success": s["success"]}
-        for s in all_samples
-    ]
+    time_series_data = [{"label": s["label"], "timestamp": s["timestamp"], "elapsed": s["elapsed"], "success": s["success"]} for s in all_samples]
 
     return {
         "task_id": task_id,
         "summary": merged_summary,
         "time_series": time_series,
-        "time_series_data": time_series_data,
         "distribution": distribution,
         "label_stats": label_stats,
-        "agents": agent_summaries,
+        "time_series_data": time_series_data,
     }
 
 
 @router.get("/tasks/{task_id}/timeseries")
 def get_task_timeseries(task_id: str):
     """获取指定任务的时序数据（TPS、平均响应时间、错误率）。"""
-    task_path = os.path.join(REPORTS_DIR, task_id)
-    if not os.path.exists(task_path):
+    from manager.core.sample_cache import get_cached_samples
+    all_samples = get_cached_samples(task_id)
+    if not all_samples:
         raise HTTPException(status_code=404, detail="Task result not found")
-
-    all_samples = []
-    for agent_dir in os.listdir(task_path):
-        jtl_path = os.path.join(task_path, agent_dir, "result.jtl")
-        if os.path.exists(jtl_path):
-            data = _parse_jtl(jtl_path)
-            all_samples.extend(data["samples"])
-
-    all_samples.sort(key=lambda x: x["timestamp"])
     return _build_time_series(all_samples)
 
 
@@ -437,46 +290,16 @@ def get_task_errors(task_id: str):
 @router.get("/tasks/{task_id}/full-report")
 def get_full_report(task_id: str):
     """获取指定任务的完整报告数据，包含汇总、时序、分布、标签统计和 Agent 详情。"""
-    task_path = os.path.join(REPORTS_DIR, task_id)
-    if not os.path.exists(task_path):
+    from manager.core.sample_cache import get_cached_samples
+    all_samples = get_cached_samples(task_id)
+    if not all_samples:
         raise HTTPException(status_code=404, detail="Task not found")
 
-    all_samples = []
-    agent_summaries = {}
-
-    for agent_dir in os.listdir(task_path):
-        agent_path = os.path.join(task_path, agent_dir)
-        if not os.path.isdir(agent_path):
-            continue
-        for filename in os.listdir(agent_path):
-            filepath = os.path.join(agent_path, filename)
-            if filename.endswith(".xml"):
-                from manager.core.sample_cache import _parse_xml_result
-                samples = _parse_xml_result(filepath)
-                all_samples.extend(samples)
-            elif filename.endswith(".jtl"):
-                try:
-                    with open(filepath, "r", encoding="utf-8") as f:
-                        first_line = f.readline().strip()
-                    if first_line.startswith("<?xml") or first_line.startswith("<testResults"):
-                        from manager.core.sample_cache import _parse_xml_result
-                        samples = _parse_xml_result(filepath)
-                        all_samples.extend(samples)
-                    else:
-                        data = _parse_jtl(filepath)
-                        all_samples.extend(data["samples"])
-                        agent_summaries[agent_dir] = data["summary"]
-                except Exception:
-                    pass
-
-    all_samples.sort(key=lambda x: x["timestamp"])
-
-    merged_summary = _merge_summaries(list(agent_summaries.values()))
+    merged_summary = _build_summary_from_samples(all_samples)
     time_series = _build_time_series(all_samples)
     distribution = _build_response_time_distribution(all_samples)
     label_stats = _build_label_stats(all_samples)
     errors = [s for s in all_samples if not s["success"]]
-
     labels = list(set(s["label"] for s in all_samples))
 
     return {
@@ -485,55 +308,10 @@ def get_full_report(task_id: str):
         "time_series": time_series,
         "distribution": distribution,
         "label_stats": label_stats,
-        "agents": agent_summaries,
         "labels": labels,
         "total_requests": len(all_samples),
         "total_errors": len(errors),
     }
-
-
-def _merge_summaries(summaries: list) -> dict:
-    """合并多个 Agent 的统计摘要为统一的汇总数据。"""
-    total_samples = 0
-    error_count = 0
-    all_times = []
-
-    for s in summaries:
-        total_samples += s.get("total_samples", 0)
-        error_count += s.get("error_count", 0)
-
-    merged = {
-        "total_samples": total_samples,
-        "error_count": error_count,
-        "error_rate": round(error_count / total_samples * 100, 2) if total_samples > 0 else 0,
-    }
-
-    avgs = [s["avg_response_time"] for s in summaries if s.get("avg_response_time")]
-    if avgs:
-        merged["avg_response_time"] = round(sum(avgs) / len(avgs), 2)
-
-    p50s = [s["p50"] for s in summaries if s.get("p50")]
-    p90s = [s["p90"] for s in summaries if s.get("p90")]
-    p95s = [s["p95"] for s in summaries if s.get("p95")]
-    p99s = [s["p99"] for s in summaries if s.get("p99")]
-
-    if p50s:
-        merged["p50"] = int(sum(p50s) / len(p50s))
-    if p90s:
-        merged["p90"] = int(sum(p90s) / len(p90s))
-    if p95s:
-        merged["p95"] = int(sum(p95s) / len(p95s))
-    if p99s:
-        merged["p99"] = int(sum(p99s) / len(p99s))
-
-    mins = [s["min_response_time"] for s in summaries if s.get("min_response_time")]
-    maxs = [s["max_response_time"] for s in summaries if s.get("max_response_time")]
-    if mins:
-        merged["min_response_time"] = min(mins)
-    if maxs:
-        merged["max_response_time"] = max(maxs)
-
-    return merged
 
 
 @router.get("/tasks/{task_id}/logs")
@@ -578,72 +356,26 @@ def get_agent_log(task_id: str, agent_id: str):
 @router.get("/compare")
 def compare_tasks(task_ids: str):
     """对比多个任务的测试结果，返回各任务的汇总统计和时序数据。"""
+    from manager.core.sample_cache import get_cached_samples
     ids = [t.strip() for t in task_ids.split(",") if t.strip()]
     if len(ids) < 2:
         raise HTTPException(status_code=400, detail="需要至少两个任务ID进行对比")
 
     results = []
     for task_id in ids:
-        task_path = os.path.join(REPORTS_DIR, task_id)
-        if not os.path.exists(task_path):
-            continue
-
-        all_samples = []
-        agent_summaries = {}
-
-        for agent_dir in os.listdir(task_path):
-            for filename in os.listdir(os.path.join(task_path, agent_dir)):
-                filepath = os.path.join(task_path, agent_dir, filename)
-                if filename.endswith(".xml"):
-                    from manager.core.sample_cache import _parse_xml_result
-                    samples = _parse_xml_result(filepath)
-                    all_samples.extend(samples)
-                elif filename.endswith(".jtl"):
-                    try:
-                        with open(filepath, "r", encoding="utf-8") as f:
-                            first_line = f.readline().strip()
-                        if first_line.startswith("<?xml") or first_line.startswith("<testResults"):
-                            from manager.core.sample_cache import _parse_xml_result
-                            samples = _parse_xml_result(filepath)
-                            all_samples.extend(samples)
-                        else:
-                            data = _parse_jtl(filepath)
-                            all_samples.extend(data["samples"])
-                            agent_summaries[agent_dir] = data["summary"]
-                    except Exception:
-                        pass
-
+        all_samples = get_cached_samples(task_id)
         if not all_samples:
             continue
 
-        all_samples.sort(key=lambda x: x["timestamp"])
-
-        if agent_summaries:
-            merged = _merge_summaries(list(agent_summaries.values()))
-        else:
-            elapsed_times = sorted([s['elapsed'] for s in all_samples])
-            error_count = sum(1 for s in all_samples if not s['success'])
-            total = len(all_samples)
-            merged = {
-                'total_samples': total,
-                'error_count': error_count,
-                'error_rate': round(error_count / total * 100, 2) if total > 0 else 0,
-                'avg_response_time': round(sum(elapsed_times) / len(elapsed_times), 2) if elapsed_times else 0,
-                'min_response_time': min(elapsed_times) if elapsed_times else 0,
-                'max_response_time': max(elapsed_times) if elapsed_times else 0,
-                'p50': _percentile(elapsed_times, 50),
-                'p90': _percentile(elapsed_times, 90),
-                'p95': _percentile(elapsed_times, 95),
-                'p99': _percentile(elapsed_times, 99),
-            }
-
+        merged = _build_summary_from_samples(all_samples)
         time_series = _build_time_series(all_samples)
         label_stats = _build_label_stats(all_samples)
 
-        stat = os.stat(task_path)
+        task_path = os.path.join(REPORTS_DIR, task_id)
+        stat = os.stat(task_path) if os.path.exists(task_path) else None
         results.append({
             "task_id": task_id,
-            "created_at": stat.st_ctime,
+            "created_at": stat.st_ctime if stat else 0,
             "summary": merged,
             "time_series": time_series,
             "label_stats": label_stats,
@@ -658,59 +390,16 @@ def compare_tasks(task_ids: str):
 @router.get("/tasks/{task_id}/export")
 def export_report(task_id: str):
     """导出指定任务的 HTML 格式测试报告。"""
+    from manager.core.sample_cache import get_cached_samples
     task_path = os.path.join(REPORTS_DIR, task_id)
     if not os.path.exists(task_path):
         raise HTTPException(status_code=404, detail="Task not found")
 
-    all_samples = []
-    agent_summaries = {}
+    all_samples = get_cached_samples(task_id)
+    if not all_samples:
+        raise HTTPException(status_code=404, detail="No result data found")
 
-    for agent_dir in os.listdir(task_path):
-        agent_path = os.path.join(task_path, agent_dir)
-        if not os.path.isdir(agent_path):
-            continue
-        for filename in os.listdir(agent_path):
-            filepath = os.path.join(agent_path, filename)
-            if filename.endswith(".xml"):
-                from manager.core.sample_cache import _parse_xml_result
-                samples = _parse_xml_result(filepath)
-                all_samples.extend(samples)
-            elif filename.endswith(".jtl"):
-                try:
-                    with open(filepath, "r", encoding="utf-8") as f:
-                        first_line = f.readline().strip()
-                    if first_line.startswith("<?xml") or first_line.startswith("<testResults"):
-                        from manager.core.sample_cache import _parse_xml_result
-                        samples = _parse_xml_result(filepath)
-                        all_samples.extend(samples)
-                    else:
-                        data = _parse_jtl(filepath)
-                        all_samples.extend(data["samples"])
-                        agent_summaries[agent_dir] = data["summary"]
-                except Exception:
-                    pass
-
-    all_samples.sort(key=lambda x: x["timestamp"])
-
-    if agent_summaries:
-        merged_summary = _merge_summaries(list(agent_summaries.values()))
-    else:
-        elapsed_times = sorted([s['elapsed'] for s in all_samples])
-        error_count = sum(1 for s in all_samples if not s['success'])
-        total = len(all_samples)
-        merged_summary = {
-            'total_samples': total,
-            'error_count': error_count,
-            'error_rate': round(error_count / total * 100, 2) if total > 0 else 0,
-            'avg_response_time': round(sum(elapsed_times) / len(elapsed_times), 2) if elapsed_times else 0,
-            'min_response_time': min(elapsed_times) if elapsed_times else 0,
-            'max_response_time': max(elapsed_times) if elapsed_times else 0,
-            'p50': _percentile(elapsed_times, 50),
-            'p90': _percentile(elapsed_times, 90),
-            'p95': _percentile(elapsed_times, 95),
-            'p99': _percentile(elapsed_times, 99),
-        }
-
+    merged_summary = _build_summary_from_samples(all_samples)
     label_stats = _build_label_stats(all_samples)
     distribution = _build_response_time_distribution(all_samples)
 
@@ -930,6 +619,7 @@ def export_report_pdf(task_id: str):
 @router.get("/trend")
 def get_performance_trend(label: str = None, limit: int = 20):
     """获取性能趋势数据，展示多个任务的关键指标变化趋势。"""
+    from manager.core.sample_cache import get_cached_samples
     if not os.path.exists(REPORTS_DIR):
         return {"tasks": []}
 
@@ -939,31 +629,7 @@ def get_performance_trend(label: str = None, limit: int = 20):
         if not os.path.isdir(task_path):
             continue
 
-        all_samples = []
-        for agent_dir in os.listdir(task_path):
-            agent_path = os.path.join(task_path, agent_dir)
-            if not os.path.isdir(agent_path):
-                continue
-            for filename in os.listdir(agent_path):
-                filepath = os.path.join(agent_path, filename)
-                if filename.endswith(".xml"):
-                    from manager.core.sample_cache import _parse_xml_result
-                    samples = _parse_xml_result(filepath)
-                    all_samples.extend(samples)
-                elif filename.endswith(".jtl"):
-                    try:
-                        with open(filepath, "r", encoding="utf-8") as f:
-                            first_line = f.readline().strip()
-                        if first_line.startswith("<?xml") or first_line.startswith("<testResults"):
-                            from manager.core.sample_cache import _parse_xml_result
-                            samples = _parse_xml_result(filepath)
-                            all_samples.extend(samples)
-                        else:
-                            data = _parse_jtl(filepath)
-                            all_samples.extend(data["samples"])
-                    except Exception:
-                        pass
-
+        all_samples = get_cached_samples(task_dir)
         if not all_samples:
             continue
 
