@@ -671,9 +671,21 @@ def export_report_pdf(task_id: str):
     )
 
 
+_trend_cache = {"data": None, "time": 0}
+_TREND_CACHE_TTL = 60  # 缓存 60 秒
+
 @router.get("/trend")
 def get_performance_trend(label: str = None, limit: int = 20):
     """获取性能趋势数据，展示多个任务的关键指标变化趋势。"""
+    import time
+    now = time.time()
+
+    # 检查缓存（无 label 且 limit=30 时使用缓存）
+    cache_key = f"{label}_{limit}"
+    if not label and limit == 30 and _trend_cache["data"] and now - _trend_cache["time"] < _TREND_CACHE_TTL:
+        cached = _trend_cache["data"]
+        return {"tasks": cached.get("tasks", []), "labels": cached.get("labels", [])}
+
     from manager.core.sample_cache import get_cached_samples
     if not os.path.exists(REPORTS_DIR):
         return {"tasks": [], "labels": []}
@@ -783,7 +795,14 @@ def get_performance_trend(label: str = None, limit: int = 20):
 
     task_data.sort(key=lambda x: x["total_samples"], reverse=True)
 
-    return {
+    result = {
         "tasks": task_data,
         "labels": sorted(label_set - {""}),
     }
+
+    # 更新缓存
+    if not label and limit == 30:
+        _trend_cache["data"] = result
+        _trend_cache["time"] = now
+
+    return result
