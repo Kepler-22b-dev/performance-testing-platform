@@ -24,6 +24,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from common.protocol import TaskResult, ProgressUpdate
 from common.config import REDIS_HOST, REDIS_PORT, REDIS_DB, REDIS_CHANNEL_RESULT, REDIS_CHANNEL_PROGRESS
 from common.logger import get_logger, get_api_logger, get_task_logger, log_task_event
+from common.database import init_db
+from common.async_worker import async_worker
 
 from manager.core.node_manager import NodeManager
 from manager.core.scheduler import TaskScheduler
@@ -89,7 +91,8 @@ async def redis_listener():
                     result = TaskResult.from_json(data)
                     log_task_event(task_logger, result.task_id, "结果收到",
                                    {"agent": result.agent_id, "status": result.status})
-                    scheduler.handle_result(result)
+                    loop = asyncio.get_event_loop()
+                    await loop.run_in_executor(None, scheduler.handle_result, result)
                     await ws_manager.broadcast({"channel": "result", "data": payload})
                 elif channel == REDIS_CHANNEL_PROGRESS:
                     update = ProgressUpdate.from_json(data)
@@ -104,6 +107,10 @@ async def redis_listener():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """应用生命周期管理"""
+    async_worker.start()
+    logger.info("异步工作器已启动")
+    await init_db()
+    logger.info("数据库初始化完成")
     logger.info("Manager 服务启动完成")
     heartbeat_thread = node_manager.start_heartbeat_listener()
     logger.info("心跳监听器已启动")
@@ -199,7 +206,10 @@ STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 @app.get("/")
 def index():
     """返回前端首页。"""
-    return FileResponse(os.path.join(STATIC_DIR, "index.html"))
+    from fastapi.responses import HTMLResponse
+    with open(os.path.join(STATIC_DIR, "index.html"), "r", encoding="utf-8") as f:
+        content = f.read()
+    return HTMLResponse(content=content, headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
 
 
 @app.get("/api/health")
