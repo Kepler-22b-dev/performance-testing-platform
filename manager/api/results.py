@@ -439,12 +439,20 @@ def export_report(task_id: str):
 
     err_rate_color = "#dc2626" if merged_summary.get("error_rate", 0) > 0 else "#16a34a"
 
+    # 缓存 ECharts 脚本
+    echarts_path = os.path.join(os.path.dirname(__file__), "..", "static", "echarts.min.js")
+    if not os.path.exists(echarts_path):
+        import urllib.request
+        urllib.request.urlretrieve("https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js", echarts_path)
+    with open(echarts_path, "r", encoding="utf-8") as f:
+        echarts_js = f.read()
+
     html = f"""<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
 <title>压测报告 - {task_id}</title>
-<script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+<script>{echarts_js}</script>
 <style>
 * {{ margin: 0; padding: 0; box-sizing: border-box; }}
 body {{ font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif; background: #f5f5f5; color: #1a1a1a; }}
@@ -615,9 +623,11 @@ def export_report_pdf(task_id: str):
     try:
         subprocess.run([
             chrome_path,
-            "--headless",
+            "--headless=new",
             "--disable-gpu",
             "--no-sandbox",
+            "--run-all-compositor-stages-before-draw",
+            "--virtual-time-budget=10000",
             f"--print-to-pdf={pdf_path}",
             f"file://{os.path.abspath(html_path)}",
         ], timeout=30, capture_output=True, check=True)
