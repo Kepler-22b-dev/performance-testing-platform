@@ -4050,8 +4050,12 @@
             try {
                 let url = `${API}/api/results/trend?limit=30`;
                 if (label) url += `&label=${encodeURIComponent(label)}`;
+                const startTime = Date.now();
                 const res = await fetch(url);
                 const data = await res.json();
+                // 确保加载动画至少显示 800ms
+                const elapsed = Date.now() - startTime;
+                if (elapsed < 800) await new Promise(r => setTimeout(r, 800 - elapsed));
                 const items = data.tasks || [];
                 const labels = data.labels || [];
 
