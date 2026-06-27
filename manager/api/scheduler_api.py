@@ -1,23 +1,23 @@
-"""定时调度管理 API 模块。
-
-提供压测任务的定时调度配置管理接口，支持 cron 表达式、固定间隔和单次定时执行，
-通过后台线程轮询实现自动触发压测任务。
-"""
+"""定时调度管理 API 模块。"""
 
 import sys
 import os
 import json
 import time
 import uuid
-import redis
 import threading
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import Optional
+from sqlalchemy.ext.asyncio import AsyncSession
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
-from common.config import REDIS_HOST, REDIS_PORT, REDIS_DB
+from common.database import get_db, get_sync_db
+from manager.core.db_sync import (
+    db_get_all_schedules, db_get_schedule, db_create_schedule,
+    db_update_schedule, db_delete_schedule,
+)
 
 router = APIRouter(prefix="/api/scheduler", tags=["scheduler"])
 
@@ -28,38 +28,8 @@ _scheduler_running = False
 
 
 def set_scheduler(scheduler):
-    """注入 Scheduler 实例供调度 API 使用。
-
-    Args:
-        scheduler: Scheduler 实例，提供任务创建和启动方法。
-    """
     global _scheduler
     _scheduler = scheduler
-
-
-def _get_redis():
-    """获取 Redis 连接实例。"""
-    return redis.Redis(
-        host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB,
-        decode_responses=True,
-    )
-
-
-def _load_schedules():
-    """从 Redis 加载所有调度配置。"""
-    global _schedules
-    r = _get_redis()
-    data = r.hget("jmeter:config", "schedules")
-    if data:
-        _schedules = json.loads(data)
-    else:
-        _schedules = {}
-
-
-def _save_schedules():
-    """将调度配置保存到 Redis。"""
-    r = _get_redis()
-    r.hset("jmeter:config", "schedules", json.dumps(_schedules, ensure_ascii=False, default=str))
 
 
 class ScheduleCreateRequest(BaseModel):
@@ -84,27 +54,58 @@ class ScheduleUpdateRequest(BaseModel):
     run_at: Optional[float] = None
 
 
+def _load_schedules():
+    global _schedules
+    try:
+        db = get_sync_db()
+        try:
+            schedules_list = db_get_all_schedules(db)
+            _schedules = {s["schedule_id"]: s for s in schedules_list}
+        finally:
+            db.close()
+    except Exception:
+        _schedules = {}
+
+
+def _save_schedule(schedule: dict):
+    try:
+        db = get_sync_db()
+        try:
+            existing = db_get_schedule(db, schedule["schedule_id"])
+            if existing:
+                db_update_schedule(db, schedule["schedule_id"],
+                    last_run=schedule.get("last_run"),
+                    run_count=schedule.get("run_count", 0),
+                    next_run=schedule.get("next_run"),
+                    enabled=schedule.get("enabled", True),
+                )
+            else:
+                db_create_schedule(db, schedule)
+        finally:
+            db.close()
+    except Exception:
+        pass
+
+
 @router.get("/")
-def list_schedules():
-    """获取所有调度配置的列表。"""
-    _load_schedules()
-    return {"total": len(_schedules), "schedules": list(_schedules.values())}
+async def list_schedules(db: AsyncSession = Depends(get_db)):
+    from manager.core.db import db_get_all_schedules as async_db_get_all_schedules
+    schedules = await async_db_get_all_schedules(db)
+    return {"total": len(schedules), "schedules": schedules}
 
 
 @router.get("/{schedule_id}")
-def get_schedule(schedule_id: str):
-    """获取指定调度配置的详细信息。"""
-    _load_schedules()
-    if schedule_id not in _schedules:
+async def get_schedule(schedule_id: str, db: AsyncSession = Depends(get_db)):
+    from manager.core.db import db_get_schedule as async_db_get_schedule
+    schedule = await async_db_get_schedule(db, schedule_id)
+    if not schedule:
         raise HTTPException(status_code=404, detail="调度不存在")
-    return _schedules[schedule_id]
+    return schedule
 
 
 @router.post("/")
-def create_schedule(req: ScheduleCreateRequest):
-    """创建一个新的定时调度配置。"""
-    _load_schedules()
-
+async def create_schedule(req: ScheduleCreateRequest, db: AsyncSession = Depends(get_db)):
+    from manager.core.db import db_create_schedule as async_db_create_schedule
     schedule_id = f"sch-{uuid.uuid4().hex[:8]}"
     schedule = {
         "schedule_id": schedule_id,
@@ -124,60 +125,64 @@ def create_schedule(req: ScheduleCreateRequest):
         "next_run": _calc_next_run(req.run_at, req.interval_seconds),
         "run_count": 0,
     }
-
-    _schedules[schedule_id] = schedule
-    _save_schedules()
+    await async_db_create_schedule(db, schedule)
     return {"status": "created", "schedule": schedule}
 
 
 @router.put("/{schedule_id}")
-def update_schedule(schedule_id: str, req: ScheduleUpdateRequest):
-    """更新指定调度配置的参数。"""
-    _load_schedules()
-    if schedule_id not in _schedules:
+async def update_schedule(schedule_id: str, req: ScheduleUpdateRequest,
+                          db: AsyncSession = Depends(get_db)):
+    from manager.core.db import (
+        db_get_schedule as async_db_get_schedule,
+        db_update_schedule as async_db_update_schedule,
+    )
+    schedule = await async_db_get_schedule(db, schedule_id)
+    if not schedule:
         raise HTTPException(status_code=404, detail="调度不存在")
 
-    s = _schedules[schedule_id]
+    update_data = {}
     if req.name is not None:
-        s["name"] = req.name
+        update_data["name"] = req.name
     if req.enabled is not None:
-        s["enabled"] = req.enabled
+        update_data["enabled"] = req.enabled
     if req.cron_expr is not None:
-        s["cron_expr"] = req.cron_expr
+        update_data["cron_expr"] = req.cron_expr
     if req.interval_seconds is not None:
-        s["interval_seconds"] = req.interval_seconds
+        update_data["interval_seconds"] = req.interval_seconds
     if req.run_at is not None:
-        s["run_at"] = req.run_at
+        update_data["run_at"] = req.run_at
 
-    s["next_run"] = _calc_next_run(s.get("run_at"), s.get("interval_seconds", 0))
-    _save_schedules()
-    return {"status": "updated", "schedule": s}
+    if update_data:
+        update_data["next_run"] = _calc_next_run(
+            update_data.get("run_at", schedule.get("run_at")),
+            update_data.get("interval_seconds", schedule.get("interval_seconds", 0)),
+        )
+        await async_db_update_schedule(db, schedule_id, **update_data)
+
+    return {"status": "updated", "schedule_id": schedule_id}
 
 
 @router.delete("/{schedule_id}")
-def delete_schedule(schedule_id: str):
-    """删除指定的调度配置。"""
-    _load_schedules()
-    if schedule_id not in _schedules:
+async def delete_schedule(schedule_id: str, db: AsyncSession = Depends(get_db)):
+    from manager.core.db import db_delete_schedule as async_db_delete_schedule
+    deleted = await async_db_delete_schedule(db, schedule_id)
+    if not deleted:
         raise HTTPException(status_code=404, detail="调度不存在")
-    del _schedules[schedule_id]
-    _save_schedules()
     return {"status": "deleted", "schedule_id": schedule_id}
 
 
 @router.post("/{schedule_id}/run-now")
-def run_now(schedule_id: str):
-    """立即执行指定的调度任务。"""
-    _load_schedules()
-    if schedule_id not in _schedules:
+async def run_now(schedule_id: str, db: AsyncSession = Depends(get_db)):
+    import asyncio
+    from manager.core.db import db_get_schedule as async_db_get_schedule
+    schedule = await async_db_get_schedule(db, schedule_id)
+    if not schedule:
         raise HTTPException(status_code=404, detail="调度不存在")
-
-    s = _schedules[schedule_id]
-    return _execute_schedule(s)
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, _execute_schedule, schedule)
 
 
 def _calc_next_run(run_at, interval_seconds):
-    """计算下次执行时间，优先使用指定时间，其次使用间隔时间。"""
     if run_at and run_at > time.time():
         return run_at
     if interval_seconds and interval_seconds > 0:
@@ -186,7 +191,6 @@ def _calc_next_run(run_at, interval_seconds):
 
 
 def _execute_schedule(schedule: dict) -> dict:
-    """执行一个调度任务，创建并启动压测任务。"""
     global _scheduler
     if not _scheduler:
         return {"status": "error", "message": "Scheduler 未初始化"}
@@ -213,19 +217,16 @@ def _execute_schedule(schedule: dict) -> dict:
             schedule["enabled"] = False
             schedule["next_run"] = None
 
-        _save_schedules()
+        _save_schedule(schedule)
         return {"status": "started", "task_id": task_id, "schedule": schedule}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
 
 def _start_scheduler_loop():
-    """启动后台调度轮询线程，每 10 秒检查并执行到期的任务。"""
     global _scheduler_running, _scheduler_thread
-
     if _scheduler_running:
         return
-
     _scheduler_running = True
 
     def loop():
@@ -239,7 +240,6 @@ def _start_scheduler_loop():
                 next_run = s.get("next_run")
                 if next_run and now >= next_run:
                     _execute_schedule(s)
-            # 每 60 秒检测一次卡住的任务
             if now - last_cleanup > 60:
                 if _scheduler:
                     _scheduler._cleanup_stuck_tasks()
@@ -250,7 +250,37 @@ def _start_scheduler_loop():
     _scheduler_thread.start()
 
 
+@router.post("/cleanup")
+def manual_cleanup():
+    """手动触发清理卡住的任务"""
+    if not _scheduler:
+        raise HTTPException(status_code=500, detail="Scheduler 未初始化")
+    _scheduler._cleanup_stuck_tasks()
+    return {"status": "ok", "message": "已触发 cleanup"}
+
+
+@router.post("/cleanup/{task_id}")
+def force_cleanup_task(task_id: str):
+    """强制将指定任务标记为失败"""
+    if not _scheduler:
+        raise HTTPException(status_code=500, detail="Scheduler 未初始化")
+    task = _scheduler.get_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    if task["status"] != "running":
+        return {"status": "skipped", "message": f"任务状态为 {task['status']}，无需清理"}
+    db = get_sync_db()
+    try:
+        from manager.core.db_sync import db_update_task
+        db_update_task(db, task_id,
+            status="failed", end_time=time.time(),
+            error_message="手动强制清理",
+        )
+    finally:
+        db.close()
+    return {"status": "ok", "message": f"任务 {task_id} 已标记为 failed"}
+
+
 def init_scheduler_loop():
-    """初始化并启动调度器后台循环。"""
     _load_schedules()
     _start_scheduler_loop()

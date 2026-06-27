@@ -152,7 +152,7 @@ def get_progress(task_id: str):
 @router.post("/batch")
 def batch_create_tasks(req: BatchTaskRequest):
     """批量创建多个压测任务。"""
-    task_ids = _scheduler.batch_create_tasks([t.dict() for t in req.tasks])
+    task_ids = _scheduler.batch_create_tasks([t.model_dump() for t in req.tasks])
     return {"task_ids": task_ids, "total": len(task_ids)}
 
 
@@ -214,7 +214,7 @@ def quick_run(req: QuickRunRequest):
             script_id=req.script_id,
             target_agents=target,
             jmeter_args=jmeter_args,
-            timeout=req.timeout,
+            timeout=timeout,
             distributed=req.distributed,
             remote_hosts=req.remote_hosts,
             csv_file=req.csv_file,

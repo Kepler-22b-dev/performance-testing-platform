@@ -5,3 +5,6 @@ psutil
 python-multipart
 aiofiles
 weasyprint
+sqlalchemy[asyncio]
+asyncpg
+pytest
