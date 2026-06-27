@@ -846,9 +846,14 @@
                         <button class="filter-btn" onclick="loadTrend()">刷新</button>
                     </div>
                 </div>
-                <div id="trend-loading" style="text-align:center;padding:40px;color:#888">
-                    <span class="dot" style="display:inline-block;width:8px;height:8px;background:#2563eb;border-radius:50%;animation:pulse 1s infinite;margin-right:6px"></span>
-                    加载中...
+                <div id="trend-loading" style="text-align:center;padding:60px 20px;color:#888">
+                    <div style="font-size:48px;margin-bottom:16px" id="trend-loading-emoji">🏃‍♂️</div>
+                    <div style="font-size:14px;color:#555;margin-bottom:8px" id="trend-loading-text">数据加载中...</div>
+                    <div style="font-size:12px;color:#aaa" id="trend-loading-tip">正在解析 JTL 文件，请稍候</div>
+                    <style>
+                        @keyframes trendBounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-12px)} }
+                        @keyframes trendSpin { 0%{transform:rotate(0deg)} 100%{transform:rotate(360deg)} }
+                    </style>
                 </div>
                 <div class="chart-box" id="trend-chart-box" style="display:none">
                     <h3>TPS / 响应时间 / 错误率 趋势</h3>
@@ -4014,6 +4019,34 @@
             loading.style.display = 'block';
             chartBox.style.display = 'none';
 
+            // 搞笑加载动画
+            const emojis = ['🏃‍♂️', '🚴', '🚀', '⚡', '🔥', '💥', '🎯', '🎰'];
+            const tips = [
+                '正在解析 JTL 文件，请稍候...',
+                '数据有点多，喝杯咖啡先 ☕',
+                'JMeter 说它跑得太快了，等等它...',
+                '正在计算 P99，别着急...',
+                '指标统计中，马上就好...',
+                '性能数据正在路上 🏃',
+                '再等 0.1 秒... 好了没？再等等...',
+                '正在和 Redis 聊天...',
+            ];
+            let emojiIdx = 0;
+            const emojiEl = document.getElementById('trend-loading-emoji');
+            const textEl = document.getElementById('trend-loading-text');
+            const tipEl = document.getElementById('trend-loading-tip');
+
+            const emojiTimer = setInterval(() => {
+                emojiIdx = (emojiIdx + 1) % emojis.length;
+                emojiEl.textContent = emojis[emojiIdx];
+                emojiEl.style.animation = 'trendBounce 0.5s ease';
+                setTimeout(() => { emojiEl.style.animation = ''; }, 500);
+            }, 1500);
+
+            const tipTimer = setInterval(() => {
+                tipEl.textContent = tips[Math.floor(Math.random() * tips.length)];
+            }, 2500);
+
             try {
                 let url = `${API}/api/results/trend?limit=30`;
                 if (label) url += `&label=${encodeURIComponent(label)}`;
@@ -4035,6 +4068,8 @@
                     tbody.innerHTML = '';
                     noTrend.style.display = 'block';
                     loading.style.display = 'none';
+                    clearInterval(emojiTimer);
+                    clearInterval(tipTimer);
                     return;
                 }
                 noTrend.style.display = 'none';
@@ -4073,7 +4108,10 @@
                 chartBox.style.display = 'block';
             } catch (e) {
                 console.error('loadTrend error:', e);
-                loading.style.display = 'none';
+                loading.innerHTML = '<div style="font-size:48px;margin-bottom:12px">😵</div><div style="color:#dc2626">加载失败，请刷新重试</div>';
+            } finally {
+                clearInterval(emojiTimer);
+                clearInterval(tipTimer);
             }
         }
 
