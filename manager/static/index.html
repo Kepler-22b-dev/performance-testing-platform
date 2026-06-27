@@ -1587,9 +1587,11 @@
             } catch (e) { alert('删除失败'); }
         }
 
+        let currentTaskId = '';
         async function viewTask(taskId) {
             document.getElementById('tasks-list-view').classList.add('hidden');
             document.getElementById('task-detail-view').classList.remove('hidden');
+            currentTaskId = taskId;
             document.getElementById('detail-task-id').textContent = taskId;
             document.getElementById('export-report-btn').href = `${API}/api/results/tasks/${taskId}/export`;
             document.getElementById('export-report-btn').style.display = 'inline-block';
@@ -2853,7 +2855,7 @@
             if (logLoading) return;
             logLoading = true;
             logPage = page;
-            const taskId = document.getElementById('detail-task-id').textContent;
+            const taskId = currentTaskId;
             const label = document.getElementById('log-label-filter').value;
             const errorsOnly = document.getElementById('log-errors-only').checked;
             const offset = page * logPageSize;
@@ -2914,7 +2916,7 @@
         }
 
         async function showRequestDetail(index) {
-            const taskId = document.getElementById('detail-task-id').textContent;
+            const taskId = currentTaskId;
             try {
                 const res = await fetch(`${API}/api/results/tasks/${taskId}/sample/${index}`);
                 const data = await res.json();
