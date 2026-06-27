@@ -161,14 +161,31 @@ def list_completed_tasks():
     if not os.path.exists(REPORTS_DIR):
         return {"total": 0, "tasks": []}
 
+    # 从数据库获取任务元数据
+    task_meta = {}
+    try:
+        from common.database import get_sync_db
+        from manager.core.db_sync import db_get_all_tasks
+        db = get_sync_db()
+        try:
+            db_tasks = db_get_all_tasks(db)
+            for t in db_tasks:
+                task_meta[t["task_id"]] = t
+        finally:
+            db.close()
+    except Exception:
+        pass
+
     for task_dir in os.listdir(REPORTS_DIR):
         task_path = os.path.join(REPORTS_DIR, task_dir)
         if not os.path.isdir(task_path):
             continue
 
         stat = os.stat(task_path)
+        meta = task_meta.get(task_dir, {})
         tasks.append({
             "task_id": task_dir,
+            "script_id": meta.get("script_id", ""),
             "created_at": stat.st_ctime,
             "modified_at": stat.st_mtime,
         })
