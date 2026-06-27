@@ -863,7 +863,7 @@
             <div class="task-list">
                 <h3>历史数据</h3>
                 <table>
-                    <thead><tr><th>接口</th><th>请求数</th><th>平均RT</th><th>P50</th><th>P90</th><th>P99</th><th>错误率</th></tr></thead>
+                    <thead><tr><th>接口</th><th>请求数</th><th>TPS</th><th>平均RT</th><th>P50</th><th>P90</th><th>P99</th><th>错误率</th></tr></thead>
                     <tbody id="trend-tbody"></tbody>
                 </table>
                 <div id="no-trend" class="empty-tip">暂无历史数据</div>
@@ -4082,6 +4082,7 @@
                     return `<tr>
                         <td style="font-weight:500">${t.label}</td>
                         <td>${t.total_samples}</td>
+                        <td style="color:#2563eb;font-weight:500">${t.tps || 0}</td>
                         <td>${t.avg_response_time}ms</td>
                         <td>${t.p50}ms</td>
                         <td>${t.p90}ms</td>
@@ -4090,21 +4091,32 @@
                     </tr>`;
                 }).join('');
 
-                // 图表：按接口对比平均RT和P99
+                // 图表：按接口对比 TPS 和 RT 曲线
                 if (charts.trend) charts.trend.dispose();
                 charts.trend = echarts.init(document.getElementById('chart-trend'));
                 const chartLabels = items.map(t => t.label);
                 charts.trend.setOption({
-                    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }},
-                    legend: { data: ['平均RT(ms)', 'P90(ms)', 'P99(ms)'], top: 0 },
+                    tooltip: { trigger: 'axis', axisPointer: { type: 'cross' }, formatter: function(params) {
+                        let html = `<div style="font-size:12px;margin-bottom:4px;color:#888">${params[0].axisValue}</div>`;
+                        params.forEach(p => {
+                            let unit = p.seriesName.includes('RT') || p.seriesName.includes('P99') ? 'ms' : p.seriesName.includes('错误') ? '%' : '/s';
+                            html += `<div style="font-size:12px">${p.marker} ${p.seriesName}: <strong>${p.value}</strong>${unit}</div>`;
+                        });
+                        return html;
+                    }},
+                    legend: { data: ['平均RT(ms)', 'P99(ms)', 'TPS', '错误率(%)'], top: 0 },
                     xAxis: { type: 'category', data: chartLabels, axisLabel: { rotate: 20, fontSize: 11 } },
-                    yAxis: { type: 'value', name: 'ms' },
-                    series: [
-                        { name: '平均RT(ms)', type: 'bar', data: items.map(t => t.avg_response_time), itemStyle: { color: '#2563eb' }, barMaxWidth: 40 },
-                        { name: 'P90(ms)', type: 'bar', data: items.map(t => t.p90), itemStyle: { color: '#d97706' }, barMaxWidth: 40 },
-                        { name: 'P99(ms)', type: 'bar', data: items.map(t => t.p99), itemStyle: { color: '#dc2626' }, barMaxWidth: 40 }
+                    yAxis: [
+                        { type: 'value', name: 'TPS' },
+                        { type: 'value', name: 'ms / %' }
                     ],
-                    grid: { left: 60, right: 20, top: 40, bottom: 60 }
+                    series: [
+                        { name: '平均RT(ms)', type: 'line', data: items.map(t => t.avg_response_time), smooth: true, lineStyle: { width: 2.5, color: '#2563eb' }, itemStyle: { color: '#2563eb' }, symbol: 'circle', symbolSize: 8, areaStyle: { color: 'rgba(37,99,235,0.08)' }, label: { show: true, position: 'top', fontSize: 11, formatter: '{c}ms' }, yAxisIndex: 1 },
+                        { name: 'P99(ms)', type: 'line', data: items.map(t => t.p99), smooth: true, lineStyle: { width: 2, color: '#d97706' }, itemStyle: { color: '#d97706' }, symbol: 'circle', symbolSize: 6, yAxisIndex: 1 },
+                        { name: 'TPS', type: 'bar', data: items.map(t => t.tps || 0), itemStyle: { color: 'rgba(37,99,235,0.2)' }, barMaxWidth: 50, yAxisIndex: 0 },
+                        { name: '错误率(%)', type: 'line', data: items.map(t => t.error_rate), smooth: true, lineStyle: { width: 2, color: '#dc2626', type: 'dashed' }, itemStyle: { color: '#dc2626' }, symbol: 'diamond', symbolSize: 6, yAxisIndex: 1 }
+                    ],
+                    grid: { left: 60, right: 60, top: 40, bottom: 60 }
                 });
                 window.addEventListener('resize', () => { if (charts.trend) charts.trend.resize(); });
 

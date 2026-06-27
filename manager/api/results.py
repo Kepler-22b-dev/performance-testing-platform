@@ -766,8 +766,9 @@ def get_performance_trend(label: str = None, limit: int = 20):
 
             for lbl, samples in by_label.items():
                 if lbl not in label_stats:
-                    label_stats[lbl] = {"samples": [], "errors": 0, "total": 0}
+                    label_stats[lbl] = {"samples": [], "timestamps": [], "errors": 0, "total": 0}
                 label_stats[lbl]["samples"].extend([s["elapsed"] for s in samples])
+                label_stats[lbl]["timestamps"].extend([s["timestamp"] for s in samples])
                 label_stats[lbl]["errors"] += sum(1 for s in samples if not s["success"])
                 label_stats[lbl]["total"] += len(samples)
 
@@ -781,6 +782,13 @@ def get_performance_trend(label: str = None, limit: int = 20):
         elapsed = sorted(stats["samples"])
         total = stats["total"]
         errors = stats["errors"]
+        # 计算 TPS
+        ts_list = stats.get("timestamps", [])
+        if len(ts_list) > 1:
+            duration = (max(ts_list) - min(ts_list)) / 1000
+            tps = round(total / duration, 2) if duration > 0 else 0
+        else:
+            tps = 0
         label_stats_entry = {
             "label": lbl,
             "total_samples": total,
@@ -790,6 +798,7 @@ def get_performance_trend(label: str = None, limit: int = 20):
             "p50": _percentile(elapsed, 50),
             "p90": _percentile(elapsed, 90),
             "p99": _percentile(elapsed, 99),
+            "tps": tps,
         }
         task_data.append(label_stats_entry)
 
