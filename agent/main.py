@@ -267,8 +267,6 @@ class JMeterAgent:
             self.info.last_heartbeat = time.time()
             self._update_info()
 
-            self.redis.publish(REDIS_CHANNEL_HEARTBEAT, self.info.to_json())
-
             for _ in range(AGENT_HEARTBEAT_INTERVAL * 10):
                 if not self._running:
                     break

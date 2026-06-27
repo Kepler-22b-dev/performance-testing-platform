@@ -4472,11 +4472,24 @@
         // ===== 任务对比 =====
         async function loadCompareForm() {
             try {
-                const res = await fetch(`${API}/api/results/tasks`);
-                const data = await res.json();
-                const tasks = data.tasks || [];
+                const [tasksRes, scriptsRes] = await Promise.allSettled([
+                    fetch(`${API}/api/results/tasks`),
+                    fetch(`${API}/api/scripts/`),
+                ]);
+                const tasksData = tasksRes.status === 'fulfilled' ? await tasksRes.value.json() : { tasks: [] };
+                const scriptsData = scriptsRes.status === 'fulfilled' ? await scriptsRes.value.json() : { scripts: [] };
+                const tasks = tasksData.tasks || [];
+                const scripts = scriptsData.scripts || [];
+                const scriptMap = {};
+                scripts.forEach(s => { scriptMap[s.script_id] = s.original_name || s.filename || s.script_id; });
 
-                const opts = tasks.map(t => `<option value="${t.task_id}">${t.task_id} (${new Date(t.modified_at * 1000).toLocaleString()})</option>`).join('');
+                const opts = tasks.map(t => {
+                    const name = scriptMap[t.script_id] || t.script_id || '';
+                    const shortId = t.task_id.substring(0, 8);
+                    const date = new Date(t.modified_at * 1000).toLocaleString();
+                    const label = name ? `${shortId} — ${name} (${date})` : `${shortId} (${date})`;
+                    return `<option value="${t.task_id}">${label}</option>`;
+                }).join('');
                 document.getElementById('compare-task-1').innerHTML = '<option value="">选择任务 A</option>' + opts;
                 document.getElementById('compare-task-2').innerHTML = '<option value="">选择任务 B</option>' + opts;
             } catch (e) { console.error('loadCompareForm error:', e); }
@@ -4499,6 +4512,19 @@
                 const [t1, t2] = data.tasks;
                 const s1 = t1.summary, s2 = t2.summary;
 
+                // 获取脚本名称
+                let scriptName1 = '', scriptName2 = '';
+                try {
+                    const scriptsRes = await fetch(`${API}/api/scripts/`);
+                    if (scriptsRes.ok) {
+                        const scripts = (await scriptsRes.json()).scripts || [];
+                        const scriptMap = {};
+                        scripts.forEach(s => { scriptMap[s.script_id] = s.original_name || s.filename; });
+                        scriptName1 = scriptMap[t1.task_id] || '';
+                        scriptName2 = scriptMap[t2.task_id] || '';
+                    }
+                } catch (e) {}
+
                 const diff = (a, b) => {
                     if (b === 0) return '-';
                     const pct = ((a - b) / b * 100).toFixed(1);
@@ -4509,8 +4535,11 @@
                     return a > b ? '#dc2626' : a < b ? '#16a34a' : '#888';
                 };
 
+                const labelA = scriptName1 || t1.task_id.substring(0, 8);
+                const labelB = scriptName2 || t2.task_id.substring(0, 8);
+
                 document.getElementById('compare-cards').innerHTML = `
-                    <div class="card"><div class="label">指标</div><div class="value" style="font-size:14px">任务A / 任务B</div></div>
+                    <div class="card"><div class="label">指标</div><div class="value" style="font-size:14px">${labelA} / ${labelB}</div></div>
                     <div class="card"><div class="label">总请求数</div><div class="value" style="font-size:16px">${s1.total_samples} / ${s2.total_samples}</div></div>
                     <div class="card"><div class="label">平均RT (ms)</div><div class="value" style="font-size:16px">${s1.avg_response_time} / ${s2.avg_response_time}<br><span style="font-size:12px;color:${diffColor(s1.avg_response_time, s2.avg_response_time)}">${diff(s1.avg_response_time, s2.avg_response_time)}</span></div></div>
                     <div class="card"><div class="label">P99 (ms)</div><div class="value" style="font-size:16px">${s1.p99} / ${s2.p99}<br><span style="font-size:12px;color:${diffColor(s1.p99, s2.p99)}">${diff(s1.p99, s2.p99)}</span></div></div>
@@ -4526,12 +4555,12 @@
                 const tpsLabels = Array.from({length: maxLen}, (_, i) => i + 's');
                 charts.compareTps.setOption({
                     tooltip: { trigger: 'axis' },
-                    legend: { data: ['任务A', '任务B'], top: 0 },
+                    legend: { data: [labelA, labelB], top: 0 },
                     xAxis: { type: 'category', data: tpsLabels },
                     yAxis: { type: 'value', name: 'TPS' },
                     series: [
-                        { name: '任务A', type: 'line', data: t1tps, smooth: true, lineStyle: { width: 2, color: '#2563eb' }, itemStyle: { color: '#2563eb' }, symbol: 'none' },
-                        { name: '任务B', type: 'line', data: t2tps, smooth: true, lineStyle: { width: 2, color: '#16a34a' }, itemStyle: { color: '#16a34a' }, symbol: 'none' }
+                        { name: labelA, type: 'line', data: t1tps, smooth: true, lineStyle: { width: 2, color: '#2563eb' }, itemStyle: { color: '#2563eb' }, symbol: 'none' },
+                        { name: labelB, type: 'line', data: t2tps, smooth: true, lineStyle: { width: 2, color: '#16a34a' }, itemStyle: { color: '#16a34a' }, symbol: 'none' }
                     ],
                     grid: { left: 50, right: 20, top: 30, bottom: 30 }
                 });
@@ -4543,12 +4572,12 @@
                 const t2rt = t2.time_series.avg_rt || [];
                 charts.compareRt.setOption({
                     tooltip: { trigger: 'axis' },
-                    legend: { data: ['任务A', '任务B'], top: 0 },
+                    legend: { data: [labelA, labelB], top: 0 },
                     xAxis: { type: 'category', data: tpsLabels },
                     yAxis: { type: 'value', name: 'ms' },
                     series: [
-                        { name: '任务A', type: 'line', data: t1rt, smooth: true, lineStyle: { width: 2, color: '#2563eb' }, itemStyle: { color: '#2563eb' }, symbol: 'none' },
-                        { name: '任务B', type: 'line', data: t2rt, smooth: true, lineStyle: { width: 2, color: '#16a34a' }, itemStyle: { color: '#16a34a' }, symbol: 'none' }
+                        { name: labelA, type: 'line', data: t1rt, smooth: true, lineStyle: { width: 2, color: '#2563eb' }, itemStyle: { color: '#2563eb' }, symbol: 'none' },
+                        { name: labelB, type: 'line', data: t2rt, smooth: true, lineStyle: { width: 2, color: '#16a34a' }, itemStyle: { color: '#16a34a' }, symbol: 'none' }
                     ],
                     grid: { left: 50, right: 20, top: 30, bottom: 30 }
                 });

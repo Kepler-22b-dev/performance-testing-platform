@@ -292,7 +292,6 @@ class JMeterRunner:
             "-Jjmeter.save.saveservice.timestamp=true",
             "-Jjmeter.save.saveservice.samplerData=true",
             "-Jjmeter.save.saveservice.requestHeaders=true",
-            "-Jjmeter.save.saveservice.responseData=true",
             "-Jjmeter.save.saveservice.responseHeaders=true",
         ]
 
@@ -312,8 +311,8 @@ class JMeterRunner:
         try:
             self._process = subprocess.Popen(
                 cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
             )
 
             start_time = time.time()
@@ -354,8 +353,7 @@ class JMeterRunner:
                 if summary.get("total_samples", 0) > 0:
                     self.logger.warning(f"JMeter exit code {exit_code} but {summary['total_samples']} samples found, treating as success")
                 else:
-                    stderr = self._process.stderr.read().decode()
-                    return {"status": "failed", "error": stderr, "summary": summary}
+                    return {"status": "failed", "error": f"JMeter exit code {exit_code}", "summary": summary}
 
             # 生成 HTML 报告
             self._generate_report(jtl_path, report_path)
@@ -375,11 +373,12 @@ class JMeterRunner:
         if not os.path.exists(jtl_path):
             return
         try:
-            with open(jtl_path, "r", encoding="utf-8", errors="replace") as f:
-                content = f.read()
-            if content.strip().endswith("</testResults>"):
+            with open(jtl_path, "rb") as f:
+                f.seek(-500, 2)
+                tail = f.read().decode("utf-8", errors="replace").strip()
+            if tail.endswith("</testResults>"):
                 return
-            if not content.strip():
+            if not tail:
                 return
             with open(jtl_path, "a", encoding="utf-8") as f:
                 f.write("\n</testResults>\n")

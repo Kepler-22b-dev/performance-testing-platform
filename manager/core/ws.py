@@ -1,6 +1,6 @@
 """WebSocket 连接管理模块。
 
-提供 WebSocket 连接的生命周期管理和 Redis Pub/Sub 消息转发功能，
+提供 WebSocket 连接的生命周期管理和消息推送功能，
 将测试进度和结果消息实时推送到所有已连接的前端客户端。
 """
 
@@ -15,7 +15,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 from common.config import (
     REDIS_HOST, REDIS_PORT, REDIS_DB,
-    REDIS_CHANNEL_PROGRESS, REDIS_CHANNEL_RESULT,
 )
 
 
@@ -63,30 +62,5 @@ class ConnectionManager:
                 disconnected.add(connection)
         self.active_connections -= disconnected
 
-    async def _listen_redis(self):
-        """监听 Redis Pub/Sub 频道，将收到的消息转发给所有 WebSocket 客户端。"""
-        pubsub = self._redis.pubsub()
-        await pubsub.subscribe(
-            REDIS_CHANNEL_PROGRESS,
-            REDIS_CHANNEL_RESULT,
-        )
-
-        try:
-            async for message in pubsub.listen():
-                if message["type"] == "message":
-                    channel = message["channel"]
-                    data = message["data"]
-
-                    try:
-                        payload = json.loads(data)
-                    except json.JSONDecodeError:
-                        continue
-
-                    msg = {
-                        "channel": channel,
-                        "data": payload,
-                    }
-
-                    await self.broadcast(msg)
-        except asyncio.CancelledError:
-            await pubsub.unsubscribe()
+    async def start(self):
+        """启动 WebSocket 管理器。"""
