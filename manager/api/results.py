@@ -676,46 +676,102 @@ def get_performance_trend(label: str = None, limit: int = 20):
     """获取性能趋势数据，展示多个任务的关键指标变化趋势。"""
     from manager.core.sample_cache import get_cached_samples
     if not os.path.exists(REPORTS_DIR):
-        return {"tasks": []}
+        return {"tasks": [], "labels": []}
 
-    task_data = []
+    # 获取所有任务目录并按修改时间排序
+    task_dirs = []
     for task_dir in os.listdir(REPORTS_DIR):
         task_path = os.path.join(REPORTS_DIR, task_dir)
         if not os.path.isdir(task_path):
             continue
-
-        all_samples = get_cached_samples(task_dir)
-        if not all_samples:
-            continue
-
-        if label:
-            all_samples = [s for s in all_samples if s["label"] == label]
-
-        if not all_samples:
-            continue
-
-        all_samples.sort(key=lambda x: x["timestamp"])
-        elapsed_times = sorted([s["elapsed"] for s in all_samples])
-        error_count = sum(1 for s in all_samples if not s["success"])
-        total = len(all_samples)
-
-        ts = [s["timestamp"] for s in all_samples]
-        duration = (max(ts) - min(ts)) / 1000 if len(ts) > 1 else 1
-        tps = round(total / duration, 2) if duration > 0 else 0
-
         stat = os.stat(task_path)
-        task_data.append({
-            "task_id": task_dir,
-            "created_at": stat.st_ctime,
-            "total_samples": total,
-            "error_count": error_count,
-            "error_rate": round(error_count / total * 100, 2) if total > 0 else 0,
-            "avg_response_time": round(sum(elapsed_times) / len(elapsed_times), 2),
-            "p50": _percentile(elapsed_times, 50),
-            "p90": _percentile(elapsed_times, 90),
-            "p99": _percentile(elapsed_times, 99),
-            "tps": tps,
-        })
+        task_dirs.append((task_dir, task_path, stat.st_mtime))
+
+    # 只处理最近的任务（限制数量避免慢查询）
+    task_dirs.sort(key=lambda x: x[2], reverse=True)
+    task_dirs = task_dirs[:limit]
+
+    # 获取脚本名称映射
+    script_map = {}
+    try:
+        from common.database import get_sync_db
+        from manager.core.db_sync import db_get_all_tasks
+        db = get_sync_db()
+        try:
+            db_tasks = db_get_all_tasks(db)
+            for t in db_tasks:
+                script_map[t["task_id"]] = t.get("script_id", "")
+        finally:
+            db.close()
+    except Exception:
+        pass
+
+    # 获取脚本ID到名称的映射
+    script_name_map = {}
+    try:
+        from manager.core.db_sync import db_get_all_scripts
+        db = get_sync_db()
+        try:
+            scripts = db_get_all_scripts(db)
+            for s in scripts:
+                script_name_map[str(s["script_id"])] = s.get("original_name") or s.get("filename") or str(s["script_id"])
+        finally:
+            db.close()
+    except Exception:
+        pass
+
+    task_data = []
+    label_set = set()
+
+    for task_dir, task_path, mtime in reversed(task_dirs):
+        try:
+            all_samples = get_cached_samples(task_dir)
+            if not all_samples:
+                continue
+
+            # 收集所有 label
+            for s in all_samples:
+                label_set.add(s.get("label", ""))
+
+            # 如果指定了 label，过滤
+            filtered = all_samples
+            if label:
+                filtered = [s for s in all_samples if s.get("label") == label]
+
+            if not filtered:
+                continue
+
+            filtered.sort(key=lambda x: x["timestamp"])
+            elapsed_times = sorted([s["elapsed"] for s in filtered])
+            error_count = sum(1 for s in filtered if not s["success"])
+            total = len(filtered)
+
+            ts = [s["timestamp"] for s in filtered]
+            duration = (max(ts) - min(ts)) / 1000 if len(ts) > 1 else 1
+            tps = round(total / duration, 2) if duration > 0 else 0
+
+            script_id = script_map.get(task_dir, "")
+            script_name = script_name_map.get(script_id, script_id)
+
+            task_data.append({
+                "task_id": task_dir,
+                "script_name": script_name,
+                "created_at": mtime,
+                "total_samples": total,
+                "error_count": error_count,
+                "error_rate": round(error_count / total * 100, 2) if total > 0 else 0,
+                "avg_response_time": round(sum(elapsed_times) / len(elapsed_times), 2),
+                "p50": _percentile(elapsed_times, 50),
+                "p90": _percentile(elapsed_times, 90),
+                "p99": _percentile(elapsed_times, 99),
+                "tps": tps,
+            })
+        except Exception:
+            continue
 
     task_data.sort(key=lambda x: x["created_at"])
-    return {"tasks": task_data[-limit:]}
+
+    return {
+        "tasks": task_data,
+        "labels": sorted(label_set - {""}),
+    }

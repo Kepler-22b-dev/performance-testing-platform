@@ -845,7 +845,11 @@
                         <button class="filter-btn" onclick="loadTrend()">刷新</button>
                     </div>
                 </div>
-                <div class="chart-box">
+                <div id="trend-loading" style="text-align:center;padding:40px;color:#888">
+                    <span class="dot" style="display:inline-block;width:8px;height:8px;background:#2563eb;border-radius:50%;animation:pulse 1s infinite;margin-right:6px"></span>
+                    加载中...
+                </div>
+                <div class="chart-box" id="trend-chart-box" style="display:none">
                     <h3>TPS / 响应时间 / 错误率 趋势</h3>
                     <div id="chart-trend" style="height:350px;"></div>
                 </div>
@@ -853,7 +857,7 @@
             <div class="task-list">
                 <h3>历史数据</h3>
                 <table>
-                    <thead><tr><th>任务 ID</th><th>请求数</th><th>TPS</th><th>平均RT</th><th>P99</th><th>错误率</th><th>时间</th></tr></thead>
+                    <thead><tr><th>任务</th><th>脚本</th><th>请求数</th><th>TPS</th><th>平均RT</th><th>P99</th><th>错误率</th><th>时间</th></tr></thead>
                     <tbody id="trend-tbody"></tbody>
                 </table>
                 <div id="no-trend" class="empty-tip">暂无历史数据</div>
@@ -4004,12 +4008,24 @@
         // ===== 性能趋势 =====
         async function loadTrend() {
             const label = document.getElementById('trend-label').value;
+            const loading = document.getElementById('trend-loading');
+            const chartBox = document.getElementById('trend-chart-box');
+            loading.style.display = 'block';
+            chartBox.style.display = 'none';
+
             try {
                 let url = `${API}/api/results/trend?limit=30`;
                 if (label) url += `&label=${encodeURIComponent(label)}`;
                 const res = await fetch(url);
                 const data = await res.json();
                 const tasks = data.tasks || [];
+                const labels = data.labels || [];
+
+                // 更新 label 下拉框
+                const labelSelect = document.getElementById('trend-label');
+                const currentVal = labelSelect.value;
+                labelSelect.innerHTML = '<option value="">全部接口</option>' +
+                    labels.map(l => `<option value="${l}" ${l === currentVal ? 'selected' : ''}>${l}</option>`).join('');
 
                 const tbody = document.getElementById('trend-tbody');
                 const noTrend = document.getElementById('no-trend');
@@ -4017,14 +4033,18 @@
                 if (tasks.length === 0) {
                     tbody.innerHTML = '';
                     noTrend.style.display = 'block';
+                    loading.style.display = 'none';
                     return;
                 }
                 noTrend.style.display = 'none';
 
                 tbody.innerHTML = tasks.map(t => {
                     const time = new Date(t.created_at * 1000).toLocaleString();
+                    const shortId = t.task_id.substring(0, 8);
+                    const scriptName = t.script_name || '';
                     return `<tr>
-                        <td style="font-family:monospace;font-size:12px">${t.task_id}</td>
+                        <td style="font-family:monospace;font-size:12px">${shortId}</td>
+                        <td style="font-size:12px">${scriptName}</td>
                         <td>${t.total_samples}</td>
                         <td style="color:#2563eb;font-weight:500">${t.tps}</td>
                         <td>${t.avg_response_time}ms</td>
@@ -4036,10 +4056,14 @@
 
                 if (charts.trend) charts.trend.dispose();
                 charts.trend = echarts.init(document.getElementById('chart-trend'));
-                const times = tasks.map(t => new Date(t.created_at * 1000).toLocaleString());
+                const times = tasks.map(t => {
+                    const d = new Date(t.created_at * 1000);
+                    const name = t.script_name ? t.script_name.substring(0, 15) : t.task_id.substring(0, 8);
+                    return `${name}\n${d.getMonth()+1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}`;
+                });
                 charts.trend.setOption({
                     tooltip: { trigger: 'axis', axisPointer: { type: 'cross' }, formatter: function(params) {
-                        let html = `<div style="font-size:12px;margin-bottom:4px;color:#888">${params[0].axisValue}</div>`;
+                        let html = `<div style="font-size:12px;margin-bottom:4px;color:#888">${params[0].axisValue.replace('\n', ' ')}</div>`;
                         params.forEach(p => {
                             let unit = p.seriesName.includes('RT') || p.seriesName.includes('P99') ? 'ms' : p.seriesName.includes('错误') ? '%' : '';
                             html += `<div style="font-size:12px">${p.marker} ${p.seriesName}: <strong>${p.value}</strong>${unit}</div>`;
@@ -4047,21 +4071,27 @@
                         return html;
                     }},
                     legend: { data: ['TPS', '平均RT(ms)', 'P99(ms)', '错误率(%)'], top: 0 },
-                    xAxis: { type: 'category', data: times, axisLabel: { rotate: 30, fontSize: 10 } },
+                    xAxis: { type: 'category', data: times, axisLabel: { rotate: 30, fontSize: 10, interval: 0 } },
                     yAxis: [
                         { type: 'value', name: 'TPS' },
                         { type: 'value', name: 'ms / %' }
                     ],
                     series: [
-                        { name: 'TPS', type: 'line', data: tasks.map(t => t.tps), smooth: true, lineStyle: { width: 2.5, color: '#2563eb' }, itemStyle: { color: '#2563eb' }, symbol: 'circle', symbolSize: 6, areaStyle: { color: 'rgba(37,99,235,0.08)' }, yAxisIndex: 0 },
+                        { name: 'TPS', type: 'bar', data: tasks.map(t => t.tps), itemStyle: { color: '#2563eb' }, yAxisIndex: 0 },
                         { name: '平均RT(ms)', type: 'line', data: tasks.map(t => t.avg_response_time), smooth: true, lineStyle: { width: 2, color: '#16a34a' }, itemStyle: { color: '#16a34a' }, symbol: 'circle', symbolSize: 4, yAxisIndex: 1 },
                         { name: 'P99(ms)', type: 'line', data: tasks.map(t => t.p99), smooth: true, lineStyle: { width: 2, color: '#d97706' }, itemStyle: { color: '#d97706' }, symbol: 'circle', symbolSize: 4, yAxisIndex: 1 },
                         { name: '错误率(%)', type: 'line', data: tasks.map(t => t.error_rate), smooth: true, lineStyle: { width: 2, color: '#dc2626' }, itemStyle: { color: '#dc2626' }, symbol: 'circle', symbolSize: 4, yAxisIndex: 1 }
                     ],
-                    grid: { left: 60, right: 60, top: 40, bottom: 60 }
+                    grid: { left: 60, right: 60, top: 40, bottom: 80 }
                 });
                 window.addEventListener('resize', () => { if (charts.trend) charts.trend.resize(); });
-            } catch (e) { console.error('loadTrend error:', e); }
+
+                loading.style.display = 'none';
+                chartBox.style.display = 'block';
+            } catch (e) {
+                console.error('loadTrend error:', e);
+                loading.style.display = 'none';
+            }
         }
 
         // ===== 告警规则 =====
