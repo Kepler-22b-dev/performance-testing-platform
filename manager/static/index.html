@@ -27,7 +27,7 @@
         .chart-box { background: #fff; border-radius: 6px; padding: 16px; border: 1px solid #e0e0e0; overflow-x: auto; }
         .chart-box h3 { font-size: 13px; color: #666; margin-bottom: 12px; font-weight: 500; }
         .chart-container { height: 280px; }
-        #script-tree div { white-space: nowrap; }
+        #script-tree div { white-space: normal; word-break: break-all; }
         .tree-node:hover { background: #f5f5f5; }
         .full-width { grid-column: 1 / -1; }
         .task-list { background: #fff; border-radius: 6px; padding: 16px; border: 1px solid #e0e0e0; overflow-x: auto; }
@@ -3696,8 +3696,8 @@
                         var args = p['HTTPsampler.Arguments'] || {};
                         var body = args.body || args['Argument.value'] || '';
                         if (typeof body === 'string' && body.trim()) {
-                            body = body.trim();
-                            s += ' → ' + (body.length > 30 ? body.substring(0, 30) + '...' : body);
+                            body = body.trim().replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ');
+                            s += ' → ' + (body.length > 40 ? body.substring(0, 40) + '...' : body);
                         }
                     }
                     return s;
