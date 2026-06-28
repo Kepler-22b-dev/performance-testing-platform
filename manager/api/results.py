@@ -24,6 +24,9 @@ def _build_summary_from_samples(samples: list) -> dict:
     elapsed_times = sorted([s["elapsed"] for s in samples])
     error_count = sum(1 for s in samples if not s["success"])
     total = len(samples)
+    timestamps = [s["timestamp"] for s in samples]
+    duration = (max(timestamps) - min(timestamps)) / 1000 if len(timestamps) > 1 else 1
+    tps = round(total / duration, 2) if duration > 0 else 0
     return {
         "total_samples": total,
         "error_count": error_count,
@@ -35,6 +38,8 @@ def _build_summary_from_samples(samples: list) -> dict:
         "p90": _percentile(elapsed_times, 90),
         "p95": _percentile(elapsed_times, 95),
         "p99": _percentile(elapsed_times, 99),
+        "tps": tps,
+        "duration": round(duration, 1),
     }
 
 
