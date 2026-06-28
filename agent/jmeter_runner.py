@@ -12,6 +12,11 @@ import xml.etree.ElementTree as ET
 from typing import Optional, Callable
 
 
+def _fmt_pct(value: float) -> float:
+    """格式化百分比为2位小数，避免浮点精度问题。"""
+    return float(f"{value:.2f}")
+
+
 class JMeterRunner:
     """
     JMeter 执行器
@@ -649,8 +654,8 @@ class JMeterRunner:
             summary["total_samples"] = total
             summary["error_count"] = error_count
             summary["success_count"] = total - error_count
-            summary["error_rate"] = round(error_count / total * 100, 2) if total > 0 else 0
-            summary["success_rate"] = round((total - error_count) / total * 100, 2) if total > 0 else 100.0
+            summary["error_rate"] = _fmt_pct(error_count / total * 100) if total > 0 else 0
+            summary["success_rate"] = _fmt_pct((total - error_count) / total * 100) if total > 0 else 100.0
             summary["avg_response_time"] = round(sum(elapsed_times) / len(elapsed_times), 2)
             summary["min_response_time"] = min(elapsed_times)
             summary["max_response_time"] = max(elapsed_times)
@@ -720,8 +725,8 @@ class JMeterRunner:
             summary["total_samples"] = total
             summary["error_count"] = error_count
             summary["success_count"] = total - error_count
-            summary["error_rate"] = round(error_count / total * 100, 2) if total > 0 else 0
-            summary["success_rate"] = round((total - error_count) / total * 100, 2) if total > 0 else 100.0
+            summary["error_rate"] = _fmt_pct(error_count / total * 100) if total > 0 else 0
+            summary["success_rate"] = _fmt_pct((total - error_count) / total * 100) if total > 0 else 100.0
             summary["avg_response_time"] = round(sum(elapsed_times) / len(elapsed_times), 2)
             summary["min_response_time"] = min(elapsed_times)
             summary["max_response_time"] = max(elapsed_times)

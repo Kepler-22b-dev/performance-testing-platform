@@ -17,6 +17,11 @@ from common.config import REPORTS_DIR, SCRIPTS_DIR
 router = APIRouter(prefix="/api/results", tags=["results"])
 
 
+def _fmt_pct(value: float) -> float:
+    """格式化百分比为2位小数，避免浮点精度问题。"""
+    return float(f"{value:.2f}")
+
+
 def _build_summary_from_samples(samples: list) -> dict:
     """从样本列表构建统计摘要。"""
     if not samples:
@@ -30,7 +35,7 @@ def _build_summary_from_samples(samples: list) -> dict:
     return {
         "total_samples": total,
         "error_count": error_count,
-        "error_rate": round(error_count / total * 100, 2) if total > 0 else 0,
+        "error_rate": _fmt_pct(error_count / total * 100) if total > 0 else 0,
         "avg_response_time": round(sum(elapsed_times) / len(elapsed_times), 2),
         "min_response_time": min(elapsed_times),
         "max_response_time": max(elapsed_times),
@@ -85,7 +90,7 @@ def _build_time_series(samples: list) -> dict:
         timestamps.append(key)
         tps.append(b["count"])
         avg_rt.append(round(b["total_elapsed"] / b["count"], 2) if b["count"] > 0 else 0)
-        error_rate.append(round(b["errors"] / b["count"] * 100, 2) if b["count"] > 0 else 0)
+        error_rate.append(_fmt_pct(b["errors"] / b["count"] * 100) if b["count"] > 0 else 0)
         active_threads.append(0)
 
     return {
@@ -149,7 +154,7 @@ def _build_label_stats(samples: list) -> dict:
             "url": data["url"],
             "count": data["count"],
             "errors": data["errors"],
-            "error_rate": round(data["errors"] / data["count"] * 100, 2),
+            "error_rate": _fmt_pct(data["errors"] / data["count"] * 100),
             "tps": tps,
             "avg": round(sum(times) / len(times), 2),
             "min": min(times),
@@ -801,7 +806,7 @@ def get_performance_trend(label: str = None, limit: int = 20):
             "label": lbl,
             "total_samples": total,
             "error_count": errors,
-            "error_rate": round(errors / total * 100, 2) if total > 0 else 0,
+            "error_rate": _fmt_pct(errors / total * 100) if total > 0 else 0,
             "avg_response_time": round(sum(elapsed) / len(elapsed), 2),
             "p50": _percentile(elapsed, 50),
             "p90": _percentile(elapsed, 90),
