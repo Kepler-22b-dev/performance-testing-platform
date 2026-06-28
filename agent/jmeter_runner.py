@@ -373,13 +373,22 @@ class JMeterRunner:
         if not os.path.exists(jtl_path):
             return
         try:
+            file_size = os.path.getsize(jtl_path)
+            if file_size == 0:
+                return
+
+            # 根据文件大小决定检查范围：小文件读全部，大文件读最后 2KB
+            check_size = min(file_size, 2048)
             with open(jtl_path, "rb") as f:
-                f.seek(-500, 2)
+                f.seek(-check_size, 2)
                 tail = f.read().decode("utf-8", errors="replace").strip()
+
             if tail.endswith("</testResults>"):
                 return
             if not tail:
                 return
+
+            # 文件未正确关闭，追加闭合标签
             with open(jtl_path, "a", encoding="utf-8") as f:
                 f.write("\n</testResults>\n")
         except Exception:
@@ -447,6 +456,7 @@ class JMeterRunner:
                 total_latency = 0
                 total_connect = 0
                 latency_count = 0
+                connect_count = 0
 
                 for line in f:
                     line = line.strip()
@@ -456,35 +466,48 @@ class JMeterRunner:
                     if self._jtl_is_xml:
                         if line.startswith("<httpSample ") or line.startswith("<sample "):
                             new_count += 1
-                            t_start = line.find('t="')
-                            s_start = line.find(' s="')
-                            if t_start > 0:
+
+                            # 使用更健壮的属性解析
+                            attrs = self._parse_xml_attrs(line)
+
+                            t_val = attrs.get("t")
+                            if t_val is not None:
                                 try:
-                                    t_val = int(line[t_start+3:line.find('"', t_start+3)])
-                                    new_times.append(t_val)
-                                except (ValueError, IndexError):
+                                    new_times.append(int(t_val))
+                                except (ValueError, TypeError):
                                     pass
-                            if s_start > 0 and ' s="false"' in line[s_start:s_start+10]:
+
+                            if attrs.get("s") == "false":
                                 new_errors += 1
-                            ts_start = line.find('ts="')
-                            if ts_start > 0:
+
+                            ts_val = attrs.get("ts")
+                            if ts_val is not None:
                                 try:
-                                    ts_val = int(line[ts_start+4:line.find('"', ts_start+4)])
-                                    new_ts.append(ts_val)
-                                except (ValueError, IndexError):
+                                    new_ts.append(int(ts_val))
+                                except (ValueError, TypeError):
                                     pass
-                            by_start = line.find('by="')
-                            if by_start > 0:
+
+                            by_val = attrs.get("by")
+                            if by_val is not None:
                                 try:
-                                    total_bytes += int(line[by_start+4:line.find('"', by_start+4)])
-                                except (ValueError, IndexError):
+                                    total_bytes += int(by_val)
+                                except (ValueError, TypeError):
                                     pass
-                            lt_start = line.find('lt="')
-                            if lt_start > 0:
+
+                            lt_val = attrs.get("lt")
+                            if lt_val is not None:
                                 try:
-                                    total_latency += int(line[lt_start+4:line.find('"', lt_start+4)])
+                                    total_latency += int(lt_val)
                                     latency_count += 1
-                                except (ValueError, IndexError):
+                                except (ValueError, TypeError):
+                                    pass
+
+                            ct_val = attrs.get("ct")
+                            if ct_val is not None:
+                                try:
+                                    total_connect += int(ct_val)
+                                    connect_count += 1
+                                except (ValueError, TypeError):
                                     pass
                     else:
                         parts = line.split(",")
@@ -500,6 +523,9 @@ class JMeterRunner:
                                 if len(parts) > 13 and parts[13].isdigit():
                                     total_latency += int(parts[13])
                                     latency_count += 1
+                                if len(parts) > 16 and parts[16].isdigit():
+                                    total_connect += int(parts[16])
+                                    connect_count += 1
                             except (ValueError, IndexError):
                                 pass
 
@@ -515,11 +541,21 @@ class JMeterRunner:
                 result["timestamps"] = new_ts
                 result["bytes_received"] = total_bytes
                 result["avg_latency"] = round(total_latency / latency_count, 2) if latency_count > 0 else 0
+                result["avg_connect_time"] = round(total_connect / connect_count, 2) if connect_count > 0 else 0
 
         except Exception:
             pass
 
         return result
+
+    def _parse_xml_attrs(self, line: str) -> dict:
+        """从 XML 行中解析属性，支持带命名空间的属性名（如 lt, ct, sby 等）。"""
+        import re
+        attrs = {}
+        # 匹配所有 name="value" 形式的属性
+        for match in re.finditer(r'(\w+)="([^"]*)"', line):
+            attrs[match.group(1)] = match.group(2)
+        return attrs
 
     def _parse_final_result(self, jtl_path: str) -> dict:
         """解析最终结果，计算汇总统计"""

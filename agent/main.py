@@ -135,9 +135,11 @@ class JMeterAgent:
         last_total = 0
         last_time = time.time()
         last_bytes_recv = 0
+        total_errors = 0
+        all_elapsed_times = []
 
         def on_progress(raw):
-            nonlocal last_total, last_time, last_bytes_recv
+            nonlocal last_total, last_time, last_bytes_recv, total_errors, all_elapsed_times
             now = time.time()
             elapsed = int(now - start_time)
             total = raw.get("total_samples", 0)
@@ -146,10 +148,24 @@ class JMeterAgent:
             bytes_recv = raw.get("bytes_received", 0)
 
             interval = now - last_time
-            interval_count = total - last_total if total >= last_total else total
+
+            # TPS: 确保 interval_count 不为负数，最小为 0
+            if total >= last_total:
+                interval_count = total - last_total
+            else:
+                interval_count = 0
+
             current_tps = round(interval_count / interval, 2) if interval > 0 else 0
 
-            avg_rt = round(sum(times) / len(times), 2) if times else 0
+            # 累计所有历史响应时间，用于计算整体平均 RT
+            total_errors = errors
+            if times:
+                all_elapsed_times.extend(times)
+                # 只保留最近 5000 条，防止内存无限增长
+                if len(all_elapsed_times) > 5000:
+                    all_elapsed_times = all_elapsed_times[-5000:]
+
+            avg_rt = round(sum(all_elapsed_times) / len(all_elapsed_times), 2) if all_elapsed_times else 0
             error_rate = round(errors / total * 100, 2) if total > 0 else 0
             success_rate = round((total - errors) / total * 100, 2) if total > 0 else 100.0
 
