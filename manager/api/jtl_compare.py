@@ -17,7 +17,8 @@ from typing import Optional
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 from common.config import REPORTS_DIR
-from manager.api.results import _build_time_series, _build_label_stats, _percentile, _fmt_pct
+from common.utils import fmt_pct, percentile
+from manager.api.results import _build_time_series, _build_label_stats
 
 router = APIRouter(prefix="/api/jtl", tags=["jtl-compare"])
 
@@ -149,14 +150,14 @@ def _build_analysis(samples: list) -> dict:
             "url": data["url"],
             "count": data["count"],
             "errors": data["errors"],
-            "error_rate": _fmt_pct(data["errors"] / data["count"] * 100),
+            "error_rate": fmt_pct(data["errors"] / data["count"] * 100),
             "tps": tps,
             "avg": round(sum(times) / len(times), 2),
             "min": min(times),
             "max": max(times),
-            "p50": _percentile(times, 50),
-            "p90": _percentile(times, 90),
-            "p99": _percentile(times, 99),
+            "p50": percentile(times, 50),
+            "p90": percentile(times, 90),
+            "p99": percentile(times, 99),
         })
 
     # 总体统计
@@ -169,14 +170,14 @@ def _build_analysis(samples: list) -> dict:
     summary = {
         "total_samples": total,
         "error_count": error_count,
-        "error_rate": _fmt_pct(error_count / total * 100) if total > 0 else 0,
+        "error_rate": fmt_pct(error_count / total * 100) if total > 0 else 0,
         "avg_response_time": round(sum(elapsed_times) / len(elapsed_times), 2) if elapsed_times else 0,
         "min_response_time": min(elapsed_times) if elapsed_times else 0,
         "max_response_time": max(elapsed_times) if elapsed_times else 0,
-        "p50": _percentile(elapsed_times, 50),
-        "p90": _percentile(elapsed_times, 90),
-        "p95": _percentile(elapsed_times, 95),
-        "p99": _percentile(elapsed_times, 99),
+        "p50": percentile(elapsed_times, 50),
+        "p90": percentile(elapsed_times, 90),
+        "p95": percentile(elapsed_times, 95),
+        "p99": percentile(elapsed_times, 99),
         "tps": round(total / duration, 2),
         "duration": round(duration, 1),
     }

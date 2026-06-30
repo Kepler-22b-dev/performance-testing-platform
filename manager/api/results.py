@@ -13,13 +13,9 @@ from typing import Optional
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 from common.config import REPORTS_DIR, SCRIPTS_DIR
+from common.utils import fmt_pct, percentile
 
 router = APIRouter(prefix="/api/results", tags=["results"])
-
-
-def _fmt_pct(value: float) -> float:
-    """格式化百分比为2位小数，避免浮点精度问题。"""
-    return float(f"{value:.2f}")
 
 
 def _build_summary_from_samples(samples: list) -> dict:
@@ -35,29 +31,17 @@ def _build_summary_from_samples(samples: list) -> dict:
     return {
         "total_samples": total,
         "error_count": error_count,
-        "error_rate": _fmt_pct(error_count / total * 100) if total > 0 else 0,
+        "error_rate": fmt_pct(error_count / total * 100) if total > 0 else 0,
         "avg_response_time": round(sum(elapsed_times) / len(elapsed_times), 2),
         "min_response_time": min(elapsed_times),
         "max_response_time": max(elapsed_times),
-        "p50": _percentile(elapsed_times, 50),
-        "p90": _percentile(elapsed_times, 90),
-        "p95": _percentile(elapsed_times, 95),
-        "p99": _percentile(elapsed_times, 99),
+        "p50": percentile(elapsed_times, 50),
+        "p90": percentile(elapsed_times, 90),
+        "p95": percentile(elapsed_times, 95),
+        "p99": percentile(elapsed_times, 99),
         "tps": tps,
         "duration": round(duration, 1),
     }
-
-
-def _percentile(data: list, p: int) -> int:
-    """计算数据列表的第 p 百分位值。"""
-    if not data:
-        return 0
-    k = (len(data) - 1) * (p / 100)
-    f = int(k)
-    c = f + 1
-    if c >= len(data):
-        return data[f]
-    return int(data[f] + (k - f) * (data[c] - data[f]))
 
 
 def _build_time_series(samples: list) -> dict:
@@ -159,9 +143,9 @@ def _build_label_stats(samples: list) -> dict:
             "avg": round(sum(times) / len(times), 2),
             "min": min(times),
             "max": max(times),
-            "p50": _percentile(times, 50),
-            "p90": _percentile(times, 90),
-            "p99": _percentile(times, 99),
+            "p50": percentile(times, 50),
+            "p90": percentile(times, 90),
+            "p99": percentile(times, 99),
         })
 
     return result
@@ -808,9 +792,9 @@ def get_performance_trend(label: str = None, limit: int = 20):
             "error_count": errors,
             "error_rate": _fmt_pct(errors / total * 100) if total > 0 else 0,
             "avg_response_time": round(sum(elapsed) / len(elapsed), 2),
-            "p50": _percentile(elapsed, 50),
-            "p90": _percentile(elapsed, 90),
-            "p99": _percentile(elapsed, 99),
+            "p50": percentile(elapsed, 50),
+            "p90": percentile(elapsed, 90),
+            "p99": percentile(elapsed, 99),
             "tps": tps,
         }
         task_data.append(label_stats_entry)

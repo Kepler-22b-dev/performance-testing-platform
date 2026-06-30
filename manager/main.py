@@ -125,11 +125,6 @@ async def lifespan(app: FastAPI):
     heartbeat_thread.stop()
     logger.info("Manager 服务已关闭")
 
-    yield
-
-    listener_task.cancel()
-    heartbeat_thread.stop()
-
 
 app = FastAPI(
     title="性能测试平台 API",

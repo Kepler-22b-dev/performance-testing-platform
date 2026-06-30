@@ -11,10 +11,9 @@ import json
 import xml.etree.ElementTree as ET
 from typing import Optional, Callable
 
-
-def _fmt_pct(value: float) -> float:
-    """格式化百分比为2位小数，避免浮点精度问题。"""
-    return float(f"{value:.2f}")
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from common.utils import fmt_pct, percentile
 
 
 class JMeterRunner:
@@ -654,15 +653,15 @@ class JMeterRunner:
             summary["total_samples"] = total
             summary["error_count"] = error_count
             summary["success_count"] = total - error_count
-            summary["error_rate"] = _fmt_pct(error_count / total * 100) if total > 0 else 0
-            summary["success_rate"] = _fmt_pct((total - error_count) / total * 100) if total > 0 else 100.0
+            summary["error_rate"] = fmt_pct(error_count / total * 100) if total > 0 else 0
+            summary["success_rate"] = fmt_pct((total - error_count) / total * 100) if total > 0 else 100.0
             summary["avg_response_time"] = round(sum(elapsed_times) / len(elapsed_times), 2)
             summary["min_response_time"] = min(elapsed_times)
             summary["max_response_time"] = max(elapsed_times)
-            summary["p50"] = self._percentile(elapsed_times, 50)
-            summary["p90"] = self._percentile(elapsed_times, 90)
-            summary["p95"] = self._percentile(elapsed_times, 95)
-            summary["p99"] = self._percentile(elapsed_times, 99)
+            summary["p50"] = percentile(elapsed_times, 50)
+            summary["p90"] = percentile(elapsed_times, 90)
+            summary["p95"] = percentile(elapsed_times, 95)
+            summary["p99"] = percentile(elapsed_times, 99)
             summary["throughput"] = round(total / duration, 2) if duration > 0 else 0
             summary["total_bytes_received"] = bytes_received
             summary["avg_bytes_per_request"] = round(bytes_received / total) if total > 0 else 0
@@ -725,15 +724,15 @@ class JMeterRunner:
             summary["total_samples"] = total
             summary["error_count"] = error_count
             summary["success_count"] = total - error_count
-            summary["error_rate"] = _fmt_pct(error_count / total * 100) if total > 0 else 0
-            summary["success_rate"] = _fmt_pct((total - error_count) / total * 100) if total > 0 else 100.0
+            summary["error_rate"] = fmt_pct(error_count / total * 100) if total > 0 else 0
+            summary["success_rate"] = fmt_pct((total - error_count) / total * 100) if total > 0 else 100.0
             summary["avg_response_time"] = round(sum(elapsed_times) / len(elapsed_times), 2)
             summary["min_response_time"] = min(elapsed_times)
             summary["max_response_time"] = max(elapsed_times)
-            summary["p50"] = self._percentile(elapsed_times, 50)
-            summary["p90"] = self._percentile(elapsed_times, 90)
-            summary["p95"] = self._percentile(elapsed_times, 95)
-            summary["p99"] = self._percentile(elapsed_times, 99)
+            summary["p50"] = percentile(elapsed_times, 50)
+            summary["p90"] = percentile(elapsed_times, 90)
+            summary["p95"] = percentile(elapsed_times, 95)
+            summary["p99"] = percentile(elapsed_times, 99)
             summary["throughput"] = round(total / duration, 2) if duration > 0 else 0
             summary["total_bytes_received"] = bytes_received
             summary["avg_bytes_per_request"] = round(bytes_received / total) if total > 0 else 0
@@ -742,17 +741,6 @@ class JMeterRunner:
             summary["response_code_dist"] = response_codes
 
         return summary
-
-    def _percentile(self, data: list, p: int) -> int:
-        """计算百分位数"""
-        if not data:
-            return 0
-        k = (len(data) - 1) * (p / 100)
-        f = int(k)
-        c = f + 1
-        if c >= len(data):
-            return data[f]
-        return int(data[f] + (k - f) * (data[c] - data[f]))
 
     def _generate_report(self, jtl_path: str, report_path: str):
         """使用 JMeter 生成 HTML Dashboard 报告"""

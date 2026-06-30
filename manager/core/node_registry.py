@@ -143,14 +143,13 @@ def verify_node(node_id: str) -> dict:
 
 def _check_port(ip: str, port: int) -> dict:
     try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.settimeout(3)
-        result = s.connect_ex((ip, port))
-        s.close()
-        if result == 0:
-            return {"ok": True, "detail": f"{ip}:{port} 可达"}
-        else:
-            return {"ok": False, "detail": f"{ip}:{port} 不可达 (连接被拒绝)"}
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(3)
+            result = s.connect_ex((ip, port))
+            if result == 0:
+                return {"ok": True, "detail": f"{ip}:{port} 可达"}
+            else:
+                return {"ok": False, "detail": f"{ip}:{port} 不可达 (连接被拒绝)"}
     except socket.timeout:
         return {"ok": False, "detail": f"{ip}:{port} 连接超时"}
     except Exception as e:

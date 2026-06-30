@@ -36,17 +36,16 @@ def get_slave_status() -> dict:
 
     try:
         import socket
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.settimeout(1)
-        result = s.connect_ex(("127.0.0.1", SLAVE_PORT))
-        s.close()
-        if result == 0:
-            return {
-                "status": "running",
-                "port": SLAVE_PORT,
-                "pid": None,
-                "jmeter_home": JMETER_SLAVE_HOME,
-            }
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(1)
+            result = s.connect_ex(("127.0.0.1", SLAVE_PORT))
+            if result == 0:
+                return {
+                    "status": "running",
+                    "port": SLAVE_PORT,
+                    "pid": None,
+                    "jmeter_home": JMETER_SLAVE_HOME,
+                }
     except Exception:
         pass
 
@@ -137,10 +136,8 @@ def stop_slave() -> dict:
 def _get_local_ip() -> str:
     """获取本机局域网 IP 地址。"""
     try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
-        ip = s.getsockname()[0]
-        s.close()
-        return ip
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect(("8.8.8.8", 80))
+            return s.getsockname()[0]
     except Exception:
         return "127.0.0.1"

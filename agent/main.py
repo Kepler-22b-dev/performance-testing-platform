@@ -37,12 +37,8 @@ from common.protocol import (
     CommandType, TaskStatus,
 )
 from common.logger import get_agent_logger, get_task_logger, log_task_event, log_error
+from common.utils import fmt_pct
 from jmeter_runner import JMeterRunner
-
-
-def _fmt_pct(value: float) -> float:
-    """格式化百分比为2位小数，避免浮点精度问题。"""
-    return float(f"{value:.2f}")
 
 
 class JMeterAgent:
@@ -171,8 +167,8 @@ class JMeterAgent:
                     all_elapsed_times = all_elapsed_times[-5000:]
 
             avg_rt = round(sum(all_elapsed_times) / len(all_elapsed_times), 2) if all_elapsed_times else 0
-            error_rate = _fmt_pct(errors / total * 100) if total > 0 else 0
-            success_rate = _fmt_pct((total - errors) / total * 100) if total > 0 else 100.0
+            error_rate = fmt_pct(errors / total * 100) if total > 0 else 0
+            success_rate = fmt_pct((total - errors) / total * 100) if total > 0 else 100.0
 
             # 网络吞吐量
             interval_bytes = bytes_recv - last_bytes_recv if bytes_recv >= last_bytes_recv else 0
@@ -306,11 +302,9 @@ class JMeterAgent:
     def _get_local_ip(self) -> str:
         """获取本机局域网 IP 地址。"""
         try:
-            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            s.connect(("8.8.8.8", 80))
-            ip = s.getsockname()[0]
-            s.close()
-            return ip
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+                s.connect(("8.8.8.8", 80))
+                return s.getsockname()[0]
         except Exception:
             return "127.0.0.1"
 
