@@ -2624,7 +2624,7 @@
             const respDist = s.response_code_dist || {};
             document.getElementById('summary-cards').innerHTML = `
                 <div class="card"><div class="label">总请求数</div><div class="value blue">${s.total_samples}</div></div>
-                <div class="card"><div class="label">成功率</div><div class="value ${successRate >= 99 ? 'green' : successRate >= 95 ? 'yellow' : 'red'}">${successRate}%</div></div>
+                <div class="card"><div class="label">成功率</div><div class="value ${successRate >= 99 ? 'green' : successRate >= 95 ? 'yellow' : 'red'}">${successRate.toFixed(2)}%</div></div>
                 <div class="card"><div class="label">平均RT</div><div class="value green">${s.avg_response_time}ms</div></div>
                 <div class="card"><div class="label">P90</div><div class="value yellow">${s.p90}ms</div></div>
                 <div class="card"><div class="label">P99</div><div class="value red">${s.p99}ms</div></div>
