@@ -4846,14 +4846,17 @@
                 });
             });
 
-            const theadHtml = '<tr>' +
-                '<th rowspan="2" style="min-width:140px">接口</th>' +
-                '<th rowspan="2" style="min-width:200px">URL</th>' +
-                jtlFiles.map((f, i) => `<th colspan="4" style="text-align:center;color:${colors[i % colors.length]};border-left:2px solid #e0e0e0;background:#fafafa">${f.filename}</th>`).join('') +
-                '</tr><tr>' +
-                jtlFiles.map(() => '<th style="font-size:11px">请求数</th><th style="font-size:11px">平均RT</th><th style="font-size:11px">TPS</th><th style="font-size:11px;border-left:2px solid #e0e0e0">错误率</th>').join('') +
-                '</tr>';
-            document.getElementById('jtl-compare-label-thead').innerHTML = theadHtml;
+            // 简单表头：文件名横跨4列，下面4个指标
+            const fileHeaders = jtlFiles.map((f, i) =>
+                `<th colspan="4" style="text-align:center;background:${colors[i % colors.length]}12;color:${colors[i % colors.length]};font-weight:600;font-size:13px;border-left:3px solid ${colors[i % colors.length]}">${f.filename}</th>`
+            ).join('');
+            const metricHeaders = jtlFiles.map(() =>
+                '<th style="font-size:11px;color:#888;font-weight:400;width:60px">请求数</th><th style="font-size:11px;color:#888;font-weight:400;width:60px">RT</th><th style="font-size:11px;color:#888;font-weight:400;width:50px">TPS</th><th style="font-size:11px;color:#888;font-weight:400;width:60px">错误率</th>'
+            ).join('');
+
+            document.getElementById('jtl-compare-label-thead').innerHTML =
+                `<tr><th style="min-width:120px">接口</th><th style="min-width:180px">URL</th>${fileHeaders}</tr>` +
+                `<tr><th></th><th></th>${metricHeaders}</tr>`;
 
             const tbodyHtml = Object.keys(allLabelsMap).map(label => {
                 const url = allLabelsMap[label].url || '';
@@ -4869,11 +4872,11 @@
                 }
                 const cells = jtlFiles.map((f, i) => {
                     const l = allLabelsMap[label][i];
-                    if (!l) return '<td>-</td><td>-</td><td>-</td><td style="border-left:2px solid #e0e0e0">-</td>';
+                    if (!l) return '<td style="text-align:right">-</td><td style="text-align:right">-</td><td style="text-align:right">-</td><td style="text-align:right">-</td>';
                     const errColor = l.error_rate > 0 ? '#dc2626' : '#16a34a';
-                    return `<td>${l.count}</td><td>${l.avg}ms</td><td>${l.tps}</td><td style="border-left:2px solid #e0e0e0;color:${errColor}">${l.error_rate}%</td>`;
+                    return `<td style="text-align:right">${l.count}</td><td style="text-align:right">${l.avg}ms</td><td style="text-align:right">${l.tps}</td><td style="text-align:right;color:${errColor};font-weight:500">${l.error_rate}%</td>`;
                 }).join('');
-                return `<tr style="border-bottom:1px solid #f0f0f0"><td style="font-weight:500;white-space:nowrap">${label}</td><td style="font-size:11px;color:#888;word-break:break-all" title="${url}">${displayUrl || '-'}</td>${cells}</tr>`;
+                return `<tr><td style="font-weight:500;white-space:nowrap">${label}</td><td style="font-size:11px;color:#888;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${url}">${displayUrl || '-'}</td>${cells}</tr>`;
             }).join('');
             document.getElementById('jtl-compare-label-tbody').innerHTML = tbodyHtml;
 
