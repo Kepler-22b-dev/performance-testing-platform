@@ -4857,14 +4857,24 @@
             let chartIdx = 0;
             const tbodyHtml = Object.keys(allLabelsMap).map(label => {
                 const url = allLabelsMap[label].url || '';
-                const shortUrl = url.length > 50 ? url.substring(0, 50) + '...' : url;
+                let displayUrl = url;
+                try {
+                    const u = new URL(url);
+                    displayUrl = u.pathname + u.search;
+                } catch(e) {
+                    // 如果不是完整URL，尝试去掉域名部分
+                    const pathStart = url.indexOf('/');
+                    if (pathStart > 0 && url.substring(0, pathStart).includes('.')) {
+                        displayUrl = url.substring(pathStart);
+                    }
+                }
                 const cells = jtlFiles.map((f, i) => {
                     const l = allLabelsMap[label][i];
                     if (!l) return '<td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td>';
                     const errColor = l.error_rate > 0 ? '#dc2626' : '#16a34a';
                     return `<td>${l.count}</td><td>${l.avg}ms</td><td>${l.p50}ms</td><td>${l.p90}ms</td><td>${l.p99}ms</td><td style="border-left:2px solid #f0f0f0">${l.tps}</td><td style="border-left:2px solid #f0f0f0;color:${errColor}">${l.error_rate}%</td>`;
                 }).join('');
-                return `<tr><td style="font-weight:500">${label}</td><td style="font-size:11px;color:#888;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${url}">${shortUrl || '-'}</td>${cells}</tr>`;
+                return `<tr><td style="font-weight:500">${label}</td><td style="font-size:11px;color:#888;max-width:280px;word-break:break-all" title="${url}">${displayUrl || '-'}</td>${cells}</tr>`;
             }).join('');
             document.getElementById('jtl-compare-label-tbody').innerHTML = tbodyHtml;
 
