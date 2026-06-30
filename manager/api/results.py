@@ -74,7 +74,7 @@ def _build_time_series(samples: list) -> dict:
         timestamps.append(key)
         tps.append(b["count"])
         avg_rt.append(round(b["total_elapsed"] / b["count"], 2) if b["count"] > 0 else 0)
-        error_rate.append(_fmt_pct(b["errors"] / b["count"] * 100) if b["count"] > 0 else 0)
+        error_rate.append(fmt_pct(b["errors"] / b["count"] * 100) if b["count"] > 0 else 0)
         active_threads.append(0)
 
     return {
@@ -138,7 +138,7 @@ def _build_label_stats(samples: list) -> dict:
             "url": data["url"],
             "count": data["count"],
             "errors": data["errors"],
-            "error_rate": _fmt_pct(data["errors"] / data["count"] * 100),
+            "error_rate": fmt_pct(data["errors"] / data["count"] * 100),
             "tps": tps,
             "avg": round(sum(times) / len(times), 2),
             "min": min(times),
@@ -790,7 +790,7 @@ def get_performance_trend(label: str = None, limit: int = 20):
             "label": lbl,
             "total_samples": total,
             "error_count": errors,
-            "error_rate": _fmt_pct(errors / total * 100) if total > 0 else 0,
+            "error_rate": fmt_pct(errors / total * 100) if total > 0 else 0,
             "avg_response_time": round(sum(elapsed) / len(elapsed), 2),
             "p50": percentile(elapsed, 50),
             "p90": percentile(elapsed, 90),
