@@ -4846,15 +4846,15 @@
                 });
             });
 
-            const theadHtml = '<tr><th style="min-width:160px">接口</th>' +
-                '<th style="font-size:11px;color:#888">URL</th>' +
-                jtlFiles.map((f, i) => `<th colspan="6" style="text-align:center;color:${colors[i % colors.length]};border-left:2px solid #f0f0f0">${f.filename}</th>`).join('') +
-                '</tr><tr><th></th><th></th>' +
-                jtlFiles.map(() => '<th>请求数</th><th>平均RT</th><th>P50</th><th>P90</th><th>P99</th><th style="border-left:2px solid #f0f0f0">TPS</th><th style="border-left:2px solid #f0f0f0">错误率</th>').join('') +
+            const theadHtml = '<tr>' +
+                '<th rowspan="2" style="min-width:140px">接口</th>' +
+                '<th rowspan="2" style="min-width:200px">URL</th>' +
+                jtlFiles.map((f, i) => `<th colspan="4" style="text-align:center;color:${colors[i % colors.length]};border-left:2px solid #e0e0e0;background:#fafafa">${f.filename}</th>`).join('') +
+                '</tr><tr>' +
+                jtlFiles.map(() => '<th style="font-size:11px">请求数</th><th style="font-size:11px">平均RT</th><th style="font-size:11px">TPS</th><th style="font-size:11px;border-left:2px solid #e0e0e0">错误率</th>').join('') +
                 '</tr>';
             document.getElementById('jtl-compare-label-thead').innerHTML = theadHtml;
 
-            let chartIdx = 0;
             const tbodyHtml = Object.keys(allLabelsMap).map(label => {
                 const url = allLabelsMap[label].url || '';
                 let displayUrl = url;
@@ -4862,7 +4862,6 @@
                     const u = new URL(url);
                     displayUrl = u.pathname + u.search;
                 } catch(e) {
-                    // 如果不是完整URL，尝试去掉域名部分
                     const pathStart = url.indexOf('/');
                     if (pathStart > 0 && url.substring(0, pathStart).includes('.')) {
                         displayUrl = url.substring(pathStart);
@@ -4870,11 +4869,11 @@
                 }
                 const cells = jtlFiles.map((f, i) => {
                     const l = allLabelsMap[label][i];
-                    if (!l) return '<td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td>';
+                    if (!l) return '<td>-</td><td>-</td><td>-</td><td style="border-left:2px solid #e0e0e0">-</td>';
                     const errColor = l.error_rate > 0 ? '#dc2626' : '#16a34a';
-                    return `<td>${l.count}</td><td>${l.avg}ms</td><td>${l.p50}ms</td><td>${l.p90}ms</td><td>${l.p99}ms</td><td style="border-left:2px solid #f0f0f0">${l.tps}</td><td style="border-left:2px solid #f0f0f0;color:${errColor}">${l.error_rate}%</td>`;
+                    return `<td>${l.count}</td><td>${l.avg}ms</td><td>${l.tps}</td><td style="border-left:2px solid #e0e0e0;color:${errColor}">${l.error_rate}%</td>`;
                 }).join('');
-                return `<tr><td style="font-weight:500">${label}</td><td style="font-size:11px;color:#888;max-width:280px;word-break:break-all" title="${url}">${displayUrl || '-'}</td>${cells}</tr>`;
+                return `<tr style="border-bottom:1px solid #f0f0f0"><td style="font-weight:500;white-space:nowrap">${label}</td><td style="font-size:11px;color:#888;word-break:break-all" title="${url}">${displayUrl || '-'}</td>${cells}</tr>`;
             }).join('');
             document.getElementById('jtl-compare-label-tbody').innerHTML = tbodyHtml;
 
