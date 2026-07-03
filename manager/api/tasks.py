@@ -35,6 +35,7 @@ class TaskCreateRequest(BaseModel):
     target_agents: list[str]
     jmeter_args: dict = {}
     timeout: int = 3600
+    enforce_single_agent_task: bool = True
     csv_file: Optional[str] = None
     csv_variable_names: Optional[str] = None
     csv_delimiter: str = ","
@@ -58,6 +59,10 @@ class QuickRunRequest(BaseModel):
     csv_recycle: bool = True
     csv_stop_on_eof: bool = False
     scenario: Optional[dict] = None  # 自定义并发场景配置
+    jvm_heap_mb: Optional[int] = None
+    capture_error_log: bool = True
+    enforce_single_agent_task: bool = True
+    jmeter_properties: Optional[dict] = None
 
 
 class BatchTaskItem(BaseModel):
@@ -83,10 +88,50 @@ class TaskStopRequest(BaseModel):
     task_id: str
 
 
+def _validate_jvm_heap_mb(heap_mb: Optional[int]):
+    if heap_mb is None:
+        return
+    if heap_mb < 256:
+        raise HTTPException(status_code=400, detail="JVM 内存不能小于 256MB")
+    if heap_mb > 65536:
+        raise HTTPException(status_code=400, detail="JVM 内存不能大于 65536MB")
+
+
+def _normalize_jmeter_properties(properties: Optional[dict]) -> dict:
+    if not properties:
+        return {}
+
+    internal_keys = {
+        "threads", "ramp_time", "duration", "scenario",
+        "jvm_heap_mb", "capture_error_log", "enforce_single_agent_task",
+    }
+    normalized = {}
+    for raw_key, value in properties.items():
+        key = str(raw_key).strip()
+        if not key or key in internal_keys:
+            continue
+        if any(ch.isspace() for ch in key):
+            raise HTTPException(status_code=400, detail=f"JMeter 参数名不能包含空白字符: {key}")
+        if value in (None, ""):
+            continue
+        if isinstance(value, bool):
+            normalized[key] = "true" if value else "false"
+        else:
+            normalized[key] = str(value).strip()
+    return normalized
+
+
 @router.post("/")
 def create_task(req: TaskCreateRequest):
     """创建一个新的压测任务。"""
     try:
+        heap_value = req.jmeter_args.get("jvm_heap_mb")
+        if heap_value not in (None, ""):
+            try:
+                _validate_jvm_heap_mb(int(heap_value))
+            except ValueError:
+                raise HTTPException(status_code=400, detail="JVM 内存必须是整数 MB")
+
         task_id = _scheduler.create_task(
             script_id=req.script_id,
             target_agents=req.target_agents,
@@ -97,10 +142,15 @@ def create_task(req: TaskCreateRequest):
             csv_delimiter=req.csv_delimiter,
             csv_recycle=req.csv_recycle,
             csv_stop_on_eof=req.csv_stop_on_eof,
+            enforce_single_agent_task=req.enforce_single_agent_task,
         )
         return {"task_id": task_id, "message": "Task created"}
+    except HTTPException:
+        raise
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
+    except (ValueError, RuntimeError) as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -202,6 +252,8 @@ def stop_and_restart(task_id: str, req: Optional[TaskCreateRequest] = None):
 @router.post("/quick-run")
 def quick_run(req: QuickRunRequest):
     """快速运行：自动选择可用 Agent 并立即启动压测任务。"""
+    _validate_jvm_heap_mb(req.jvm_heap_mb)
+
     target = req.target_agents
     if not target:
         agents = _scheduler._node_manager.get_available_agents() if hasattr(_scheduler, '_node_manager') else []
@@ -230,6 +282,12 @@ def quick_run(req: QuickRunRequest):
     if req.scenario:
         jmeter_args["scenario"] = json.dumps(req.scenario)
 
+    jmeter_args.update(_normalize_jmeter_properties(req.jmeter_properties))
+
+    if req.jvm_heap_mb:
+        jmeter_args["jvm_heap_mb"] = str(req.jvm_heap_mb)
+    jmeter_args["capture_error_log"] = "true" if req.capture_error_log else "false"
+
     timeout = req.timeout
     if req.distributed:
         timeout = max(timeout, int(req.duration) + 60)
@@ -247,10 +305,13 @@ def quick_run(req: QuickRunRequest):
             csv_delimiter=req.csv_delimiter,
             csv_recycle=req.csv_recycle,
             csv_stop_on_eof=req.csv_stop_on_eof,
+            enforce_single_agent_task=req.enforce_single_agent_task,
         )
         _scheduler.start_task(task_id)
         return {"task_id": task_id, "message": "任务已创建并启动"}
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
+    except (ValueError, RuntimeError) as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

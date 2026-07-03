@@ -84,6 +84,7 @@ class TaskScheduler:
         csv_delimiter: str = ",",
         csv_recycle: bool = True,
         csv_stop_on_eof: bool = False,
+        enforce_single_agent_task: bool = True,
     ) -> str:
         if not target_agents:
             raise ValueError("至少需要指定一个目标 Agent")
@@ -91,9 +92,18 @@ class TaskScheduler:
         if timeout <= 0:
             raise ValueError("超时时间必须大于 0")
 
-        running_count = len(self.get_running_tasks())
-        if running_count >= MAX_CONCURRENT_TASKS:
+        running_tasks = self.get_running_tasks()
+        if len(running_tasks) >= MAX_CONCURRENT_TASKS:
             raise RuntimeError(f"并发任务数已达上限 ({MAX_CONCURRENT_TASKS})，请等待现有任务完成")
+
+        if enforce_single_agent_task:
+            conflicts = self._find_pressure_machine_conflicts(
+                running_tasks,
+                target_agents,
+                remote_hosts,
+            )
+            if conflicts:
+                raise RuntimeError("压力机已有运行中的任务：" + "；".join(conflicts))
 
         task_id = f"task-{uuid.uuid4().hex[:8]}"
 
@@ -125,6 +135,33 @@ class TaskScheduler:
             db.close()
 
         return task_id
+
+    def _split_remote_hosts(self, remote_hosts: str | None) -> set[str]:
+        if not remote_hosts:
+            return set()
+        return {host.strip() for host in str(remote_hosts).split(",") if host.strip()}
+
+    def _find_pressure_machine_conflicts(
+        self,
+        running_tasks: list[dict],
+        target_agents: list[str],
+        remote_hosts: str | None,
+    ) -> list[str]:
+        target_agent_set = set(target_agents or [])
+        remote_host_set = self._split_remote_hosts(remote_hosts)
+        conflicts = []
+
+        for task in running_tasks:
+            task_id = task.get("task_id", "")
+            busy_agents = target_agent_set & set(task.get("target_agents") or [])
+            busy_slaves = remote_host_set & self._split_remote_hosts(task.get("remote_hosts"))
+
+            if busy_agents:
+                conflicts.append(f"{', '.join(sorted(busy_agents))} 正在执行 {task_id}")
+            if busy_slaves:
+                conflicts.append(f"{', '.join(sorted(busy_slaves))} 正在执行 {task_id}")
+
+        return conflicts
 
     def start_task(self, task_id: str) -> bool:
         task = self.get_task(task_id)
@@ -167,6 +204,7 @@ class TaskScheduler:
                 command=CommandType.EXECUTE,
                 task_id=task_id,
                 script_path=script_path,
+                target_agent_id=agent_id,
                 script_content=script_content if not task.get("csv_file") else None,
                 jmeter_args=task["jmeter_args"],
                 timeout=task["timeout"],
@@ -192,6 +230,7 @@ class TaskScheduler:
                 command=CommandType.STOP,
                 task_id=task_id,
                 script_path="",
+                target_agent_id=agent_id,
             )
             self.redis.publish(REDIS_CHANNEL_COMMAND, command.to_json())
 
@@ -266,6 +305,7 @@ class TaskScheduler:
             csv_delimiter=task.get("csv_delimiter", ","),
             csv_recycle=task.get("csv_recycle", True),
             csv_stop_on_eof=task.get("csv_stop_on_eof", False),
+            enforce_single_agent_task=False,
         )
         self.start_task(new_task_id)
         return new_task_id

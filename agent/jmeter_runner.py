@@ -32,6 +32,24 @@ class JMeterRunner:
         self._jtl_error_count = 0
         self._jtl_recent_times = []
 
+    def _as_bool(self, value, default: bool = False) -> bool:
+        if value is None:
+            return default
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, (int, float)):
+            return value != 0
+        return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+    def _parse_heap_mb(self, value) -> Optional[int]:
+        if value in (None, ""):
+            return None
+        try:
+            heap_mb = int(value)
+        except (TypeError, ValueError):
+            return None
+        return heap_mb if heap_mb > 0 else None
+
     def inject_csv_config(
         self,
         script_path: str,
@@ -252,6 +270,8 @@ class JMeterRunner:
 
         jtl_path = os.path.join(result_dir, "result.xml")
         report_path = os.path.join(result_dir, "html-report")
+        capture_error_log = self._as_bool(jmeter_args.get("capture_error_log"), True)
+        jvm_heap_mb = self._parse_heap_mb(jmeter_args.get("jvm_heap_mb"))
 
         # 注入线程组配置
         scenario = None
@@ -262,7 +282,7 @@ class JMeterRunner:
                 pass
 
         if jmeter_args.get("threads") or jmeter_args.get("duration") or jmeter_args.get("ramp_time"):
-            error_data_path = os.path.join(result_dir, "error_responses.jsonl")
+            error_data_path = os.path.join(result_dir, "error_responses.jsonl") if capture_error_log else None
             script_path = self._inject_thread_config(
                 script_path,
                 threads=int(jmeter_args.get("threads", 10)),
@@ -294,10 +314,14 @@ class JMeterRunner:
             "-Jjmeter.save.saveservice.connect_time=true",
             "-Jjmeter.save.saveservice.latency=true",
             "-Jjmeter.save.saveservice.timestamp=true",
-            "-Jjmeter.save.saveservice.samplerData=true",
-            "-Jjmeter.save.saveservice.requestHeaders=true",
-            "-Jjmeter.save.saveservice.responseHeaders=true",
         ]
+
+        if capture_error_log:
+            cmd.extend([
+                "-Jjmeter.save.saveservice.samplerData=true",
+                "-Jjmeter.save.saveservice.requestHeaders=true",
+                "-Jjmeter.save.saveservice.responseHeaders=true",
+            ])
 
         # 分布式模式
         if distributed:
@@ -307,16 +331,24 @@ class JMeterRunner:
                 cmd.append("-r")
 
         # 添加 JMeter 属性参数（跳过已通过 XML 注入的参数和非 JMeter 属性）
-        skip_keys = {"threads", "ramp_time", "duration", "scenario"}
+        skip_keys = {
+            "threads", "ramp_time", "duration", "scenario",
+            "jvm_heap_mb", "capture_error_log", "enforce_single_agent_task",
+        }
         for key, value in jmeter_args.items():
             if key not in skip_keys:
                 cmd.extend([f"-J{key}={value}"])
 
         try:
+            env = os.environ.copy()
+            if jvm_heap_mb:
+                env["HEAP"] = f"-Xms{jvm_heap_mb}m -Xmx{jvm_heap_mb}m"
+
             self._process = subprocess.Popen(
                 cmd,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
+                env=env,
             )
 
             start_time = time.time()
@@ -360,7 +392,7 @@ class JMeterRunner:
                     return {"status": "failed", "error": f"JMeter exit code {exit_code}", "summary": summary}
 
             # 生成 HTML 报告
-            self._generate_report(jtl_path, report_path)
+            self._generate_report(jtl_path, report_path, jmeter_args)
 
             return {
                 "status": "completed",
@@ -742,15 +774,19 @@ class JMeterRunner:
 
         return summary
 
-    def _generate_report(self, jtl_path: str, report_path: str):
+    def _generate_report(self, jtl_path: str, report_path: str, jmeter_args: dict = None):
         """使用 JMeter 生成 HTML Dashboard 报告"""
         try:
+            cmd = [self.jmeter_bin]
+            for key, value in (jmeter_args or {}).items():
+                if str(key).startswith("jmeter.reportgenerator."):
+                    cmd.append(f"-J{key}={value}")
+            cmd.extend([
+                "-g", jtl_path,
+                "-o", report_path,
+            ])
             result = subprocess.run(
-                [
-                    self.jmeter_bin,
-                    "-g", jtl_path,
-                    "-o", report_path,
-                ],
+                cmd,
                 timeout=60,
                 capture_output=True,
                 text=True,

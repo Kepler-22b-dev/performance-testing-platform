@@ -59,6 +59,7 @@ class TaskCommand:
     command: CommandType          # 命令类型
     task_id: str                  # 任务ID
     script_path: str              # 脚本路径
+    target_agent_id: Optional[str] = None  # 目标 Agent；为空表示广播兼容旧命令
     script_content: Optional[str] = None  # 脚本内容(可选)
     jmeter_args: dict = field(default_factory=dict)  # JMeter 参数
     timeout: int = 3600           # 超时时间(秒)

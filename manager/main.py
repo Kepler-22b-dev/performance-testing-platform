@@ -196,6 +196,7 @@ app.include_router(environments_router)
 app.include_router(jtl_router)
 
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
 @app.get("/")
