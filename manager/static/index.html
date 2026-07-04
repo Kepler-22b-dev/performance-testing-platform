@@ -1911,6 +1911,22 @@
             }).join('\n');
         }
 
+        async function getResponseErrorMessage(res, fallback) {
+            let detail = '';
+            try {
+                const data = await res.clone().json();
+                detail = data.detail || data.message || '';
+            } catch (e) {
+                try {
+                    detail = await res.clone().text();
+                } catch (ignored) {}
+            }
+            if (res.status === 404 && (!detail || detail === 'Not Found')) {
+                return '接口返回 404，通常是 Manager 服务未重启，重启后会加载新的工具日志路由';
+            }
+            return `${fallback}（HTTP ${res.status}${detail ? '：' + detail : ''}）`;
+        }
+
         // ===== 工具日志 =====
         let toolLogState = {
             platformLogs: [],
@@ -1988,12 +2004,12 @@
             if (!container) return;
             try {
                 const res = await fetch(`${API}/api/tool-logs/platform`);
-                if (!res.ok) throw new Error('load platform logs failed');
+                if (!res.ok) throw new Error(await getResponseErrorMessage(res, '平台日志加载失败'));
                 const data = await res.json();
                 toolLogState.platformLogs = data.logs || [];
                 renderToolPlatformLogs();
             } catch (e) {
-                container.innerHTML = '<div class="empty-tip" style="padding:12px;">平台日志加载失败</div>';
+                container.innerHTML = `<div class="empty-tip" style="padding:12px;">${escapeHtml(e.message || '平台日志加载失败')}</div>`;
             }
         }
 
@@ -2055,7 +2071,7 @@
             container.innerHTML = '<div class="empty-tip" style="padding:12px;">加载中...</div>';
             try {
                 const res = await fetch(`${API}/api/tool-logs/tasks/${encodeURIComponent(taskId)}`);
-                if (!res.ok) throw new Error('load task logs failed');
+                if (!res.ok) throw new Error(await getResponseErrorMessage(res, '任务日志加载失败'));
                 const data = await res.json();
                 toolLogState.taskAgents = data.agents || [];
                 renderToolTaskLogs(taskId);
@@ -2078,8 +2094,9 @@
                     setToolLogEmpty('该任务暂无工具日志文件');
                 }
             } catch (e) {
-                container.innerHTML = '<div class="empty-tip" style="padding:12px;">任务日志加载失败</div>';
-                setToolLogEmpty('任务日志加载失败');
+                const message = e.message || '任务日志加载失败';
+                container.innerHTML = `<div class="empty-tip" style="padding:12px;">${escapeHtml(message)}</div>`;
+                setToolLogEmpty(message);
             }
         }
 
@@ -2132,9 +2149,9 @@
             try {
                 const res = await fetch(`${baseUrl}?lines=${encodeURIComponent(lines)}`);
                 if (!res.ok) {
-                    const errorText = res.status === 404 ? '日志不存在或尚未生成' : '日志读取失败';
-                    meta.innerHTML = `<strong>${escapeHtml(fallbackTitle)}</strong><span>${errorText}</span>`;
-                    content.innerHTML = `<span class="log-loading">${errorText}</span>`;
+                    const errorText = await getResponseErrorMessage(res, '日志读取失败');
+                    meta.innerHTML = `<strong>${escapeHtml(fallbackTitle)}</strong><span>${escapeHtml(errorText)}</span>`;
+                    content.innerHTML = `<span class="log-loading">${escapeHtml(errorText)}</span>`;
                     return;
                 }
                 const data = await res.json();
