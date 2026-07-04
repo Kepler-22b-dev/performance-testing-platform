@@ -98,6 +98,13 @@
         .tool-log-meta { min-height: 32px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 8px 10px; border: 1px solid #e0e0e0; border-bottom: none; border-radius: 6px 6px 0 0; background: #fff; font-size: 12px; color: #666; }
         .tool-log-meta strong { color: #1a1a1a; }
         .tool-log-box { min-height: 520px; max-height: 68vh; border-radius: 0 0 6px 6px; }
+        .tool-log-analysis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-bottom: 12px; }
+        .tool-log-analysis-card { border: 1px solid #e0e0e0; border-radius: 6px; background: #fafafa; padding: 10px 12px; min-width: 0; }
+        .tool-log-analysis-card.wide { grid-column: span 2; }
+        .tool-log-analysis-card .label { font-size: 11px; color: #888; margin-bottom: 3px; }
+        .tool-log-analysis-card .value { font-size: 18px; font-weight: 700; color: #1a1a1a; line-height: 1.25; }
+        .tool-log-analysis-card .desc { margin-top: 4px; font-size: 11px; color: #777; line-height: 1.35; overflow-wrap: anywhere; }
+        .tool-log-analysis-card .issue { font-size: 12px; color: #333; line-height: 1.45; overflow-wrap: anywhere; }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
         .form-group { margin-bottom: 16px; }
         .form-group label { display: block; font-size: 13px; color: #555; margin-bottom: 6px; font-weight: 500; }
@@ -262,6 +269,7 @@
             .arch-nodes.cols-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
             .arch-nodes.cols-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
             .tool-log-layout { grid-template-columns: 1fr; }
+            .tool-log-analysis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         }
         @media (max-width: 700px) {
             .header { align-items: flex-start; flex-direction: column; padding: 8px 20px; gap: 8px; }
@@ -289,6 +297,8 @@
             .arch-nodes.cols-4, .arch-nodes.cols-3, .arch-nodes.cols-2 { grid-template-columns: 1fr; }
             .arch-flow { grid-template-columns: 1fr; text-align: center; gap: 6px; }
             .arch-flow::before, .arch-flow::after { display: none; }
+            .tool-log-analysis { grid-template-columns: 1fr; }
+            .tool-log-analysis-card.wide { grid-column: auto; }
         }
     </style>
 </head>
@@ -673,7 +683,15 @@
                             <option value="1000">最近 1000 行</option>
                             <option value="3000">最近 3000 行</option>
                         </select>
+                        <button class="filter-btn" onclick="loadToolLogAnalysis()">分析</button>
+                        <button class="filter-btn" onclick="cleanupToolLogs()">清理过期日志</button>
                         <button class="filter-btn" onclick="refreshToolLog()">刷新</button>
+                    </div>
+                </div>
+                <div id="tool-log-analysis" class="tool-log-analysis">
+                    <div class="tool-log-analysis-card">
+                        <div class="label">日志分析</div>
+                        <div class="desc">加载中...</div>
                     </div>
                 </div>
                 <div class="tool-log-layout">
@@ -1975,7 +1993,7 @@
             const content = document.getElementById('tool-log-content');
             if (content) content.innerHTML = '<span class="log-loading">加载中...</span>';
 
-            await Promise.all([loadToolPlatformLogs(), loadToolTaskOptions()]);
+            await Promise.all([loadToolPlatformLogs(), loadToolTaskOptions(), loadToolLogAnalysis()]);
 
             if (toolLogState.pendingTaskId) {
                 const taskId = toolLogState.pendingTaskId;
@@ -2033,6 +2051,82 @@
                 }
             } catch (e) {
                 select.innerHTML = '<option value="">任务列表加载失败</option>';
+            }
+        }
+
+        async function loadToolLogAnalysis() {
+            const box = document.getElementById('tool-log-analysis');
+            if (!box) return;
+            box.innerHTML = `<div class="tool-log-analysis-card"><div class="label">日志分析</div><div class="desc">加载中...</div></div>`;
+            try {
+                const res = await fetch(`${API}/api/tool-logs/analysis?lines_per_file=1000&include_tasks=true`);
+                if (!res.ok) throw new Error(await getResponseErrorMessage(res, '日志分析失败'));
+                const data = await res.json();
+                renderToolLogAnalysis(data);
+            } catch (e) {
+                box.innerHTML = `<div class="tool-log-analysis-card wide"><div class="label">日志分析</div><div class="desc">${escapeHtml(e.message || '日志分析失败')}</div></div>`;
+            }
+        }
+
+        function renderToolLogAnalysis(data) {
+            const box = document.getElementById('tool-log-analysis');
+            if (!box) return;
+            const summary = data.summary || {};
+            const levels = summary.level_counts || {};
+            const config = data.config || {};
+            const storage = data.storage || {};
+            const topIssue = (data.top_issues || [])[0];
+            const recent = data.recent_issues || [];
+            const issueText = topIssue
+                ? `${topIssue.count} 次 / ${topIssue.signature}`
+                : '最近扫描范围内没有 WARN/ERROR';
+            const recentText = recent.length
+                ? `${recent.length} 条近期告警或错误，最新来源：${recent[recent.length - 1].source || '-'}`
+                : '暂无近期告警或错误';
+
+            box.innerHTML = [
+                `<div class="tool-log-analysis-card">
+                    <div class="label">扫描文件</div>
+                    <div class="value">${summary.files_scanned || 0}</div>
+                    <div class="desc">扫描 ${summary.lines_scanned || 0} 行，缺失 ${summary.missing_files || 0} 个日志文件</div>
+                </div>`,
+                `<div class="tool-log-analysis-card">
+                    <div class="label">告警 / 错误</div>
+                    <div class="value">${levels.WARN || 0} / ${levels.ERROR || 0}</div>
+                    <div class="desc">CRITICAL ${levels.CRITICAL || 0}，INFO ${levels.INFO || 0}</div>
+                </div>`,
+                `<div class="tool-log-analysis-card">
+                    <div class="label">日志占用</div>
+                    <div class="value">${formatBytes(storage.total_log_bytes || 0)}</div>
+                    <div class="desc">平台 ${formatBytes(storage.platform_log_bytes || 0)} / 任务 ${formatBytes(storage.task_log_bytes || 0)}</div>
+                </div>`,
+                `<div class="tool-log-analysis-card">
+                    <div class="label">保留策略</div>
+                    <div class="value">${config.platform_log_retention_days || 0} 天</div>
+                    <div class="desc">单日志 ${formatBytes(config.log_max_bytes || 0)} × ${config.log_backup_count || 0} 份；任务日志 ${config.task_log_retention_days || 0} 天；清理间隔 ${formatDurationSeconds(config.cleanup_interval_seconds || 0)}</div>
+                </div>`,
+                `<div class="tool-log-analysis-card wide">
+                    <div class="label">Top 问题</div>
+                    <div class="issue">${escapeHtml(issueText)}</div>
+                </div>`,
+                `<div class="tool-log-analysis-card wide">
+                    <div class="label">近期状态</div>
+                    <div class="issue">${escapeHtml(recentText)}</div>
+                </div>`,
+            ].join('');
+        }
+
+        async function cleanupToolLogs() {
+            if (!confirm('确认清理超过保留天数的工具日志？压测报告和结果数据不会删除。')) return;
+            try {
+                const res = await fetch(`${API}/api/tool-logs/cleanup?dry_run=false`, { method: 'POST' });
+                if (!res.ok) throw new Error(await getResponseErrorMessage(res, '日志清理失败'));
+                const data = await res.json();
+                alert(`清理完成：删除 ${data.deleted_files || 0} 个文件，释放 ${formatBytes(data.deleted_bytes || 0)}`);
+                await Promise.all([loadToolLogAnalysis(), loadToolPlatformLogs()]);
+                if (toolLogState.current) refreshToolLog();
+            } catch (e) {
+                alert(e.message || '日志清理失败');
             }
         }
 
@@ -2206,6 +2300,14 @@
             if (num >= 1024 * 1024) return (num / 1024 / 1024).toFixed(1) + ' MB';
             if (num >= 1024) return (num / 1024).toFixed(1) + ' KB';
             return num + ' B';
+        }
+
+        function formatDurationSeconds(seconds) {
+            const num = Number(seconds || 0);
+            if (num >= 86400) return Math.round(num / 86400) + ' 天';
+            if (num >= 3600) return Math.round(num / 3600) + ' 小时';
+            if (num >= 60) return Math.round(num / 60) + ' 分钟';
+            return num + ' 秒';
         }
 
         function formatLogTime(timestamp) {

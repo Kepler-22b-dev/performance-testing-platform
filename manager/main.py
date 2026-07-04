@@ -23,7 +23,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from common.protocol import TaskResult, ProgressUpdate
 from common.config import REDIS_HOST, REDIS_PORT, REDIS_DB, REDIS_CHANNEL_RESULT, REDIS_CHANNEL_PROGRESS
-from common.logger import get_logger, get_api_logger, get_task_logger, log_task_event
+from common.logger import get_logger, get_api_logger, get_task_logger, log_error, log_task_event
 from common.database import init_db
 from common.async_worker import async_worker
 
@@ -45,7 +45,11 @@ from manager.api.scheduler_api import router as scheduler_router
 from manager.api.alerts import router as alerts_router
 from manager.api.environments import router as environments_router
 from manager.api.jtl_compare import router as jtl_router
-from manager.api.tool_logs import router as tool_logs_router
+from manager.api.tool_logs import (
+    LOG_CLEANUP_INTERVAL_SECONDS,
+    cleanup_expired_logs,
+    router as tool_logs_router,
+)
 
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -105,6 +109,24 @@ async def redis_listener():
         await r.close()
 
 
+async def log_cleanup_loop():
+    """定期清理过期工具日志，不影响压测报告结果。"""
+    while True:
+        try:
+            result = await asyncio.to_thread(cleanup_expired_logs)
+            if result["deleted_files"]:
+                logger.info(
+                    "工具日志清理完成: 删除 %s 个文件，释放 %.2f MB",
+                    result["deleted_files"],
+                    result["deleted_bytes"] / 1024 / 1024,
+                )
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            log_error(logger, exc, "工具日志清理")
+        await asyncio.sleep(LOG_CLEANUP_INTERVAL_SECONDS)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """应用生命周期管理"""
@@ -116,6 +138,7 @@ async def lifespan(app: FastAPI):
     heartbeat_thread = node_manager.start_heartbeat_listener()
     logger.info("心跳监听器已启动")
     listener_task = asyncio.create_task(redis_listener())
+    cleanup_task = asyncio.create_task(log_cleanup_loop())
     init_scheduler_loop()
     logger.info("定时调度器已启动")
 
@@ -123,6 +146,7 @@ async def lifespan(app: FastAPI):
 
     logger.info("Manager 服务关闭中...")
     listener_task.cancel()
+    cleanup_task.cancel()
     heartbeat_thread.stop()
     logger.info("Manager 服务已关闭")
 
@@ -173,7 +197,7 @@ async def log_requests(request, call_next):
     api_logger.info(f"{request.method} {request.url.path} -> {response.status_code} ({duration:.1f}ms)")
     return response
 
-logger.info(f"API 路由已注册: nodes, scripts, tasks, results, slave, registry, monitor, data, templates, notifications, scheduler, alerts, environments")
+logger.info(f"API 路由已注册: nodes, scripts, tasks, results, slave, registry, monitor, data, templates, notifications, scheduler, alerts, environments, tool_logs")
 
 set_node_manager(node_manager)
 set_scheduler(scheduler)

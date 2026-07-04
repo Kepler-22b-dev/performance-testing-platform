@@ -6,11 +6,13 @@ from logging.handlers import RotatingFileHandler
 
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(__file__))
 LOG_DIR = os.path.join(_PROJECT_ROOT, "logs")
+LOG_MAX_BYTES = int(os.getenv("LOG_MAX_BYTES", 50 * 1024 * 1024))
+LOG_BACKUP_COUNT = int(os.getenv("LOG_BACKUP_COUNT", 20))
 
 def _ensure_log_dir():
     os.makedirs(LOG_DIR, exist_ok=True)
 
-def get_logger(name, level="INFO", console=True, file=True, log_file=None, max_bytes=10*1024*1024, backup_count=5):
+def get_logger(name, level="INFO", console=True, file=True, log_file=None, max_bytes=None, backup_count=None):
     _ensure_log_dir()
     logger = logging.getLogger(name)
     if logger.handlers:
@@ -26,7 +28,12 @@ def get_logger(name, level="INFO", console=True, file=True, log_file=None, max_b
     if file:
         if not log_file:
             log_file = f"{name.replace('.', '_')}.log"
-        h = RotatingFileHandler(os.path.join(LOG_DIR, log_file), maxBytes=max_bytes, backupCount=backup_count, encoding="utf-8")
+        h = RotatingFileHandler(
+            os.path.join(LOG_DIR, log_file),
+            maxBytes=max_bytes or LOG_MAX_BYTES,
+            backupCount=backup_count if backup_count is not None else LOG_BACKUP_COUNT,
+            encoding="utf-8",
+        )
         h.setLevel(log_level)
         h.setFormatter(fmt)
         logger.addHandler(h)
