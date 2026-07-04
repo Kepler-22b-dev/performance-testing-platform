@@ -22,7 +22,7 @@ from common.database import get_db
 from manager.core.db import (
     db_get_all_scripts, db_get_script, db_create_script,
     db_update_script, db_delete_script, db_search_scripts,
-    db_get_next_script_id,
+    db_get_next_script_id, db_get_scripts_page,
 )
 
 router = APIRouter(prefix="/api/scripts", tags=["scripts"])
@@ -68,10 +68,19 @@ async def upload_script(file: UploadFile = File(...), name: Optional[str] = None
 
 
 @router.get("/")
-async def list_scripts(db: AsyncSession = Depends(get_db)):
+async def list_scripts(offset: int = 0, limit: int = 100,
+                       include_content: bool = False,
+                       db: AsyncSession = Depends(get_db)):
     """获取所有已上传脚本的列表，按修改时间倒序排列。"""
-    scripts = await db_get_all_scripts(db)
-    return {"total": len(scripts), "scripts": scripts}
+    offset = max(0, int(offset or 0))
+    limit = max(1, min(500, int(limit or 100)))
+    total, scripts = await db_get_scripts_page(
+        db,
+        offset=offset,
+        limit=limit,
+        include_content=include_content,
+    )
+    return {"total": total, "offset": offset, "limit": limit, "scripts": scripts}
 
 
 @router.get("/search")

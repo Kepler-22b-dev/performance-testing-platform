@@ -4,7 +4,7 @@
 """
 import time
 from typing import Optional
-from sqlalchemy import select, update, delete
+from sqlalchemy import select, update, delete, func
 from sqlalchemy.orm import Session
 
 from manager.models.db_models import (
@@ -37,6 +37,16 @@ def _to_dict(obj) -> dict:
 def db_get_all_scripts(db: Session) -> list:
     result = db.execute(select(Script).order_by(Script.modified_at.desc()))
     return [_to_dict(r) for r in result.all()]
+
+
+def db_get_scripts_page(db: Session, offset: int = 0, limit: int = 100, include_content: bool = False) -> tuple[int, list]:
+    total = db.scalar(select(func.count()).select_from(Script)) or 0
+    query = select(Script).order_by(Script.modified_at.desc()).offset(offset).limit(limit)
+    rows = [_to_dict(r) for r in db.execute(query).scalars().all()]
+    if not include_content:
+        for row in rows:
+            row.pop("content", None)
+    return total, rows
 
 
 def db_get_script(db: Session, script_id: str) -> Optional[dict]:
@@ -155,6 +165,35 @@ def db_get_all_tasks(db: Session) -> list:
     return list(tasks_map.values())
 
 
+def db_get_tasks_page(db: Session, offset: int = 0, limit: int = 100, status: str = None) -> tuple[int, list]:
+    base = select(Task)
+    count_query = select(func.count()).select_from(Task)
+    if status:
+        base = base.where(Task.status == status)
+        count_query = count_query.where(Task.status == status)
+
+    total = db.scalar(count_query) or 0
+    task_rows = db.execute(
+        base.order_by(Task.created_at.desc()).offset(offset).limit(limit)
+    ).scalars().all()
+    tasks = [_to_dict(row) for row in task_rows]
+    task_ids = [t["task_id"] for t in tasks]
+    for task in tasks:
+        task["results"] = {}
+
+    if task_ids:
+        result_rows = db.execute(
+            select(TaskResult).where(TaskResult.task_id.in_(task_ids))
+        ).scalars().all()
+        task_map = {t["task_id"]: t for t in tasks}
+        for result_row in result_rows:
+            result_dict = _to_dict(result_row)
+            task = task_map.get(result_dict["task_id"])
+            if task is not None:
+                task["results"][result_dict["agent_id"]] = result_dict
+    return total, tasks
+
+
 def db_update_task(db: Session, task_id: str, **kwargs) -> bool:
     result = db.execute(
         update(Task).where(Task.task_id == task_id).values(**kwargs)
@@ -237,6 +276,14 @@ def db_delete_var(db: Session, var_id: str) -> bool:
 def db_get_all_csvs(db: Session) -> list:
     result = db.execute(select(CsvFile).order_by(CsvFile.created_at.desc()))
     return [_to_dict(r) for r in result.all()]
+
+
+def db_get_csvs_page(db: Session, offset: int = 0, limit: int = 100) -> tuple[int, list]:
+    total = db.scalar(select(func.count()).select_from(CsvFile)) or 0
+    result = db.execute(
+        select(CsvFile).order_by(CsvFile.created_at.desc()).offset(offset).limit(limit)
+    )
+    return total, [_to_dict(r) for r in result.scalars().all()]
 
 
 def db_get_csv(db: Session, csv_id: str) -> Optional[dict]:

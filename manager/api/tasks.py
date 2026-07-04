@@ -34,7 +34,7 @@ class TaskCreateRequest(BaseModel):
     script_id: str
     target_agents: list[str]
     jmeter_args: dict = {}
-    timeout: int = 3600
+    timeout: Optional[int] = None
     enforce_single_agent_task: bool = True
     csv_file: Optional[str] = None
     csv_variable_names: Optional[str] = None
@@ -50,7 +50,7 @@ class QuickRunRequest(BaseModel):
     threads: int = 1
     ramp_time: int = 1
     duration: int = 10
-    timeout: int = 3600
+    timeout: Optional[int] = None
     distributed: bool = False
     remote_hosts: Optional[str] = None
     csv_file: Optional[str] = None
@@ -61,6 +61,10 @@ class QuickRunRequest(BaseModel):
     scenario: Optional[dict] = None  # 自定义并发场景配置
     jvm_heap_mb: Optional[int] = None
     capture_error_log: bool = True
+    error_log_sample_limit: int = 100
+    error_log_max_body_chars: int = 8192
+    result_format: str = "csv"
+    debug_result_xml: bool = False
     enforce_single_agent_task: bool = True
     jmeter_properties: Optional[dict] = None
 
@@ -69,7 +73,7 @@ class BatchTaskItem(BaseModel):
     script_id: str
     target_agents: list[str] = []
     jmeter_args: dict = {}
-    timeout: int = 3600
+    timeout: Optional[int] = None
     distributed: bool = False
     remote_hosts: Optional[str] = None
     auto_start: bool = False
@@ -88,6 +92,13 @@ class TaskStopRequest(BaseModel):
     task_id: str
 
 
+class AdjustLoadRequest(BaseModel):
+    action: str = "increase"
+    threads: int
+    ramp_time: int = 1
+    duration: int = 60
+
+
 def _validate_jvm_heap_mb(heap_mb: Optional[int]):
     if heap_mb is None:
         return
@@ -104,6 +115,8 @@ def _normalize_jmeter_properties(properties: Optional[dict]) -> dict:
     internal_keys = {
         "threads", "ramp_time", "duration", "scenario",
         "jvm_heap_mb", "capture_error_log", "enforce_single_agent_task",
+        "error_log_sample_limit", "error_log_max_body_chars",
+        "result_format", "debug_result_xml",
     }
     normalized = {}
     for raw_key, value in properties.items():
@@ -121,6 +134,49 @@ def _normalize_jmeter_properties(properties: Optional[dict]) -> dict:
     return normalized
 
 
+def _estimate_timeout_seconds(duration: int, ramp_time: int = 0, scenario: Optional[dict] = None, distributed: bool = False) -> int:
+    """按压测场景估算任务超时，避免短场景默认给过长超时。"""
+    duration = max(1, int(duration or 1))
+    ramp_time = max(0, int(ramp_time or 0))
+    buffer = max(60, min(300, int(duration * 0.2 + 0.999)))
+    resource_load = (scenario or {}).get("resource_load") if isinstance(scenario, dict) else None
+    if isinstance(resource_load, dict) and resource_load.get("enabled"):
+        buffer += 60
+    if distributed:
+        buffer += 60
+    timeout = duration + ramp_time + buffer
+    return max(120, ((timeout + 9) // 10) * 10)
+
+
+def _to_int(value, default: int) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _scenario_from_args(jmeter_args: dict) -> Optional[dict]:
+    raw = (jmeter_args or {}).get("scenario")
+    if isinstance(raw, dict):
+        return raw
+    if isinstance(raw, str) and raw.strip():
+        try:
+            parsed = json.loads(raw)
+            return parsed if isinstance(parsed, dict) else None
+        except Exception:
+            return None
+    return None
+
+
+def _resolve_timeout_seconds(timeout: Optional[int], jmeter_args: dict, distributed: bool = False) -> int:
+    jmeter_args = jmeter_args or {}
+    duration = _to_int(jmeter_args.get("duration"), 60)
+    ramp_time = _to_int(jmeter_args.get("ramp_time"), 0)
+    scenario = _scenario_from_args(jmeter_args)
+    estimated = _estimate_timeout_seconds(duration, ramp_time, scenario, distributed)
+    return max(_to_int(timeout, estimated), estimated)
+
+
 @router.post("/")
 def create_task(req: TaskCreateRequest):
     """创建一个新的压测任务。"""
@@ -136,7 +192,7 @@ def create_task(req: TaskCreateRequest):
             script_id=req.script_id,
             target_agents=req.target_agents,
             jmeter_args=req.jmeter_args,
-            timeout=req.timeout,
+            timeout=_resolve_timeout_seconds(req.timeout, req.jmeter_args),
             csv_file=req.csv_file,
             csv_variable_names=req.csv_variable_names,
             csv_delimiter=req.csv_delimiter,
@@ -174,10 +230,17 @@ def stop_task(task_id: str):
 
 
 @router.get("/")
-def list_tasks():
+def list_tasks(offset: int = 0, limit: int = 100, status: Optional[str] = None):
     """获取所有压测任务的列表。"""
-    tasks = _scheduler.get_all_tasks()
-    return {"total": len(tasks), "tasks": tasks}
+    offset = max(0, int(offset or 0))
+    limit = max(1, min(500, int(limit or 100)))
+    result = _scheduler.get_all_tasks(offset=offset, limit=limit, status=status)
+    if isinstance(result, tuple):
+        total, tasks = result
+    else:
+        tasks = result
+        total = len(tasks)
+    return {"total": total, "offset": offset, "limit": limit, "tasks": tasks}
 
 
 @router.get("/{task_id}")
@@ -209,7 +272,12 @@ def get_progress_history(task_id: str):
 @router.post("/batch")
 def batch_create_tasks(req: BatchTaskRequest):
     """批量创建多个压测任务。"""
-    task_ids = _scheduler.batch_create_tasks([t.model_dump() for t in req.tasks])
+    tasks_config = []
+    for item in req.tasks:
+        cfg = item.model_dump()
+        cfg["timeout"] = _resolve_timeout_seconds(cfg.get("timeout"), cfg.get("jmeter_args", {}), cfg.get("distributed", False))
+        tasks_config.append(cfg)
+    task_ids = _scheduler.batch_create_tasks(tasks_config)
     return {"task_ids": task_ids, "total": len(task_ids)}
 
 
@@ -236,17 +304,36 @@ def stop_and_restart(task_id: str, req: Optional[TaskCreateRequest] = None):
     """停止当前任务并用新参数重启。"""
     overrides = {}
     if req:
+        timeout = _resolve_timeout_seconds(req.timeout, req.jmeter_args)
         overrides = {
             "threads": req.jmeter_args.get("threads"),
             "ramp_time": req.jmeter_args.get("ramp_time"),
             "duration": req.jmeter_args.get("duration"),
             "target_agents": req.target_agents,
-            "timeout": req.timeout,
+            "timeout": timeout,
         }
     new_id = _scheduler.stop_and_rerun(task_id, overrides if overrides else None)
     if not new_id:
         raise HTTPException(status_code=400, detail="无法停止并重启任务")
     return {"task_id": new_id, "message": "已停止旧任务并启动新任务"}
+
+
+@router.post("/{task_id}/adjust-load")
+def adjust_load(task_id: str, req: AdjustLoadRequest):
+    """动态调整运行中任务的压力。"""
+    try:
+        result = _scheduler.adjust_load(
+            task_id=task_id,
+            action=req.action,
+            threads=req.threads,
+            ramp_time=req.ramp_time,
+            duration=req.duration,
+        )
+        return {"message": "动态调压命令已下发", **result}
+    except (ValueError, RuntimeError) as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/quick-run")
@@ -287,10 +374,16 @@ def quick_run(req: QuickRunRequest):
     if req.jvm_heap_mb:
         jmeter_args["jvm_heap_mb"] = str(req.jvm_heap_mb)
     jmeter_args["capture_error_log"] = "true" if req.capture_error_log else "false"
+    jmeter_args["error_log_sample_limit"] = str(max(0, min(10000, req.error_log_sample_limit)))
+    jmeter_args["error_log_max_body_chars"] = str(max(256, min(262144, req.error_log_max_body_chars)))
+    jmeter_args["result_format"] = "xml" if req.result_format == "xml" or req.debug_result_xml else "csv"
+    if req.debug_result_xml:
+        jmeter_args["debug_result_xml"] = "true"
 
-    timeout = req.timeout
-    if req.distributed:
-        timeout = max(timeout, int(req.duration) + 60)
+    timeout = max(
+        _to_int(req.timeout, _estimate_timeout_seconds(req.duration, req.ramp_time, req.scenario, req.distributed)),
+        _estimate_timeout_seconds(req.duration, req.ramp_time, req.scenario, req.distributed),
+    )
 
     try:
         task_id = _scheduler.create_task(

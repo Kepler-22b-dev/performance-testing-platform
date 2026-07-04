@@ -23,6 +23,7 @@ class CommandType(str, Enum):
     """命令类型枚举"""
     EXECUTE = "execute"  # 执行任务
     STOP = "stop"        # 停止任务
+    ADJUST_LOAD = "adjust_load"  # 动态调整运行中的压力
     HEARTBEAT = "heartbeat"  # 心跳
 
 
@@ -70,6 +71,7 @@ class TaskCommand:
     csv_delimiter: str = ","      # CSV 分隔符
     csv_recycle: bool = True      # 是否循环读取 CSV
     csv_stop_on_eof: bool = False # CSV 读完是否停止
+    segment_id: Optional[str] = None  # 动态调压压力段 ID
 
     def to_json(self):
         return json.dumps(asdict(self), ensure_ascii=False)
@@ -122,6 +124,7 @@ class ProgressUpdate:
     bytes_sent: int = 0                       # 发送字节数
     avg_latency: float = 0.0                  # 平均延迟(ms)
     avg_connect_time: float = 0.0             # 平均连接时间(ms)
+    segment_id: str = "base"                  # 压力段 ID，base 表示基础任务
 
     def to_json(self):
         return json.dumps(asdict(self), ensure_ascii=False)

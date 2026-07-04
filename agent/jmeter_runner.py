@@ -31,6 +31,8 @@ class JMeterRunner:
         self._jtl_line_count = 0
         self._jtl_error_count = 0
         self._jtl_recent_times = []
+        self._jtl_is_xml = False
+        self._jtl_csv_fields = []
 
     def _as_bool(self, value, default: bool = False) -> bool:
         if value is None:
@@ -151,7 +153,17 @@ class JMeterRunner:
             print(f"CSV injection failed: {e}")
             return script_path
 
-    def _inject_thread_config(self, script_path: str, threads: int, ramp_time: int, duration: int, scenario: dict = None, error_data_path: str = None) -> str:
+    def _inject_thread_config(
+        self,
+        script_path: str,
+        threads: int,
+        ramp_time: int,
+        duration: int,
+        scenario: dict = None,
+        error_data_path: str = None,
+        error_sample_limit: int = 100,
+        error_max_body_chars: int = 8192,
+    ) -> str:
         """
         动态注入线程组配置到 JMX 脚本
         覆盖 JMX 中的线程数、预热时间、持续时间
@@ -202,7 +214,13 @@ class JMeterRunner:
 
                 # 注入 JSR223 PostProcessor 以捕获错误响应数据
                 if error_data_path:
-                    self._inject_error_response_capture(root, thread_group, error_data_path)
+                    self._inject_error_response_capture(
+                        root,
+                        thread_group,
+                        error_data_path,
+                        error_sample_limit,
+                        error_max_body_chars,
+                    )
 
                 if image_resource_config:
                     self._inject_image_resource_loader(root, thread_group, image_resource_config)
@@ -214,7 +232,14 @@ class JMeterRunner:
             print(f"Thread config injection failed: {e}")
             return script_path
 
-    def _inject_error_response_capture(self, root, thread_group, error_data_path: str):
+    def _inject_error_response_capture(
+        self,
+        root,
+        thread_group,
+        error_data_path: str,
+        sample_limit: int = 100,
+        max_body_chars: int = 8192,
+    ):
         """在 ThreadGroup 的 hashTree 中注入 JSR223 PostProcessor，仅在请求失败时捕获响应体。"""
         target_hash_tree = self._find_child_hash_tree(root, thread_group)
 
@@ -233,25 +258,43 @@ class JMeterRunner:
         ET.SubElement(jsr223, "stringProp", name="parameters").text = ""
         ET.SubElement(jsr223, "boolProp", name="executeOnEveryIteration").text = "false"
 
-        script_text = (
-            'import groovy.json.JsonOutput\n'
-            'import java.io.File\n'
-            '\n'
-            'if (!prev.isSuccessful()) {\n'
-            '    def responseData = prev.getResponseDataAsString()\n'
-            '    def data = [\n'
-            '        ts: prev.getStartTime(),\n'
-            '        label: prev.getLabel(),\n'
-            '        responseCode: prev.getResponseCode(),\n'
-            '        responseData: responseData\n'
-            '    ]\n'
-            '    def line = JsonOutput.toJson(data)\n'
-            f'    def file = new File("{error_data_path}")\n'
-            '    synchronized(file) {\n'
-            '        file.append(line + "\\n")\n'
-            '    }\n'
-            '}'
-        )
+        safe_path = json.dumps(error_data_path, ensure_ascii=False)
+        sample_limit = self._parse_int_range(sample_limit, 100, 0, 10000)
+        max_body_chars = self._parse_int_range(max_body_chars, 8192, 256, 262144)
+        script_text = "\n".join([
+            "import groovy.json.JsonOutput",
+            "import java.io.File",
+            "",
+            "if (!prev.isSuccessful()) {",
+            f"    final int sampleLimit = {sample_limit}",
+            f"    final int maxBodyChars = {max_body_chars}",
+            "    if (sampleLimit <= 0) { return }",
+            f"    def file = new File({safe_path})",
+            "    def parent = file.getParentFile()",
+            "    if (parent != null) { parent.mkdirs() }",
+            "    synchronized(file.getAbsolutePath().intern()) {",
+            "        def counterKey = '__ptp_error_capture_count_' + file.getAbsolutePath()",
+            "        int current = (props.get(counterKey) ?: '0') as int",
+            "        if (current >= sampleLimit) { return }",
+            "        props.put(counterKey, String.valueOf(current + 1))",
+            "        def responseData = prev.getResponseDataAsString() ?: ''",
+            "        boolean truncated = false",
+            "        if (responseData.length() > maxBodyChars) {",
+            "            responseData = responseData.substring(0, maxBodyChars)",
+            "            truncated = true",
+            "        }",
+            "        def data = [",
+            "            ts: prev.getStartTime(),",
+            "            label: prev.getLabel(),",
+            "            responseCode: prev.getResponseCode(),",
+            "            responseMessage: prev.getResponseMessage(),",
+            "            responseData: responseData,",
+            "            truncated: truncated",
+            "        ]",
+            "        file.append(JsonOutput.toJson(data) + '\\n')",
+            "    }",
+            "}",
+        ])
         ET.SubElement(jsr223, "stringProp", name="script").text = script_text
         ET.SubElement(jsr223, "stringProp", name="scriptLanguage").text = "groovy"
 
@@ -407,6 +450,8 @@ class JMeterRunner:
         self._jtl_line_count = 0
         self._jtl_error_count = 0
         self._jtl_recent_times = []
+        self._jtl_is_xml = False
+        self._jtl_csv_fields = []
 
         # 注入 CSV 配置
         if csv_file:
@@ -419,9 +464,15 @@ class JMeterRunner:
                 csv_stop_on_eof,
             )
 
-        jtl_path = os.path.join(result_dir, "result.xml")
+        result_format = str(jmeter_args.get("result_format") or "csv").strip().lower()
+        if self._as_bool(jmeter_args.get("debug_result_xml"), False):
+            result_format = "xml"
+        result_format = "xml" if result_format == "xml" else "csv"
+        jtl_path = os.path.join(result_dir, "result.xml" if result_format == "xml" else "result.jtl")
         report_path = os.path.join(result_dir, "html-report")
         capture_error_log = self._as_bool(jmeter_args.get("capture_error_log"), True)
+        error_sample_limit = self._parse_int_range(jmeter_args.get("error_log_sample_limit"), 100, 0, 10000)
+        error_max_body_chars = self._parse_int_range(jmeter_args.get("error_log_max_body_chars"), 8192, 256, 262144)
         jvm_heap_mb = self._parse_heap_mb(jmeter_args.get("jvm_heap_mb"))
 
         # 注入线程组配置
@@ -442,6 +493,8 @@ class JMeterRunner:
                 duration=int(jmeter_args.get("duration", 60)),
                 scenario=scenario,
                 error_data_path=error_data_path,
+                error_sample_limit=error_sample_limit,
+                error_max_body_chars=error_max_body_chars,
             )
 
         # 构建 JMeter 命令
@@ -451,7 +504,7 @@ class JMeterRunner:
             "-t", script_path,
             "-l", jtl_path,
             "-j", os.path.join(result_dir, "jmeter.log"),
-            "-Jjmeter.save.saveservice.output_format=xml",
+            f"-Jjmeter.save.saveservice.output_format={result_format}",
             "-Jjmeter.save.saveservice.print_field_names=true",
             "-Jjmeter.save.saveservice.successful=true",
             "-Jjmeter.save.saveservice.label=true",
@@ -471,13 +524,6 @@ class JMeterRunner:
         if image_resource_config:
             cmd.append("-Jjmeter.save.saveservice.subresults=true")
 
-        if capture_error_log:
-            cmd.extend([
-                "-Jjmeter.save.saveservice.samplerData=true",
-                "-Jjmeter.save.saveservice.requestHeaders=true",
-                "-Jjmeter.save.saveservice.responseHeaders=true",
-            ])
-
         # 分布式模式
         if distributed:
             if remote_hosts:
@@ -489,6 +535,8 @@ class JMeterRunner:
         skip_keys = {
             "threads", "ramp_time", "duration", "scenario",
             "jvm_heap_mb", "capture_error_log", "enforce_single_agent_task",
+            "result_format", "debug_result_xml",
+            "error_log_sample_limit", "error_log_max_body_chars",
         }
         for key, value in jmeter_args.items():
             if key not in skip_keys:
@@ -530,11 +578,11 @@ class JMeterRunner:
 
             exit_code = self._process.returncode
 
-            # 等待文件系统刷新，确保 XML 写入完成
+            # 等待文件系统刷新，确保结果文件写入完成
             time.sleep(1)
 
-            # 确保 XML 文件完整（JMeter 被终止时可能缺少闭合标签）
-            self._ensure_xml_complete(jtl_path)
+            if result_format == "xml":
+                self._ensure_xml_complete(jtl_path)
 
             summary = self._parse_final_result(jtl_path)
 
@@ -542,7 +590,7 @@ class JMeterRunner:
                 # JMeter 有时在测试成功时也返回非零 exit code（macOS 常见）
                 # 如果 JTL 有有效数据，视为成功
                 if summary.get("total_samples", 0) > 0:
-                    self.logger.warning(f"JMeter exit code {exit_code} but {summary['total_samples']} samples found, treating as success")
+                    print(f"JMeter exit code {exit_code} but {summary['total_samples']} samples found, treating as success")
                 else:
                     return {"status": "failed", "error": f"JMeter exit code {exit_code}", "summary": summary}
 
@@ -636,6 +684,8 @@ class JMeterRunner:
                     self._jtl_offset = f.tell()
                     is_xml = first_line.startswith("<?xml") or first_line.startswith("<testResults")
                     self._jtl_is_xml = is_xml
+                    if not is_xml:
+                        self._jtl_csv_fields = next(csv.reader([first_line]), [])
                 else:
                     f.seek(self._jtl_offset)
 
@@ -701,24 +751,29 @@ class JMeterRunner:
                                 except (ValueError, TypeError):
                                     pass
                     else:
-                        parts = line.split(",")
-                        if len(parts) >= 17:
-                            new_count += 1
-                            try:
-                                new_times.append(int(parts[1]))
-                                new_ts.append(int(parts[0]))
-                                if parts[3].strip() == "false":
-                                    new_errors += 1
-                                if len(parts) > 8 and parts[8].isdigit():
-                                    total_bytes += int(parts[8])
-                                if len(parts) > 13 and parts[13].isdigit():
-                                    total_latency += int(parts[13])
-                                    latency_count += 1
-                                if len(parts) > 16 and parts[16].isdigit():
-                                    total_connect += int(parts[16])
-                                    connect_count += 1
-                            except (ValueError, IndexError):
-                                pass
+                        try:
+                            parts = next(csv.reader([line]))
+                            row = {
+                                field: parts[index]
+                                for index, field in enumerate(self._jtl_csv_fields)
+                                if index < len(parts)
+                            }
+                        except Exception:
+                            continue
+
+                        new_count += 1
+                        new_times.append(self._csv_int(row, "elapsed"))
+                        ts_value = self._csv_int(row, "timeStamp")
+                        if ts_value:
+                            new_ts.append(ts_value)
+                        if not self._csv_bool(row, "success", True):
+                            new_errors += 1
+
+                        total_bytes += self._csv_int(row, "bytes")
+                        total_latency += self._csv_int(row, "Latency")
+                        total_connect += self._csv_int(row, "Connect")
+                        latency_count += 1
+                        connect_count += 1
 
                 self._jtl_offset = f.tell()
                 self._jtl_line_count += new_count
@@ -747,6 +802,28 @@ class JMeterRunner:
         for match in re.finditer(r'(\w+)="([^"]*)"', line):
             attrs[match.group(1)] = match.group(2)
         return attrs
+
+    def _csv_get(self, row: dict, key: str, default: str = "") -> str:
+        if key in row and row[key] is not None:
+            return row[key]
+        target = key.lower()
+        for row_key, value in row.items():
+            if str(row_key).lower() == target:
+                return value if value is not None else default
+        return default
+
+    def _csv_int(self, row: dict, key: str, default: int = 0) -> int:
+        value = self._csv_get(row, key, "")
+        try:
+            return int(float(value)) if str(value).strip() else default
+        except (TypeError, ValueError):
+            return default
+
+    def _csv_bool(self, row: dict, key: str, default: bool = False) -> bool:
+        value = self._csv_get(row, key, None)
+        if value is None:
+            return default
+        return str(value).strip().lower() in {"1", "true", "yes", "on"}
 
     def _parse_final_result(self, jtl_path: str) -> dict:
         """解析最终结果，计算汇总统计"""
@@ -780,20 +857,20 @@ class JMeterRunner:
             if file_size == 0:
                 return summary
 
-            with open(jtl_path, "r", encoding="utf-8", errors="replace") as f:
+            with open(jtl_path, "r", encoding="utf-8", errors="replace", newline="") as f:
                 first_line = f.readline().strip()
 
                 if first_line.startswith("<?xml") or first_line.startswith("<testResults"):
-                    summary = self._parse_xml_final(f, summary)
+                    summary = self._parse_xml_final(jtl_path, summary)
                 else:
                     summary = self._parse_csv_final(f, summary, first_line)
 
         except Exception as e:
-            self.logger.warning(f"解析 JTL 结果失败: {e}")
+            print(f"解析 JTL 结果失败: {e}")
 
         return summary
 
-    def _parse_xml_final(self, f, summary):
+    def _parse_xml_final(self, xml_path, summary):
         """解析 XML 格式的最终结果（流式，支持大文件）"""
         import xml.etree.ElementTree as ET
 
@@ -806,7 +883,7 @@ class JMeterRunner:
         timestamps = []
 
         try:
-            for event, elem in ET.iterparse(f, events=("end",)):
+            for event, elem in ET.iterparse(xml_path, events=("end",)):
                 if elem.tag in ("httpSample", "sample"):
                     attrs = elem.attrib
                     elapsed = int(attrs.get("t", 0))
@@ -869,38 +946,34 @@ class JMeterRunner:
         response_codes = {}
         timestamps = []
 
-        # 解析 header 以动态确定列索引
         if header_line is None:
             header_line = f.readline().strip()
-        header = header_line.split(",")
-        col = {h.strip().lower(): i for i, h in enumerate(header)}
+        fieldnames = next(csv.reader([header_line]), [])
+        reader = csv.DictReader(f, fieldnames=fieldnames)
 
-        for line in f:
-            parts = line.strip().split(",")
-            if len(parts) < 4:
-                continue
+        for row in reader:
             try:
-                elapsed = int(parts[col.get("elapsed", 1)])
-                success = parts[col.get("success", 7)].strip() == "true" if col.get("success") is not None else True
-                ts = int(parts[col.get("timestamp", 0)]) if parts[col.get("timestamp", 0)].isdigit() else 0
+                elapsed = self._csv_int(row, "elapsed")
+                success = self._csv_bool(row, "success", True)
+                ts = self._csv_int(row, "timeStamp")
+                by = self._csv_int(row, "bytes")
+                sby = self._csv_int(row, "sentBytes")
+                lt = self._csv_int(row, "Latency")
+                ct = self._csv_int(row, "Connect")
+
                 elapsed_times.append(elapsed)
                 timestamps.append(ts)
+                bytes_received += by
+                bytes_sent += sby
+                latency_times.append(lt)
+                connect_times.append(ct)
 
                 if not success:
                     error_count += 1
 
-                rc = parts[col.get("responsecode", 3)] if col.get("responsecode") is not None and len(parts) > col["responsecode"] else ""
+                rc = self._csv_get(row, "responseCode", "")
                 response_codes[rc] = response_codes.get(rc, 0) + 1
-
-                if col.get("bytes") is not None and len(parts) > col["bytes"] and parts[col["bytes"]].isdigit():
-                    bytes_received += int(parts[col["bytes"]])
-                if col.get("sentbytes") is not None and len(parts) > col["sentbytes"] and parts[col["sentbytes"]].isdigit():
-                    bytes_sent += int(parts[col["sentbytes"]])
-                if col.get("latency") is not None and len(parts) > col["latency"] and parts[col["latency"]].isdigit():
-                    latency_times.append(int(parts[col["latency"]]))
-                if col.get("connect_time") is not None and len(parts) > col["connect_time"] and parts[col["connect_time"]].isdigit():
-                    connect_times.append(int(parts[col["connect_time"]]))
-            except:
+            except Exception:
                 pass
 
         if elapsed_times:
@@ -922,6 +995,7 @@ class JMeterRunner:
             summary["p99"] = percentile(elapsed_times, 99)
             summary["throughput"] = round(total / duration, 2) if duration > 0 else 0
             summary["total_bytes_received"] = bytes_received
+            summary["total_bytes_sent"] = bytes_sent
             summary["avg_bytes_per_request"] = round(bytes_received / total) if total > 0 else 0
             summary["avg_latency"] = round(sum(latency_times) / len(latency_times), 2) if latency_times else 0
             summary["avg_connect_time"] = round(sum(connect_times) / len(connect_times), 2) if connect_times else 0

@@ -139,7 +139,7 @@ def _detect_level(line: str) -> str:
 
 def _issue_signature(line: str) -> str:
     normalized = re.sub(r"^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\s*", "", line)
-    normalized = re.sub(r"task-[0-9a-fA-F]+", "task-*", normalized)
+    normalized = re.sub(r"task-[0-9A-Za-z-]+", "task-*", normalized)
     normalized = re.sub(r"\b\d+(?:\.\d+)?\b", "#", normalized)
     normalized = re.sub(r"\s+", " ", normalized).strip()
     return normalized[:180] or "unknown"
