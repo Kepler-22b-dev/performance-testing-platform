@@ -7,6 +7,7 @@ import sys
 import os
 import time
 import json
+import re
 import uuid
 import redis
 from typing import Optional
@@ -43,8 +44,38 @@ class TaskScheduler:
             decode_responses=True,
         )
         self._progress: dict[str, ProgressUpdate] = {}
+        self._progress_segments: dict[str, dict[str, ProgressUpdate]] = {}
         self._progress_history: dict[str, list[dict]] = {}
         self._node_manager = node_manager
+
+    def _generate_task_id(self, db=None) -> str:
+        """生成按日期递增的任务 ID，例如 task-20260704-001。"""
+        date_str = time.strftime("%Y%m%d", time.localtime())
+        prefix = f"task-{date_str}-"
+        pattern = re.compile(rf"^{re.escape(prefix)}(\d+)$")
+        max_seq = 0
+
+        if db is not None:
+            try:
+                for task in db_get_all_tasks(db):
+                    match = pattern.match(str(task.get("task_id", "")))
+                    if match:
+                        max_seq = max(max_seq, int(match.group(1)))
+            except Exception:
+                pass
+
+        if os.path.isdir(REPORTS_DIR):
+            for name in os.listdir(REPORTS_DIR):
+                match = pattern.match(name)
+                if match:
+                    max_seq = max(max_seq, int(match.group(1)))
+
+        for seq in range(max_seq + 1, max_seq + 10000):
+            task_id = f"{prefix}{seq:03d}"
+            if not os.path.exists(os.path.join(REPORTS_DIR, task_id)):
+                return task_id
+
+        raise RuntimeError("当日任务编号已用完，请清理历史任务或调整编号规则")
 
     def _cleanup_stuck_tasks(self):
         """检测并清理卡住的任务"""
@@ -105,11 +136,15 @@ class TaskScheduler:
             if conflicts:
                 raise RuntimeError("压力机已有运行中的任务：" + "；".join(conflicts))
 
-        task_id = f"task-{uuid.uuid4().hex[:8]}"
-
         script_path = os.path.join(SCRIPTS_DIR, f"{script_id}.jmx")
         if not os.path.exists(script_path):
             raise FileNotFoundError(f"Script not found: {script_id}")
+
+        db = get_sync_db()
+        try:
+            task_id = self._generate_task_id(db)
+        finally:
+            db.close()
 
         task_data = {
             "task_id": task_id,
@@ -172,6 +207,7 @@ class TaskScheduler:
             return False
 
         self._progress.pop(task_id, None)
+        self._progress_segments.pop(task_id, None)
         self._progress_history.pop(task_id, None)
 
         script_path = os.path.join(SCRIPTS_DIR, f"{task['script_id']}.jmx")
@@ -276,6 +312,7 @@ class TaskScheduler:
             self.stop_task(task_id)
 
         self._progress.pop(task_id, None)
+        self._progress_segments.pop(task_id, None)
         self._progress_history.pop(task_id, None)
 
         jmeter_args = dict(task.get("jmeter_args", {}))
@@ -310,6 +347,82 @@ class TaskScheduler:
         self.start_task(new_task_id)
         return new_task_id
 
+    def adjust_load(
+        self,
+        task_id: str,
+        action: str,
+        threads: int,
+        ramp_time: int = 1,
+        duration: int = 60,
+    ) -> dict:
+        """向运行中的 Agent 下发动态调压命令。"""
+        task = self.get_task(task_id)
+        if not task:
+            raise ValueError("任务不存在")
+        if task.get("status") != TaskStatus.RUNNING:
+            raise RuntimeError("只有运行中的任务可以动态调压")
+
+        action = str(action or "increase").strip().lower()
+        if action not in {"increase", "decrease"}:
+            raise ValueError("调压动作只支持 increase 或 decrease")
+
+        try:
+            threads = int(threads)
+            ramp_time = int(ramp_time)
+            duration = int(duration)
+        except (TypeError, ValueError):
+            raise ValueError("线程数、递增速率和持续时间必须是整数")
+
+        if threads <= 0:
+            raise ValueError("调整线程数必须大于 0")
+        if ramp_time < 0:
+            raise ValueError("递增速率不能小于 0 秒")
+        if action == "increase" and duration <= 0:
+            raise ValueError("加压持续时间必须大于 0 秒")
+
+        target_agents = task.get("target_agents") or []
+        if not target_agents:
+            raise RuntimeError("任务没有可调压的目标 Agent")
+
+        segment_id = f"dyn-{int(time.time() * 1000)}-{uuid.uuid4().hex[:6]}"
+        script_path = os.path.join(SCRIPTS_DIR, f"{task['script_id']}.jmx")
+        adjust_args = {
+            "action": action,
+            "threads": str(threads),
+            "ramp_time": str(ramp_time),
+            "duration": str(duration),
+            "segment_id": segment_id,
+        }
+
+        for agent_id in target_agents:
+            command = TaskCommand(
+                command=CommandType.ADJUST_LOAD,
+                task_id=task_id,
+                script_path=script_path,
+                target_agent_id=agent_id,
+                jmeter_args=adjust_args,
+                timeout=max(duration + ramp_time + 60, 120),
+                distributed=task.get("distributed", False),
+                remote_hosts=task.get("remote_hosts"),
+                csv_file=task.get("csv_file"),
+                csv_variable_names=task.get("csv_variable_names"),
+                csv_delimiter=task.get("csv_delimiter", ","),
+                csv_recycle=task.get("csv_recycle", True),
+                csv_stop_on_eof=task.get("csv_stop_on_eof", False),
+                segment_id=segment_id,
+            )
+            self.redis.publish(REDIS_CHANNEL_COMMAND, command.to_json())
+
+        return {
+            "task_id": task_id,
+            "action": action,
+            "threads": threads,
+            "ramp_time": ramp_time,
+            "duration": duration,
+            "segment_id": segment_id,
+            "target_agents": target_agents,
+        }
+
     def batch_create_tasks(self, tasks_config: list[dict]) -> list[str]:
         task_ids = []
         for cfg in tasks_config:
@@ -341,9 +454,18 @@ class TaskScheduler:
         finally:
             db.close()
 
-    def get_all_tasks(self) -> list[dict]:
+    def get_all_tasks(self, offset: int = None, limit: int = None, status: str = None):
         db = get_sync_db()
         try:
+            if offset is not None or limit is not None or status:
+                from manager.core.db_sync import db_get_tasks_page
+                total, tasks = db_get_tasks_page(
+                    db,
+                    offset=max(0, int(offset or 0)),
+                    limit=max(1, min(500, int(limit or 100))),
+                    status=status,
+                )
+                return total, tasks
             return db_get_all_tasks(db)
         finally:
             db.close()
@@ -404,26 +526,78 @@ class TaskScheduler:
         finally:
             db.close()
 
+    def _aggregate_progress(self, task_id: str) -> Optional[ProgressUpdate]:
+        segments = list(self._progress_segments.get(task_id, {}).values())
+        if not segments:
+            return None
+        if len(segments) == 1:
+            return segments[0]
+
+        total_samples = sum(max(0, int(s.total_samples or 0)) for s in segments)
+        active_threads = sum(max(0, int(s.active_threads or 0)) for s in segments)
+        throughput = sum(float(s.throughput or 0) for s in segments)
+        bytes_received = sum(max(0, int(s.bytes_received or 0)) for s in segments)
+        bytes_sent = sum(max(0, int(s.bytes_sent or 0)) for s in segments)
+        timestamp = max(float(s.timestamp or 0) for s in segments)
+        elapsed = max(int(s.elapsed or 0) for s in segments)
+
+        def weighted_avg(attr: str) -> float:
+            if total_samples > 0:
+                weighted = sum(
+                    float(getattr(s, attr, 0) or 0) * max(0, int(s.total_samples or 0))
+                    for s in segments
+                )
+                return round(weighted / total_samples, 2)
+            values = [float(getattr(s, attr, 0) or 0) for s in segments]
+            return round(sum(values) / len(values), 2) if values else 0.0
+
+        error_rate = weighted_avg("error_rate")
+        success_rate = weighted_avg("success_rate")
+
+        return ProgressUpdate(
+            task_id=task_id,
+            agent_id="aggregate",
+            timestamp=timestamp,
+            elapsed=elapsed,
+            active_threads=active_threads,
+            throughput=round(throughput, 2),
+            avg_response_time=weighted_avg("avg_response_time"),
+            error_rate=error_rate,
+            success_rate=success_rate,
+            total_samples=total_samples,
+            bytes_received=bytes_received,
+            bytes_sent=bytes_sent,
+            avg_latency=weighted_avg("avg_latency"),
+            avg_connect_time=weighted_avg("avg_connect_time"),
+            segment_id="aggregate",
+        )
+
     def handle_progress(self, update: ProgressUpdate):
-        self._progress[update.task_id] = update
-        if update.task_id not in self._progress_history:
-            self._progress_history[update.task_id] = []
-        history = self._progress_history[update.task_id]
+        update.segment_id = getattr(update, "segment_id", None) or "base"
+        segment_key = f"{update.agent_id}:{update.segment_id}"
+        self._progress_segments.setdefault(update.task_id, {})[segment_key] = update
+
+        aggregate = self._aggregate_progress(update.task_id) or update
+        self._progress[update.task_id] = aggregate
+        if aggregate.task_id not in self._progress_history:
+            self._progress_history[aggregate.task_id] = []
+        history = self._progress_history[aggregate.task_id]
         history.append({
-            "timestamp": update.timestamp,
-            "elapsed": update.elapsed,
-            "throughput": update.throughput,
-            "avg_response_time": update.avg_response_time,
-            "error_rate": update.error_rate,
-            "success_rate": update.success_rate,
-            "active_threads": update.active_threads,
-            "total_samples": update.total_samples,
-            "bytes_received": update.bytes_received,
-            "avg_latency": update.avg_latency,
-            "avg_connect_time": update.avg_connect_time,
+            "timestamp": aggregate.timestamp,
+            "elapsed": aggregate.elapsed,
+            "throughput": aggregate.throughput,
+            "avg_response_time": aggregate.avg_response_time,
+            "error_rate": aggregate.error_rate,
+            "success_rate": aggregate.success_rate,
+            "active_threads": aggregate.active_threads,
+            "total_samples": aggregate.total_samples,
+            "bytes_received": aggregate.bytes_received,
+            "avg_latency": aggregate.avg_latency,
+            "avg_connect_time": aggregate.avg_connect_time,
+            "segment_id": aggregate.segment_id,
         })
         if len(history) > 3600:
-            self._progress_history[update.task_id] = history[-3600:]
+            self._progress_history[aggregate.task_id] = history[-3600:]
 
     def get_progress(self, task_id: str) -> Optional[ProgressUpdate]:
         return self._progress.get(task_id)

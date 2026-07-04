@@ -23,6 +23,7 @@
         .card { background: #fff; border-radius: 6px; padding: 16px; border: 1px solid #e0e0e0; }
         .card .label { font-size: 11px; color: #888; margin-bottom: 2px; }
         .card .value { font-size: 20px; font-weight: 600; color: #1a1a1a; white-space: nowrap; }
+        .card .desc { margin-top: 4px; font-size: 11px; color: #777; line-height: 1.35; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .card .value.green { color: #16a34a; }
         .card .value.red { color: #dc2626; }
         .card .value.blue { color: #2563eb; }
@@ -36,6 +37,21 @@
         .full-width { grid-column: 1 / -1; }
         .task-list { background: #fff; border-radius: 6px; padding: 16px; border: 1px solid #e0e0e0; overflow-x: auto; }
         .task-list h3 { font-size: 13px; color: #666; margin-bottom: 12px; font-weight: 500; }
+        .home-dashboard-grid { display: grid; grid-template-columns: minmax(640px, 1fr) minmax(270px, 310px) minmax(250px, 290px); gap: 12px; align-items: stretch; margin-bottom: 12px; }
+        .home-dashboard-grid > .task-list { min-width: 0; }
+        .home-recent-panel { min-width: 0; }
+        .home-action-panel, .home-health-panel { display: flex; flex-direction: column; }
+        .home-action-panel .toolbar, .home-health-panel .toolbar { flex: 0 0 auto; }
+        .home-action-grid, .home-health-list { flex: 1 1 auto; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 8px; min-height: 0; }
+        .home-action, .home-health-item { display: flex; flex-direction: column; justify-content: center; border: 1px solid #e0e0e0; border-radius: 6px; background: #fafafa; padding: 10px; min-width: 0; min-height: 0; overflow: hidden; }
+        .home-action { cursor: pointer; }
+        .home-action:hover, .home-health-item:hover { border-color: #cbd5e1; background: #f8fafc; }
+        .home-action .name, .home-health-item .label { font-size: 13px; font-weight: 700; color: #1a1a1a; line-height: 1.35; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .home-action .desc, .home-health-item .value { margin-top: 4px; font-size: 11px; color: #777; font-weight: 500; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-overflow: ellipsis; overflow-wrap: anywhere; }
+        .home-secondary-panel > summary { cursor: pointer; list-style: none; font-size: 15px; font-weight: 600; color: #1a1a1a; }
+        .home-secondary-panel > summary::-webkit-details-marker { display: none; }
+        .home-secondary-panel > summary::after { content: "展开"; float: right; font-size: 12px; color: #888; font-weight: 500; }
+        .home-secondary-panel[open] > summary::after { content: "收起"; }
         table { width: 100%; border-collapse: collapse; }
         th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #f0f0f0; font-size: 13px; color: #333; white-space: nowrap; }
         th { color: #888; font-weight: 500; background: #fafafa; }
@@ -105,6 +121,11 @@
         .tool-log-analysis-card .value { font-size: 18px; font-weight: 700; color: #1a1a1a; line-height: 1.25; }
         .tool-log-analysis-card .desc { margin-top: 4px; font-size: 11px; color: #777; line-height: 1.35; overflow-wrap: anywhere; }
         .tool-log-analysis-card .issue { font-size: 12px; color: #333; line-height: 1.45; overflow-wrap: anywhere; }
+        .tool-issue-summary { font-size: 12px; color: #333; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+        .tool-issue-source { margin-top: 6px; font-size: 11px; color: #777; overflow-wrap: anywhere; }
+        .tool-issue-detail { display: none; margin-top: 8px; padding: 8px 10px; border: 1px solid #e0e0e0; border-radius: 5px; background: #fff; color: #333; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 180px; overflow-y: auto; }
+        .tool-issue-detail.open { display: block; }
+        .tool-issue-actions { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
         .form-group { margin-bottom: 16px; }
         .form-group label { display: block; font-size: 13px; color: #555; margin-bottom: 6px; font-weight: 500; }
@@ -237,6 +258,12 @@
         .filter-btn { background: transparent; border: 1px solid #d0d0d0; color: #555; padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; line-height: 1.2; }
         .filter-btn.active { background: #1a1a1a; border-color: #1a1a1a; color: #fff; }
         .progress-text { font-size: 12px; color: #888; }
+        .pagination-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; padding-top: 10px; border-top: 1px solid #f0f0f0; flex-wrap: wrap; }
+        .pagination-info { font-size: 12px; color: #777; white-space: nowrap; }
+        .pagination-controls { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+        .pagination-size { height: 28px; padding: 3px 8px; border: 1px solid #d0d0d0; border-radius: 4px; background: #fff; color: #555; font-size: 12px; }
+        .pagination-btn { min-width: 28px; height: 28px; padding: 3px 8px; display: inline-flex; align-items: center; justify-content: center; }
+        .pagination-btn[disabled] { opacity: 0.45; cursor: not-allowed; background: #f5f5f5; }
         .architecture-panel { overflow: visible; }
         .architecture-diagram { border: 1px solid #e5e7eb; border-radius: 6px; background: #fafafa; padding: 16px; overflow: visible; }
         .arch-tier { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 14px; align-items: stretch; }
@@ -270,6 +297,8 @@
             .arch-nodes.cols-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
             .tool-log-layout { grid-template-columns: 1fr; }
             .tool-log-analysis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .home-dashboard-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .home-recent-panel { grid-column: 1 / -1; }
         }
         @media (max-width: 700px) {
             .header { align-items: flex-start; flex-direction: column; padding: 8px 20px; gap: 8px; }
@@ -299,6 +328,9 @@
             .arch-flow::before, .arch-flow::after { display: none; }
             .tool-log-analysis { grid-template-columns: 1fr; }
             .tool-log-analysis-card.wide { grid-column: auto; }
+            .home-dashboard-grid { grid-template-columns: 1fr; }
+            .home-recent-panel { grid-column: auto; }
+            .home-action-grid, .home-health-list { grid-template-columns: 1fr; grid-template-rows: repeat(4, minmax(72px, auto)); }
         }
     </style>
 </head>
@@ -332,7 +364,7 @@
         <!-- 首页 -->
         <div id="page-home">
             <!-- 系统概览 -->
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:16px;">
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:12px;">
                 <div class="card" style="cursor:pointer" onclick="showPage('tasks')">
                     <div class="label">测试任务</div>
                     <div class="value blue" id="home-tasks-count">-</div>
@@ -357,96 +389,73 @@
                 </div>
             </div>
 
-            <!-- 最近任务 -->
-            <div class="task-list" style="margin-bottom:20px;">
-                <div class="toolbar">
-                    <h3>最近任务</h3>
-                    <button class="filter-btn" onclick="showPage('tasks')">查看全部</button>
+            <div class="home-dashboard-grid">
+                <!-- 最近任务 -->
+                <div class="task-list home-recent-panel">
+                    <div class="toolbar">
+                        <h3>最近任务</h3>
+                        <button class="filter-btn" onclick="showPage('tasks')">查看全部</button>
+                    </div>
+                    <table>
+                        <thead><tr><th>任务编号</th><th>脚本</th><th>状态</th><th>请求数</th><th>平均 RT</th><th>创建时间</th></tr></thead>
+                        <tbody id="home-tasks-tbody"></tbody>
+                    </table>
+                    <div id="home-no-tasks" class="empty-tip">暂无任务</div>
                 </div>
-                <table>
-                    <thead><tr><th>任务 ID</th><th>脚本</th><th>状态</th><th>请求数</th><th>平均 RT</th><th>创建时间</th></tr></thead>
-                    <tbody id="home-tasks-tbody"></tbody>
-                </table>
-                <div id="home-no-tasks" class="empty-tip">暂无任务</div>
-            </div>
 
-            <!-- 系统介绍 -->
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
-                <!-- 功能特性 -->
-                <div class="task-list">
-                    <h3 style="font-size:15px;font-weight:600;margin-bottom:16px">功能特性</h3>
-                    <div style="display:grid;gap:12px;">
-                        <div style="display:flex;gap:12px;align-items:flex-start">
-                            <div style="width:32px;height:32px;background:#e8f5e9;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#16a34a;font-size:16px">&#10003;</div>
-                            <div><div style="font-weight:500;margin-bottom:2px">分布式压测</div><div style="font-size:12px;color:#888">支持多台施压节点并行执行，水平扩展压力</div></div>
+                <div class="task-list home-health-panel">
+                    <div class="toolbar">
+                        <h3>运行关注</h3>
+                    </div>
+                    <div class="home-health-list">
+                        <div class="home-health-item" title="任务状态：加载中...">
+                            <div class="label" title="任务状态">任务状态</div>
+                            <div class="value" id="home-priority-tasks" title="加载中...">加载中...</div>
                         </div>
-                        <div style="display:flex;gap:12px;align-items:flex-start">
-                            <div style="width:32px;height:32px;background:#e3f2fd;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#2563eb;font-size:16px">&#9881;</div>
-                            <div><div style="font-weight:500;margin-bottom:2px">脚本在线编辑</div><div style="font-size:12px;color:#888">Web 端直接编辑 JMeter 脚本，支持保存、格式化、一键执行</div></div>
+                        <div class="home-health-item" title="压力机：加载中...">
+                            <div class="label" title="压力机">压力机</div>
+                            <div class="value" id="home-priority-nodes" title="加载中...">加载中...</div>
                         </div>
-                        <div style="display:flex;gap:12px;align-items:flex-start">
-                            <div style="width:32px;height:32px;background:#fff3e0;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#d97706;font-size:16px">&#128200;</div>
-                            <div><div style="font-weight:500;margin-bottom:2px">实时监控</div><div style="font-size:12px;color:#888">CPU/内存/网络实时监控，JMeter 进程资源追踪</div></div>
+                        <div class="home-health-item" title="资源水位：加载中...">
+                            <div class="label" title="资源水位">资源水位</div>
+                            <div class="value" id="home-priority-resource" title="加载中...">加载中...</div>
                         </div>
-                        <div style="display:flex;gap:12px;align-items:flex-start">
-                            <div style="width:32px;height:32px;background:#fce4ec;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#dc2626;font-size:16px">&#128202;</div>
-                            <div><div style="font-weight:500;margin-bottom:2px">结果分析</div><div style="font-size:12px;color:#888">TPS/响应时间/错误率/百分位分布，多维度可视化图表</div></div>
-                        </div>
-                        <div style="display:flex;gap:12px;align-items:flex-start">
-                            <div style="width:32px;height:32px;background:#f3e5f5;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#9333ea;font-size:16px">&#128193;</div>
-                            <div><div style="font-weight:500;margin-bottom:2px">数据驱动</div><div style="font-size:12px;color:#888">CSV 数据文件管理，全局变量配置，支持参数化压测</div></div>
-                        </div>
-                        <div style="display:flex;gap:12px;align-items:flex-start">
-                            <div style="width:32px;height:32px;background:#e8eaf6;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#3f51b5;font-size:16px">&#9200;</div>
-                            <div><div style="font-weight:500;margin-bottom:2px">定时调度</div><div style="font-size:12px;color:#888">支持定时/周期性执行压测任务，自动化测试</div></div>
-                        </div>
-                        <div style="display:flex;gap:12px;align-items:flex-start">
-                            <div style="width:32px;height:32px;background:#fff8e1;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#ff8f00;font-size:16px">&#128276;</div>
-                            <div><div style="font-weight:500;margin-bottom:2px">通知系统</div><div style="font-size:12px;color:#888">任务完成后通过 Webhook 自动通知</div></div>
-                        </div>
-                        <div style="display:flex;gap:12px;align-items:flex-start">
-                            <div style="width:32px;height:32px;background:#e0f2f1;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#00897b;font-size:16px">&#128200;</div>
-                            <div><div style="font-weight:500;margin-bottom:2px">任务对比</div><div style="font-size:12px;color:#888">对比两次压测结果，直观查看性能变化</div></div>
+                        <div class="home-health-item" title="建议入口：日常先看运行任务、压力机资源和工具日志">
+                            <div class="label" title="建议入口">建议入口</div>
+                            <div class="value" title="日常先看运行任务、压力机资源和工具日志">日常先看运行任务、压力机资源和工具日志</div>
                         </div>
                     </div>
                 </div>
 
-                <!-- 快速开始 -->
-                <div class="task-list">
-                    <h3 style="font-size:15px;font-weight:600;margin-bottom:16px">快速开始</h3>
-                    <div style="display:grid;gap:16px;font-size:13px;">
-                        <div>
-                            <div style="font-weight:500;color:#2563eb;margin-bottom:6px">1. 一键部署</div>
-                            <div style="background:#f5f5f5;padding:8px 12px;border-radius:4px;font-family:monospace;font-size:12px">bash deploy.sh</div>
+                <div class="task-list home-action-panel">
+                    <div class="toolbar">
+                        <h3>优先操作</h3>
+                    </div>
+                    <div class="home-action-grid">
+                        <div class="home-action" onclick="showPage('create')" title="创建压测：选择脚本、场景和压力机，直接发起任务">
+                            <div class="name" title="创建压测">创建压测</div>
+                            <div class="desc" title="选择脚本、场景和压力机，直接发起任务">选择脚本、场景和压力机，直接发起任务</div>
                         </div>
-                        <div>
-                            <div style="font-weight:500;color:#2563eb;margin-bottom:6px">2. 访问平台</div>
-                            <div style="background:#f5f5f5;padding:8px 12px;border-radius:4px;font-family:monospace;font-size:12px">http://localhost:8000</div>
+                        <div class="home-action" onclick="showPage('tasks')" title="查看任务：关注运行中、失败和最近完成的测试">
+                            <div class="name" title="查看任务">查看任务</div>
+                            <div class="desc" title="关注运行中、失败和最近完成的测试">关注运行中、失败和最近完成的测试</div>
                         </div>
-                        <div>
-                            <div style="font-weight:500;color:#2563eb;margin-bottom:6px">3. 上传脚本</div>
-                            <div style="color:#666">进入「脚本管理」上传 .jmx 文件或新建脚本</div>
+                        <div class="home-action" onclick="showPage('nodes')" title="检查压力机：查看 Agent、Slave、CPU 和内存状态">
+                            <div class="name" title="检查压力机">检查压力机</div>
+                            <div class="desc" title="查看 Agent、Slave、CPU 和内存状态">查看 Agent、Slave、CPU 和内存状态</div>
                         </div>
-                        <div>
-                            <div style="font-weight:500;color:#2563eb;margin-bottom:6px">4. 执行压测</div>
-                            <div style="color:#666">进入「创建任务」配置参数并启动压测</div>
-                        </div>
-                        <div>
-                            <div style="font-weight:500;color:#2563eb;margin-bottom:6px">5. 查看结果</div>
-                            <div style="color:#666">在「任务管理」查看实时进度和分析报告</div>
-                        </div>
-                        <div>
-                            <div style="font-weight:500;color:#2563eb;margin-bottom:6px">6. API 文档</div>
-                            <div style="color:#666">访问 <a href="/docs" target="_blank" style="color:#2563eb">/docs</a> 查看完整 API 文档</div>
+                        <div class="home-action" onclick="showPage('tool-logs')" title="排查日志：查看平台、Agent、JMeter 执行日志">
+                            <div class="name" title="排查日志">排查日志</div>
+                            <div class="desc" title="查看平台、Agent、JMeter 执行日志">查看平台、Agent、JMeter 执行日志</div>
                         </div>
                     </div>
                 </div>
             </div>
 
             <!-- 系统架构 -->
-            <div class="task-list architecture-panel" style="margin-top:16px;">
-                <h3 style="font-size:15px;font-weight:600;margin-bottom:16px">系统架构</h3>
-                <div class="architecture-diagram">
+            <details class="task-list architecture-panel home-secondary-panel" open>
+                <summary>系统架构</summary>
+                <div class="architecture-diagram" style="margin-top:16px;">
                     <div class="arch-tier">
                         <div class="arch-tier-label">
                             <div class="name">Web 浏览器</div>
@@ -549,7 +558,7 @@
                         </div>
                     </div>
                 </div>
-            </div>
+            </details>
         </div>
 
         <!-- 任务管理 -->
@@ -571,7 +580,7 @@
                     <table>
                         <thead>
                             <tr>
-                                <th>任务 ID</th>
+                                <th>任务编号</th>
                                 <th>脚本</th>
                                 <th>状态</th>
                                 <th>节点</th>
@@ -582,6 +591,7 @@
                         <tbody id="tasks-tbody"></tbody>
                     </table>
                     <div id="no-tasks" class="empty-tip">暂无任务</div>
+                    <div id="tasks-pagination"></div>
                 </div>
             </div>
 
@@ -596,62 +606,66 @@
                     </div>
                 </div>
                 <div id="live-monitor" class="hidden"></div>
-                <div class="summary-cards" id="summary-cards"></div>
-                <div id="response-code-section" style="display:none;padding:10px 12px;background:#fafafa;border-radius:6px;margin-bottom:12px;">
-                    <div style="font-size:12px;font-weight:500;margin-bottom:6px;">响应码分布</div>
-                    <div id="response-code-dist" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
-                </div>
-
-                <!-- 场景总览：多曲线合并 -->
-                <div class="chart-box" style="margin-bottom:12px">
-                    <h3>场景总览（并发数 / TPS / 响应时间 / 错误率）</h3>
-                    <div class="chart-container" id="chart-overview" style="height:350px"></div>
-                </div>
-
-                <div class="charts-grid">
-                    <div class="chart-box"><h3>响应时间分布</h3><div class="chart-container" id="chart-distribution"></div></div>
-                    <div class="chart-box"><h3>百分位响应时间</h3><div class="chart-container" id="chart-percentiles"></div></div>
-                </div>
-
-                <!-- 单接口图表 -->
-                <div class="chart-box" style="margin-bottom:12px">
-                    <div class="section-header">
-                        <h3>单接口分析</h3>
-                        <select id="label-select" class="compact-select" onchange="switchLabelChart()"></select>
+                <div id="report-pending-note" class="hidden" style="padding:12px 14px;background:#f8fafc;border:1px solid #e5e7eb;border-radius:6px;margin-bottom:12px;color:#555;font-size:13px;"></div>
+                <div id="final-report-content">
+                    <div class="summary-cards" id="summary-cards"></div>
+                    <div id="response-code-section" style="display:none;padding:10px 12px;background:#fafafa;border-radius:6px;margin-bottom:12px;">
+                        <div style="font-size:12px;font-weight:500;margin-bottom:6px;">响应码分布</div>
+                        <div id="response-code-dist" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
                     </div>
-                    <div class="chart-container" id="chart-label" style="height:300px"></div>
-                </div>
 
-                <div class="chart-box">
-                    <h3>接口统计</h3>
-                    <table>
-                        <thead><tr><th>接口名称</th><th>请求数</th><th>TPS</th><th>平均耗时</th><th>P50</th><th>P90</th><th>P99</th><th>错误率</th></tr></thead>
-                        <tbody id="label-stats-tbody"></tbody>
-                    </table>
-                </div>
+                    <!-- 场景总览：多曲线合并 -->
+                    <div class="chart-box" style="margin-bottom:12px">
+                        <h3>场景总览（并发数 / TPS / 响应时间 / 错误率）</h3>
+                        <div class="chart-container" id="chart-overview" style="height:350px"></div>
+                    </div>
 
-                <!-- 请求日志 -->
-                <div class="chart-box" style="margin-top:12px">
-                    <div class="section-header">
-                        <h3>请求日志</h3>
-                        <div class="toolbar-actions">
-                            <select id="log-label-filter" class="compact-select" onchange="loadRequestLogs(0)">
-                                <option value="">全部接口</option>
-                            </select>
-                            <label style="font-size:12px;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;">
-                                <input type="checkbox" id="log-errors-only" onchange="loadRequestLogs(0)"> 仅错误
-                            </label>
+                    <div class="charts-grid">
+                        <div class="chart-box"><h3>响应时间分布</h3><div class="chart-container" id="chart-distribution"></div></div>
+                        <div class="chart-box"><h3>百分位响应时间</h3><div class="chart-container" id="chart-percentiles"></div></div>
+                    </div>
+
+                    <!-- 单接口图表 -->
+                    <div class="chart-box" style="margin-bottom:12px">
+                        <div class="section-header">
+                            <h3>单接口分析</h3>
+                            <select id="label-select" class="compact-select" onchange="switchLabelChart()"></select>
                         </div>
+                        <div class="chart-container" id="chart-label" style="height:300px"></div>
                     </div>
-                    <div id="log-summary" style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:12px;padding:10px 12px;background:#fafafa;border-radius:6px;font-size:12px;"></div>
-                    <table style="font-size:12px">
-                        <thead><tr><th>接口</th><th>状态</th><th>耗时</th><th>响应码</th><th>操作</th></tr></thead>
-                        <tbody id="request-log-tbody"></tbody>
-                    </table>
-                    <div style="margin-top:8px;display:flex;justify-content:center;gap:8px">
-                        <button class="filter-btn" id="log-prev-btn" onclick="loadRequestLogs(logPage-1)" disabled>上一页</button>
-                        <span id="log-page-info" style="font-size:12px;color:#888;line-height:28px"></span>
-                        <button class="filter-btn" id="log-next-btn" onclick="loadRequestLogs(logPage+1)">下一页</button>
+
+                    <div class="chart-box">
+                        <h3>接口统计</h3>
+                        <table>
+                            <thead><tr><th>接口名称</th><th>请求数</th><th>TPS</th><th>平均耗时</th><th>P50</th><th>P90</th><th>P99</th><th>错误率</th></tr></thead>
+                            <tbody id="label-stats-tbody"></tbody>
+                        </table>
+                        <div id="label-stats-pagination"></div>
+                    </div>
+
+                    <!-- 请求日志 -->
+                    <div class="chart-box" style="margin-top:12px">
+                        <div class="section-header">
+                            <h3>请求日志</h3>
+                            <div class="toolbar-actions">
+                                <select id="log-label-filter" class="compact-select" onchange="loadRequestLogs(0)">
+                                    <option value="">全部接口</option>
+                                </select>
+                                <label style="font-size:12px;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;">
+                                    <input type="checkbox" id="log-errors-only" onchange="loadRequestLogs(0)"> 仅错误
+                                </label>
+                            </div>
+                        </div>
+                        <div id="log-summary" style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:12px;padding:10px 12px;background:#fafafa;border-radius:6px;font-size:12px;"></div>
+                        <table style="font-size:12px">
+                            <thead><tr><th>接口</th><th>状态</th><th>耗时</th><th>响应码</th><th>操作</th></tr></thead>
+                            <tbody id="request-log-tbody"></tbody>
+                        </table>
+                        <div style="margin-top:8px;display:flex;justify-content:center;gap:8px">
+                            <button class="filter-btn" id="log-prev-btn" onclick="loadRequestLogs(logPage-1)" disabled>上一页</button>
+                            <span id="log-page-info" style="font-size:12px;color:#888;line-height:28px"></span>
+                            <button class="filter-btn" id="log-next-btn" onclick="loadRequestLogs(logPage+1)">下一页</button>
+                        </div>
                     </div>
                 </div>
 
@@ -829,7 +843,7 @@
                         </div>
                         <div style="text-align:center;">
                             <div style="font-size:11px;color:#888;margin-bottom:2px;">超时(s)</div>
-                            <input type="number" id="create-timeout" value="300" min="10" oninput="updateCreateSummary()" style="width:100%;padding:4px;border:1px solid #d0d0d0;border-radius:4px;font-size:13px;font-weight:bold;text-align:center;">
+                            <input type="number" id="create-timeout" value="130" min="10" oninput="onCreateTimeoutInput()" style="width:100%;padding:4px;border:1px solid #d0d0d0;border-radius:4px;font-size:13px;font-weight:bold;text-align:center;">
                         </div>
                     </div>
                     <div id="scenario-desc" style="font-size:11px;color:#666;margin-top:6px;padding-top:6px;border-top:1px solid #e0e0e0;">选择场景后显示说明</div>
@@ -981,6 +995,7 @@
                     <tbody id="registry-tbody"></tbody>
                 </table>
                 <div id="no-registry" class="empty-tip">暂无注册节点，请在上方添加</div>
+                <div id="registry-pagination"></div>
             </div>
 
             <!-- Agent 节点 -->
@@ -995,6 +1010,7 @@
                     <thead><tr><th>地址</th><th>节点 ID</th><th>状态</th><th>CPU</th><th>内存</th><th>当前任务</th></tr></thead>
                     <tbody id="nodes-tbody"></tbody>
                 </table>
+                <div id="nodes-pagination"></div>
             </div>
 
             <!-- 资源监控 -->
@@ -1038,6 +1054,7 @@
                     <tbody id="vars-tbody"></tbody>
                 </table>
                 <div id="no-vars" class="empty-tip">暂无变量</div>
+                <div id="vars-pagination"></div>
             </div>
 
             <!-- CSV 数据文件 -->
@@ -1054,6 +1071,7 @@
                     <tbody id="csvs-tbody"></tbody>
                 </table>
                 <div id="no-csvs" class="empty-tip">暂无数据文件</div>
+                <div id="csvs-pagination"></div>
             </div>
         </div>
 
@@ -1086,6 +1104,7 @@
                     </div>
                 </div>
                 <div id="templates-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;"></div>
+                <div id="templates-pagination"></div>
             </div>
 
             <div id="template-create-modal" class="hidden" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:none;z-index:1000;justify-content:center;align-items:center;">
@@ -1121,6 +1140,7 @@
                     <tbody id="schedule-tbody"></tbody>
                 </table>
                 <div id="no-schedules" class="empty-tip">暂无调度任务</div>
+                <div id="schedule-pagination"></div>
             </div>
 
             <div id="schedule-create-modal" class="hidden" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:none;z-index:1000;justify-content:center;align-items:center;">
@@ -1174,6 +1194,7 @@
                     <tbody id="webhook-tbody"></tbody>
                 </table>
                 <div id="no-webhooks" class="empty-tip">暂无 Webhook</div>
+                <div id="webhook-pagination"></div>
             </div>
 
             <div id="webhook-add-modal" class="hidden" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:none;z-index:1000;justify-content:center;align-items:center;">
@@ -1223,6 +1244,7 @@
                         <thead><tr><th>接口</th><th>任务A 耗时</th><th>任务B 耗时</th><th>变化</th><th>任务A 错误率</th><th>任务B 错误率</th><th>变化</th></tr></thead>
                         <tbody id="compare-label-tbody"></tbody>
                     </table>
+                    <div id="compare-label-pagination"></div>
                 </div>
             </div>
             <div id="compare-empty" class="empty-tip" style="margin-top:40px">请选择两个已完成的任务进行对比</div>
@@ -1267,6 +1289,7 @@
                             <tbody id="jtl-compare-label-tbody"></tbody>
                         </table>
                     </div>
+                    <div id="jtl-compare-label-pagination"></div>
                 </div>
             </div>
 
@@ -1306,6 +1329,7 @@
                     <tbody id="trend-tbody"></tbody>
                 </table>
                 <div id="no-trend" class="empty-tip">暂无历史数据</div>
+                <div id="trend-pagination"></div>
             </div>
         </div>
 
@@ -1323,6 +1347,7 @@
                     <tbody id="alerts-tbody"></tbody>
                 </table>
                 <div id="no-alerts" class="empty-tip">暂无告警规则</div>
+                <div id="alerts-pagination"></div>
             </div>
 
             <div id="alert-create-modal" class="hidden" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:none;z-index:1000;justify-content:center;align-items:center;">
@@ -1365,6 +1390,7 @@
                     <tbody id="envs-tbody"></tbody>
                 </table>
                 <div id="no-envs" class="empty-tip">暂无环境配置</div>
+                <div id="envs-pagination"></div>
             </div>
 
             <div id="env-create-modal" class="hidden" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:none;z-index:1000;justify-content:center;align-items:center;">
@@ -1412,6 +1438,7 @@
                         <thead><tr><th>脚本 ID</th><th>文件名</th><th>大小</th><th>修改时间</th><th>操作</th></tr></thead>
                         <tbody id="scripts-tbody"></tbody>
                     </table>
+                    <div id="scripts-pagination"></div>
                 </div>
             </div>
 
@@ -1518,8 +1545,8 @@
 
         <div id="adjust-modal" class="hidden" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:1000;display:none;justify-content:center;align-items:center;">
             <div style="background:#fff;border-radius:8px;padding:20px;width:400px;">
-                <h3 style="font-size:16px;margin-bottom:16px">调整压测参数</h3>
-                <p style="font-size:12px;color:#888;margin-bottom:12px">将停止当前任务并以新参数重启</p>
+                <h3 style="font-size:16px;margin-bottom:16px">停止重启调参</h3>
+                <p style="font-size:12px;color:#888;margin-bottom:12px">将停止当前任务并创建一个新任务，适合完整替换线程组参数</p>
                 <div class="form-group">
                     <label>并发用户数</label>
                     <input type="number" id="adj-threads" min="1" value="10">
@@ -1543,6 +1570,37 @@
             </div>
         </div>
 
+        <div id="dynamic-adjust-modal" class="hidden" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:1000;display:none;justify-content:center;align-items:center;">
+            <div style="background:#fff;border-radius:8px;padding:20px;width:460px;">
+                <h3 style="font-size:16px;margin-bottom:16px">动态调压</h3>
+                <p style="font-size:12px;color:#666;line-height:1.6;margin-bottom:12px">加压会在当前任务下启动增量压力段；减压只回收通过动态调压新增的压力段，不会直接修改基础线程组。</p>
+                <div class="form-group">
+                    <label>动作</label>
+                    <select id="dyn-action" onchange="updateDynamicAdjustHint()">
+                        <option value="increase">增加并发</option>
+                        <option value="decrease">减少并发</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>调整线程数</label>
+                    <input type="number" id="dyn-threads" min="1" value="10">
+                </div>
+                <div class="form-group">
+                    <label>递增时间 (秒)</label>
+                    <input type="number" id="dyn-ramp" min="0" value="5">
+                </div>
+                <div class="form-group">
+                    <label>增量持续时间 (秒)</label>
+                    <input type="number" id="dyn-duration" min="1" value="60">
+                </div>
+                <div id="dyn-hint" style="font-size:12px;color:#777;line-height:1.5;background:#f7f7f7;border:1px solid #e5e5e5;border-radius:4px;padding:8px 10px;"></div>
+                <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">
+                    <button class="filter-btn" onclick="closeDynamicAdjustModal()">取消</button>
+                    <button class="btn-primary" onclick="confirmDynamicAdjust()">下发调压</button>
+                </div>
+            </div>
+        </div>
+
         <div id="loading" class="hidden">加载中...</div>
     </div>
 
@@ -1554,6 +1612,130 @@
         let detailTimer = null;
         let allTasks = [];
         let agentMap = {};
+        let taskDisplayMap = {};
+        const paginationState = {};
+        const paginationDefaults = {
+            tasks: 10,
+            registry: 8,
+            nodes: 8,
+            vars: 8,
+            csvs: 8,
+            templates: 8,
+            schedule: 10,
+            webhook: 8,
+            scripts: 10,
+            trend: 10,
+            alerts: 10,
+            envs: 10,
+            labelStats: 10,
+            compareLabels: 10,
+            jtlCompareLabels: 10,
+        };
+        const paginationSizeOptions = [5, 10, 20, 50, 100];
+
+        function ensurePagination(key, defaultSize) {
+            if (!paginationState[key]) {
+                paginationState[key] = {
+                    page: 1,
+                    pageSize: defaultSize || paginationDefaults[key] || 10,
+                    render: null,
+                };
+            }
+            return paginationState[key];
+        }
+
+        function clearPagination(key, containerId) {
+            const el = document.getElementById(containerId || `${key}-pagination`);
+            if (el) el.innerHTML = '';
+        }
+
+        function resetPagination(key) {
+            const state = ensurePagination(key);
+            state.page = 1;
+        }
+
+        function paginateItems(key, items, renderFn, options = {}) {
+            const list = Array.isArray(items) ? items : [];
+            const state = ensurePagination(key, options.defaultPageSize);
+            state.render = renderFn;
+
+            const total = list.length;
+            const totalPages = Math.max(1, Math.ceil(total / state.pageSize));
+            state.page = Math.min(Math.max(1, state.page), totalPages);
+
+            const start = total === 0 ? 0 : (state.page - 1) * state.pageSize;
+            const end = Math.min(start + state.pageSize, total);
+            renderPagination(key, {
+                total,
+                start,
+                end,
+                page: state.page,
+                pageSize: state.pageSize,
+                totalPages,
+            }, options);
+
+            return {
+                items: list.slice(start, end),
+                total,
+                start,
+                end,
+                page: state.page,
+                totalPages,
+            };
+        }
+
+        function renderPagination(key, meta, options = {}) {
+            const el = document.getElementById(options.containerId || `${key}-pagination`);
+            if (!el) return;
+            if (!meta.total) {
+                el.innerHTML = '';
+                return;
+            }
+
+            const pageButtons = [];
+            const from = Math.max(1, meta.page - 2);
+            const to = Math.min(meta.totalPages, meta.page + 2);
+            if (from > 1) {
+                pageButtons.push(`<button class="filter-btn pagination-btn" onclick="changePage('${key}', 1)">1</button>`);
+                if (from > 2) pageButtons.push('<span class="pagination-info">...</span>');
+            }
+            for (let p = from; p <= to; p++) {
+                pageButtons.push(`<button class="filter-btn pagination-btn ${p === meta.page ? 'active' : ''}" onclick="changePage('${key}', ${p})">${p}</button>`);
+            }
+            if (to < meta.totalPages) {
+                if (to < meta.totalPages - 1) pageButtons.push('<span class="pagination-info">...</span>');
+                pageButtons.push(`<button class="filter-btn pagination-btn" onclick="changePage('${key}', ${meta.totalPages})">${meta.totalPages}</button>`);
+            }
+
+            const sizes = paginationSizeOptions.map(size =>
+                `<option value="${size}" ${size === meta.pageSize ? 'selected' : ''}>${size} 条/页</option>`
+            ).join('');
+            el.innerHTML = `
+                <div class="pagination-bar">
+                    <div class="pagination-info">显示 ${meta.start + 1}-${meta.end} / 共 ${meta.total} 条</div>
+                    <div class="pagination-controls">
+                        <select class="pagination-size" onchange="changePageSize('${key}', this.value)">${sizes}</select>
+                        <button class="filter-btn pagination-btn" onclick="changePage('${key}', 1)" ${meta.page <= 1 ? 'disabled' : ''}>首页</button>
+                        <button class="filter-btn pagination-btn" onclick="changePage('${key}', ${meta.page - 1})" ${meta.page <= 1 ? 'disabled' : ''}>上一页</button>
+                        ${pageButtons.join('')}
+                        <button class="filter-btn pagination-btn" onclick="changePage('${key}', ${meta.page + 1})" ${meta.page >= meta.totalPages ? 'disabled' : ''}>下一页</button>
+                        <button class="filter-btn pagination-btn" onclick="changePage('${key}', ${meta.totalPages})" ${meta.page >= meta.totalPages ? 'disabled' : ''}>末页</button>
+                    </div>
+                </div>`;
+        }
+
+        function changePage(key, page) {
+            const state = ensurePagination(key);
+            state.page = Number(page) || 1;
+            if (typeof state.render === 'function') state.render();
+        }
+
+        function changePageSize(key, pageSize) {
+            const state = ensurePagination(key);
+            state.pageSize = Number(pageSize) || paginationDefaults[key] || 10;
+            state.page = 1;
+            if (typeof state.render === 'function') state.render();
+        }
 
         async function loadAgentMap() {
             try {
@@ -1561,20 +1743,71 @@
                 const data = await res.json();
                 agentMap = {};
                 (data.agents || []).forEach(a => {
-                    agentMap[a.agent_id] = `${a.host}:${a.port}`;
+                    agentMap[a.agent_id] = {
+                        host: a.host,
+                        port: a.port,
+                        display: getAgentDisplayName(a),
+                    };
                 });
             } catch (e) {}
         }
 
+        function isLocalHost(host) {
+            const value = String(host || '').trim().toLowerCase();
+            if (!value) return false;
+            const browserHost = String(location.hostname || '').trim().toLowerCase();
+            return value === 'localhost' ||
+                value === '127.0.0.1' ||
+                value === '::1' ||
+                value === '0.0.0.0' ||
+                value === browserHost;
+        }
+
+        function formatHostPort(host, port) {
+            if (isLocalHost(host)) return '本地';
+            if (!host) return '-';
+            return port ? `${host}:${port}` : String(host);
+        }
+
+        function getAgentDisplayName(agent) {
+            if (!agent) return '-';
+            return formatHostPort(agent.host, agent.port);
+        }
+
+        function formatNodeAddress(value) {
+            const text = String(value || '').trim();
+            if (!text) return '-';
+            const idx = text.lastIndexOf(':');
+            if (idx > 0) {
+                return formatHostPort(text.slice(0, idx), text.slice(idx + 1));
+            }
+            return isLocalHost(text) ? '本地' : text;
+        }
+
         function resolveNodeDisplay(nodeId) {
-            if (agentMap[nodeId]) return agentMap[nodeId];
-            if (nodeId.includes(':')) return nodeId;
-            if (nodeId.startsWith('agent-')) return nodeId;
+            if (!nodeId) return '-';
+            if (agentMap[nodeId]) return agentMap[nodeId].display;
+            if (String(nodeId).includes(':')) return formatNodeAddress(nodeId);
+            if (String(nodeId).startsWith('agent-')) return '本地';
             return nodeId;
         }
 
         function resolveNodesDisplay(nodes) {
             return (nodes || []).map(n => resolveNodeDisplay(n));
+        }
+
+        function formatNodeList(nodes) {
+            const values = resolveNodesDisplay(nodes).filter(Boolean);
+            return values.length ? values.join(', ') : '-';
+        }
+
+        function formatRemoteHosts(remoteHosts) {
+            const values = String(remoteHosts || '')
+                .split(',')
+                .map(v => v.trim())
+                .filter(Boolean)
+                .map(formatNodeAddress);
+            return values.length ? values.join(', ') : '';
         }
 
         function formatTime(ts) {
@@ -1591,6 +1824,80 @@
             return `${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
         }
 
+        function taskDisplayDate(task) {
+            const ts = Number(task?.created_at || task?.start_time || task?.modified_at || task?.end_time || 0);
+            if (!ts) return '';
+            const d = new Date(ts * 1000);
+            if (Number.isNaN(d.getTime())) return '';
+            const pad = n => String(n).padStart(2, '0');
+            return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
+        }
+
+        function isDatedTaskId(taskId) {
+            return /^task-\d{8}-\d{3,}$/.test(String(taskId || ''));
+        }
+
+        function isLegacyTaskId(taskId) {
+            const id = String(taskId || '');
+            return /^(?:task-)?[0-9a-f]{6,12}$/i.test(id);
+        }
+
+        function taskIdDate(taskId) {
+            const dated = String(taskId || '').match(/^task-(\d{8})-(\d{3,})$/);
+            return dated ? dated[1] : '';
+        }
+
+        function taskIdSequence(taskId) {
+            const dated = String(taskId || '').match(/^task-(\d{8})-(\d{3,})$/);
+            return dated ? parseInt(dated[2], 10) || 0 : 0;
+        }
+
+        function rebuildTaskDisplayMap(tasks) {
+            const list = Array.isArray(tasks) ? tasks : [];
+            const nextSeqByDate = {};
+            taskDisplayMap = {};
+
+            list.forEach(t => {
+                const id = String(t?.task_id || '');
+                if (!isDatedTaskId(id)) return;
+                const date = taskIdDate(id);
+                const seq = taskIdSequence(id);
+                taskDisplayMap[id] = `${date}-${String(seq).padStart(3, '0')}`;
+                nextSeqByDate[date] = Math.max(nextSeqByDate[date] || 0, seq);
+            });
+
+            list
+                .filter(t => t?.task_id && !isDatedTaskId(t.task_id))
+                .sort((a, b) => {
+                    const at = Number(a.created_at || a.start_time || a.modified_at || a.end_time || 0);
+                    const bt = Number(b.created_at || b.start_time || b.modified_at || b.end_time || 0);
+                    if (at !== bt) return at - bt;
+                    return String(a.task_id).localeCompare(String(b.task_id));
+                })
+                .forEach(t => {
+                    const date = taskDisplayDate(t) || '历史任务';
+                    const seq = (nextSeqByDate[date] || 0) + 1;
+                    nextSeqByDate[date] = seq;
+                    taskDisplayMap[String(t.task_id)] = date === '历史任务'
+                        ? `历史任务-${String(seq).padStart(3, '0')}`
+                        : `${date}-${String(seq).padStart(3, '0')}`;
+                });
+        }
+
+        function formatTaskId(taskId, task) {
+            const id = String(taskId || '');
+            if (task?.display_task_id) return task.display_task_id;
+            if (taskDisplayMap[id]) return taskDisplayMap[id];
+            const dated = id.match(/^task-(\d{8})-(\d{3,})$/);
+            if (dated) return `${dated[1]}-${dated[2]}`;
+            if (isLegacyTaskId(id)) {
+                const date = taskDisplayDate(task);
+                return date ? `${date}-历史` : '历史任务';
+            }
+            if (id.startsWith('task-')) return id.slice(5);
+            return id || '-';
+        }
+
         function formatBytes(bytes) {
             if (!bytes || bytes === 0) return '0 B';
             const k = 1024;
@@ -1600,13 +1907,25 @@
         }
 
         // ===== 首页 =====
+        function setHomeTextWithTitle(id, text) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.textContent = text;
+            el.title = text;
+            const card = el.closest('.home-health-item');
+            if (card) {
+                const label = card.querySelector('.label')?.textContent?.trim();
+                card.title = label ? `${label}：${text}` : text;
+            }
+        }
+
         async function loadHomePage() {
             try {
                 // 并行加载数据
                 const [tasksRes, resultsRes, scriptsRes, nodesRes, monitorRes] = await Promise.all([
-                    fetch(`${API}/api/tasks/`),
-                    fetch(`${API}/api/results/tasks`),
-                    fetch(`${API}/api/scripts/`),
+                    fetch(`${API}/api/tasks/?limit=500`),
+                    fetch(`${API}/api/results/tasks?limit=500`),
+                    fetch(`${API}/api/scripts/?limit=500`),
                     fetch(`${API}/api/registry/`).catch(() => ({json: () => ({nodes: []})})),
                     fetch(`${API}/api/monitor/overview`).catch(() => ({json: () => ({})})),
                 ]);
@@ -1621,6 +1940,7 @@
                 const memoryTasks = tasks.tasks || [];
                 const resultTasks = (results.tasks || []).map(t => ({
                     task_id: t.task_id,
+                    display_task_id: t.display_task_id,
                     script_id: '-',
                     status: 'completed',
                     created_at: t.created_at,
@@ -1635,26 +1955,32 @@
                     if (!taskMap.has(t.task_id)) taskMap.set(t.task_id, t);
                 });
                 const allTasksList = Array.from(taskMap.values());
+                rebuildTaskDisplayMap(allTasksList);
 
                 // 统计卡片
                 const running = allTasksList.filter(t => t.status === 'running').length;
                 const completed = allTasksList.filter(t => t.status === 'completed').length;
                 const failed = allTasksList.filter(t => t.status === 'failed').length;
 
-                document.getElementById('home-tasks-count').textContent = allTasksList.length;
+                document.getElementById('home-tasks-count').textContent = Math.max(allTasksList.length, tasks.total || 0, results.total || 0);
                 document.getElementById('home-tasks-status').textContent = `运行中 ${running} | 已完成 ${completed} | 失败 ${failed}`;
+                setHomeTextWithTitle('home-priority-tasks', `运行中 ${running} 个，失败 ${failed} 个，今日优先处理异常任务`);
 
-                document.getElementById('home-scripts-count').textContent = (scripts.scripts || []).length;
+                document.getElementById('home-scripts-count').textContent = scripts.total || (scripts.scripts || []).length;
 
                 const verifiedNodes = (nodes.nodes || []).filter(n => n.status === 'verified').length;
                 document.getElementById('home-nodes-count').textContent = verifiedNodes;
                 document.getElementById('home-nodes-status').textContent = `已注册 ${nodes.nodes?.length || 0} 个`;
+                setHomeTextWithTitle('home-priority-nodes', `可用 ${verifiedNodes} / 已注册 ${nodes.nodes?.length || 0}`);
 
                 if (monitor.cpu_percent !== undefined) {
                     document.getElementById('home-cpu').textContent = monitor.cpu_percent + '%';
                     document.getElementById('home-cpu').className = 'value ' + (monitor.cpu_percent > 80 ? 'red' : monitor.cpu_percent > 50 ? 'yellow' : 'green');
                     document.getElementById('home-mem').textContent = monitor.memory_percent + '%';
                     document.getElementById('home-mem').className = 'value ' + (monitor.memory_percent > 80 ? 'red' : monitor.memory_percent > 50 ? 'yellow' : 'green');
+                    setHomeTextWithTitle('home-priority-resource', `CPU ${monitor.cpu_percent}% / 内存 ${monitor.memory_percent}%`);
+                } else {
+                    setHomeTextWithTitle('home-priority-resource', '暂无资源监控数据');
                 }
 
                 // 最近任务
@@ -1689,7 +2015,7 @@
 
                         const created = t.created_at ? new Date(t.created_at * 1000).toLocaleString() : '-';
                         return `<tr style="cursor:pointer" onclick="viewTask('${t.task_id}')">
-                            <td style="font-family:monospace;font-size:12px">${t.task_id.substring(0, 8)}</td>
+                            <td style="font-family:monospace;font-size:12px">${formatTaskId(t.task_id, t)}</td>
                             <td>${scriptMap[t.script_id] || t.script_id || '-'}</td>
                             <td><span class="status-badge ${cls}">${label}</span></td>
                             <td>${samples}</td>
@@ -1751,7 +2077,7 @@
             try {
                 // 加载脚本映射
                 try {
-                    const scriptsRes = await fetch(`${API}/api/scripts/`);
+                    const scriptsRes = await fetch(`${API}/api/scripts/?limit=500`);
                     if (scriptsRes.ok) {
                         const scripts = await scriptsRes.json();
                         scriptMap = {};
@@ -1762,8 +2088,8 @@
                 } catch (e) {}
 
                 const [tasksRes, resultsRes] = await Promise.allSettled([
-                    fetch(`${API}/api/tasks/`),
-                    fetch(`${API}/api/results/tasks`, { signal: AbortSignal.timeout(5000) }),
+                    fetch(`${API}/api/tasks/?limit=500`),
+                    fetch(`${API}/api/results/tasks?limit=500`, { signal: AbortSignal.timeout(5000) }),
                 ]);
 
                 const memoryTasks = tasksRes.status === 'fulfilled' ? (await tasksRes.value.json()).tasks || [] : [];
@@ -1772,6 +2098,7 @@
                     const resultsData = await resultsRes.value.json();
                     resultTasks = (resultsData.tasks || []).map(t => ({
                         task_id: t.task_id,
+                        display_task_id: t.display_task_id,
                         script_id: '-',
                         status: 'completed',
                         created_at: t.created_at,
@@ -1790,6 +2117,7 @@
                 });
 
                 allTasks = Array.from(taskMap.values());
+                rebuildTaskDisplayMap(allTasks);
                 renderTaskList();
             } catch (e) {
                 console.error('loadTasks error:', e);
@@ -1807,14 +2135,16 @@
             if (filtered.length === 0) {
                 tbody.innerHTML = '';
                 noTasks.style.display = 'block';
+                clearPagination('tasks');
                 return;
             }
             noTasks.style.display = 'none';
 
             filtered.sort((a, b) => ((b.modified_at || b.end_time || b.created_at) || 0) - ((a.modified_at || a.end_time || a.created_at) || 0));
+            const page = paginateItems('tasks', filtered, renderTaskList);
 
             let html = '';
-            filtered.forEach(t => {
+            page.items.forEach(t => {
                 const statusMap = {
                     pending: ['待执行', 'status-pending'],
                     running: ['运行中', 'status-running'],
@@ -1823,12 +2153,13 @@
                     stopped: ['已停止', 'status-stopped'],
                 };
                 const [label, cls] = statusMap[t.status] || [t.status, ''];
-                const agents = resolveNodesDisplay(t.target_agents).join(', ');
+                const agents = formatNodeList(t.target_agents);
                 const created = t.created_at ? new Date(t.created_at * 1000).toLocaleString() : '-';
                 let actions = `<a class="clickable" onclick="viewTask('${t.task_id}')">查看图表</a>`;
                 actions += ` <button class="filter-btn btn-sm" style="margin-left:8px" onclick="openToolLogsForTask('${t.task_id}')">工具日志</button>`;
                 if (t.status === 'running') {
-                    actions += ` <button class="filter-btn btn-sm" style="margin-left:8px;background:#f0f0f0" onclick="showAdjustModal('${t.task_id}')">调整参数</button>`;
+                    actions += ` <button class="filter-btn btn-sm" style="margin-left:8px;background:#eef6ff" onclick="showDynamicAdjustModal('${t.task_id}')">动态调压</button>`;
+                    actions += ` <button class="filter-btn btn-sm" style="margin-left:8px;background:#f0f0f0" onclick="showAdjustModal('${t.task_id}')">停止重启</button>`;
                     actions += ` <button class="btn-danger btn-sm" style="margin-left:8px" onclick="stopTask('${t.task_id}')">停止</button>`;
                 }
                 if (t.status === 'completed' || t.status === 'failed') actions += ` <button class="filter-btn btn-sm" style="margin-left:8px" onclick="rerunTask('${t.task_id}')">重跑</button>`;
@@ -1838,7 +2169,7 @@
                 const arrowCls = isOpen ? 'arrow open' : 'arrow';
 
                 html += `<tr>
-                    <td><span class="${arrowCls}">&▶</span><span class="task-id-link" onclick="toggleExpand('${t.task_id}')">${t.task_id.substring(0, 8)}</span></td>
+                    <td><span class="${arrowCls}">&▶</span><span class="task-id-link" onclick="toggleExpand('${t.task_id}')">${formatTaskId(t.task_id, t)}</span></td>
                     <td>${scriptMap[t.script_id] || t.script_id || '-'}</td>
                     <td><span class="status-badge ${cls}">${label}</span></td>
                     <td style="font-size:12px">${agents}</td>
@@ -1858,7 +2189,7 @@
             const started = t.start_time ? new Date(t.start_time * 1000).toLocaleString() : '-';
             const ended = t.end_time ? new Date(t.end_time * 1000).toLocaleString() : '-';
             const duration = t.start_time && t.end_time ? ((t.end_time - t.start_time)).toFixed(1) + 's' : '-';
-            const agents = resolveNodesDisplay(t.target_agents).map(a => `<span style="background:#e8e8e8;padding:1px 6px;border-radius:3px;font-size:12px;margin-right:4px">${a}</span>`).join('');
+            const agents = resolveNodesDisplay(t.target_agents).filter(Boolean).map(a => `<span style="background:#e8e8e8;padding:1px 6px;border-radius:3px;font-size:12px;margin-right:4px">${a}</span>`).join('');
 
             const results = t.results || {};
             let resultSummary = '';
@@ -1866,7 +2197,7 @@
                 const s = r.summary || {};
                 if (s.total_samples) {
                     resultSummary += `<div style="margin-top:8px;padding:8px 12px;background:#fff;border:1px solid #e0e0e0;border-radius:4px;font-size:12px">
-                        <strong>${agentId}</strong> — ${s.total_samples} 请求, 平均 ${s.avg_response_time}ms, P99 ${s.p99}ms, 错误率 ${s.error_rate}%
+                        <strong>${resolveNodeDisplay(agentId)}</strong> — ${s.total_samples} 请求, 平均 ${s.avg_response_time}ms, P99 ${s.p99}ms, 错误率 ${s.error_rate}%
                     </div>`;
                 }
             }
@@ -1882,7 +2213,7 @@
                 </div>` : '';
 
             return `<div class="detail-grid">
-                <div class="detail-item"><div class="dl">任务 ID</div><div class="dv" style="font-family:monospace">${t.task_id.substring(0, 8)}</div></div>
+                <div class="detail-item"><div class="dl">任务编号</div><div class="dv" style="font-family:monospace">${formatTaskId(t.task_id, t)}</div></div>
                 <div class="detail-item"><div class="dl">脚本</div><div class="dv">${scriptMap[t.script_id] || t.script_id || '-'}</div></div>
                 <div class="detail-item"><div class="dl">状态</div><div class="dv">${t.status}</div></div>
                 <div class="detail-item"><div class="dl">并发线程数</div><div class="dv">${args.threads || '-'}</div></div>
@@ -1890,7 +2221,7 @@
                 <div class="detail-item"><div class="dl">持续时间</div><div class="dv">${args.duration ? args.duration + 's' : '-'}</div></div>
                 <div class="detail-item"><div class="dl">超时时间</div><div class="dv">${t.timeout ? t.timeout + 's' : '-'}</div></div>
                 <div class="detail-item"><div class="dl">施压节点</div><div class="dv">${agents || '-'}</div></div>
-                <div class="detail-item"><div class="dl">分布式模式</div><div class="dv">${t.distributed ? '是' : '否'}${t.remote_hosts ? ' (' + t.remote_hosts + ')' : ''}</div></div>
+                <div class="detail-item"><div class="dl">分布式模式</div><div class="dv">${t.distributed ? '是' : '否'}${t.remote_hosts ? ' (' + formatRemoteHosts(t.remote_hosts) + ')' : ''}</div></div>
                 <div class="detail-item"><div class="dl">创建时间</div><div class="dv">${created}</div></div>
                 <div class="detail-item"><div class="dl">启动时间</div><div class="dv">${started}</div></div>
                 <div class="detail-item"><div class="dl">完成时间</div><div class="dv">${ended}</div></div>
@@ -1906,7 +2237,7 @@
             box.innerHTML = '<span class="log-loading">加载中...</span>';
 
             try {
-                const res = await fetch(`${API}/api/results/tasks/${taskId}/logs/${agentId}`);
+                const res = await fetch(`${API}/api/results/tasks/${encodePathSegment(taskId)}/logs/${encodePathSegment(agentId)}`);
                 if (!res.ok) { box.innerHTML = '<span class="log-loading">暂无日志</span>'; return; }
                 const data = await res.json();
                 box.innerHTML = renderLogContent(data.content || '');
@@ -1958,8 +2289,8 @@
 
         async function fetchToolLogTasks() {
             const [tasksRes, resultsRes] = await Promise.allSettled([
-                fetch(`${API}/api/tasks/`),
-                fetch(`${API}/api/results/tasks`),
+                fetch(`${API}/api/tasks/?limit=500`),
+                fetch(`${API}/api/results/tasks?limit=500`),
             ]);
 
             let memoryTasks = [];
@@ -1973,6 +2304,7 @@
                 const data = await resultsRes.value.json();
                 resultTasks = (data.tasks || []).map(t => ({
                     task_id: t.task_id,
+                    display_task_id: t.display_task_id,
                     status: 'completed',
                     created_at: t.created_at,
                     modified_at: t.modified_at,
@@ -1985,8 +2317,10 @@
             resultTasks.forEach(t => {
                 if (!taskMap.has(t.task_id)) taskMap.set(t.task_id, t);
             });
-            return Array.from(taskMap.values())
+            const tasks = Array.from(taskMap.values())
                 .sort((a, b) => ((b.modified_at || b.end_time || b.created_at) || 0) - ((a.modified_at || a.end_time || a.created_at) || 0));
+            rebuildTaskDisplayMap(tasks);
+            return tasks;
         }
 
         async function loadToolLogsPage() {
@@ -2043,7 +2377,7 @@
                     const name = (scriptMap[t.script_id] || t.script_id || '').replace(/^-$|^undefined$/, '');
                     const status = t.status ? ` / ${t.status}` : '';
                     const created = t.created_at ? ` / ${new Date(t.created_at * 1000).toLocaleString()}` : '';
-                    const label = `${t.task_id.substring(0, 8)}${name ? ' / ' + name : ''}${status}${created}`;
+                    const label = `${formatTaskId(t.task_id, t)}${name ? ' / ' + name : ''}${status}${created}`;
                     return `<option value="${escapeHtml(t.task_id)}">${escapeHtml(label)}</option>`;
                 }).join('');
                 if (currentValue && toolLogState.tasks.some(t => t.task_id === currentValue)) {
@@ -2077,12 +2411,10 @@
             const storage = data.storage || {};
             const topIssue = (data.top_issues || [])[0];
             const recent = data.recent_issues || [];
-            const issueText = topIssue
-                ? `${topIssue.count} 次 / ${topIssue.signature}`
-                : '最近扫描范围内没有 WARN/ERROR';
             const recentText = recent.length
                 ? `${recent.length} 条近期告警或错误，最新来源：${recent[recent.length - 1].source || '-'}`
                 : '暂无近期告警或错误';
+            const topIssueHtml = renderTopIssue(topIssue);
 
             box.innerHTML = [
                 `<div class="tool-log-analysis-card">
@@ -2107,13 +2439,56 @@
                 </div>`,
                 `<div class="tool-log-analysis-card wide">
                     <div class="label">Top 问题</div>
-                    <div class="issue">${escapeHtml(issueText)}</div>
+                    ${topIssueHtml}
                 </div>`,
                 `<div class="tool-log-analysis-card wide">
                     <div class="label">近期状态</div>
                     <div class="issue">${escapeHtml(recentText)}</div>
                 </div>`,
             ].join('');
+        }
+
+        function renderTopIssue(issue) {
+            if (!issue) return '<div class="issue">最近扫描范围内没有 WARN/ERROR</div>';
+            const signature = issue.signature || '未知问题';
+            const example = issue.example || signature;
+            const detail = [
+                `出现次数：${issue.count || 0}`,
+                issue.source ? `来源：${issue.source}` : '',
+                '',
+                example,
+            ].filter(line => line !== '').join('\n');
+            return `
+                <div class="tool-issue-summary">${escapeHtml(issue.count || 0)} 次 / ${escapeHtml(signature)}</div>
+                <div class="tool-issue-source">来源：${escapeHtml(issue.source || '-')}</div>
+                <div class="tool-issue-detail" id="tool-top-issue-detail">${escapeHtml(detail)}</div>
+                <div class="tool-issue-actions">
+                    <button class="filter-btn btn-sm" onclick="toggleTopIssueDetail(this)">展开完整内容</button>
+                    <button class="filter-btn btn-sm" data-copy-text="${escapeAttribute(detail)}" onclick="copyText(this.dataset.copyText || '')">复制</button>
+                </div>
+            `;
+        }
+
+        function toggleTopIssueDetail(btn) {
+            const detail = document.getElementById('tool-top-issue-detail');
+            if (!detail) return;
+            const isOpen = detail.classList.toggle('open');
+            if (btn) btn.textContent = isOpen ? '收起完整内容' : '展开完整内容';
+        }
+
+        async function copyText(text) {
+            try {
+                await navigator.clipboard.writeText(text);
+            } catch (e) {
+                const area = document.createElement('textarea');
+                area.value = text;
+                area.style.position = 'fixed';
+                area.style.opacity = '0';
+                document.body.appendChild(area);
+                area.select();
+                document.execCommand('copy');
+                document.body.removeChild(area);
+            }
         }
 
         async function cleanupToolLogs() {
@@ -2234,7 +2609,7 @@
             toolLogState.current = { scope: 'task', taskId, agentId, key: logKey };
             renderToolTaskLogs(taskId);
             const url = `${API}/api/tool-logs/tasks/${encodeURIComponent(taskId)}/${encodeURIComponent(agentId)}/${encodeURIComponent(logKey)}`;
-            await readToolLogContent(url, `${taskId.substring(0, 8)} / ${resolveNodeDisplay(agentId)}`);
+            await readToolLogContent(url, `${formatTaskId(taskId)} / ${resolveNodeDisplay(agentId)}`);
         }
 
         async function readToolLogContent(baseUrl, fallbackTitle) {
@@ -2297,9 +2672,11 @@
 
         function formatBytes(size) {
             const num = Number(size || 0);
+            if (num >= 1024 * 1024 * 1024 * 1024) return (num / 1024 / 1024 / 1024 / 1024).toFixed(1) + ' TB';
+            if (num >= 1024 * 1024 * 1024) return (num / 1024 / 1024 / 1024).toFixed(1) + ' GB';
             if (num >= 1024 * 1024) return (num / 1024 / 1024).toFixed(1) + ' MB';
             if (num >= 1024) return (num / 1024).toFixed(1) + ' KB';
-            return num + ' B';
+            return Math.round(num) + ' B';
         }
 
         function formatDurationSeconds(seconds) {
@@ -2328,6 +2705,8 @@
 
         function filterTasks(filter, btn) {
             taskFilter = filter;
+            expandedTask = null;
+            resetPagination('tasks');
             document.querySelectorAll('.toolbar .filter-btn').forEach(b => b.classList.remove('active'));
             if (btn) btn.classList.add('active');
             renderTaskList();
@@ -2344,6 +2723,7 @@
         function clearAutoRefresh() {
             if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
             if (detailTimer) { clearInterval(detailTimer); detailTimer = null; }
+            if (window._detailWs) { try { window._detailWs.close(); } catch(e){} window._detailWs = null; }
         }
 
         async function stopTask(taskId) {
@@ -2357,6 +2737,82 @@
         }
 
         let _adjustTaskId = null;
+        let _dynamicAdjustTaskId = null;
+
+        async function showDynamicAdjustModal(taskId) {
+            _dynamicAdjustTaskId = taskId;
+            try {
+                const res = await fetch(`${API}/api/tasks/${taskId}`);
+                const task = await res.json();
+                const args = task.jmeter_args || {};
+                const baseThreads = parseInt(args.threads || '10') || 10;
+                document.getElementById('dyn-action').value = 'increase';
+                document.getElementById('dyn-threads').value = Math.max(1, Math.ceil(baseThreads / 2));
+                document.getElementById('dyn-ramp').value = Math.max(1, parseInt(args.ramp_time || '5') || 5);
+                document.getElementById('dyn-duration').value = Math.max(10, parseInt(args.duration || '60') || 60);
+                updateDynamicAdjustHint();
+                document.getElementById('dynamic-adjust-modal').style.display = 'flex';
+            } catch (e) {
+                alert('获取任务参数失败');
+            }
+        }
+
+        function updateDynamicAdjustHint() {
+            const action = document.getElementById('dyn-action')?.value || 'increase';
+            const rampInput = document.getElementById('dyn-ramp');
+            const durationInput = document.getElementById('dyn-duration');
+            const hint = document.getElementById('dyn-hint');
+            const isDecrease = action === 'decrease';
+            if (rampInput) rampInput.disabled = isDecrease;
+            if (durationInput) durationInput.disabled = isDecrease;
+            if (!hint) return;
+            hint.textContent = isDecrease
+                ? '减压会优先停止最近新增的动态压力段。基础线程组无法在 JMeter 进程内直接减少，需要用“停止重启”完整替换参数。'
+                : '增加并发会启动一个新的压力段，并与基础任务一起汇总到实时图表。持续时间结束后该压力段自动退出。';
+        }
+
+        function closeDynamicAdjustModal() {
+            document.getElementById('dynamic-adjust-modal').style.display = 'none';
+            _dynamicAdjustTaskId = null;
+        }
+
+        async function confirmDynamicAdjust() {
+            if (!_dynamicAdjustTaskId) return;
+            const action = document.getElementById('dyn-action').value || 'increase';
+            const threads = parseInt(document.getElementById('dyn-threads').value) || 1;
+            const ramp = parseInt(document.getElementById('dyn-ramp').value) || 0;
+            const duration = parseInt(document.getElementById('dyn-duration').value) || 60;
+            const actionText = action === 'decrease' ? '减少' : '增加';
+
+            if (threads <= 0) {
+                alert('调整线程数必须大于 0');
+                return;
+            }
+            if (!confirm(`确认动态${actionText} ${threads} 个并发线程？`)) return;
+
+            try {
+                const res = await fetch(`${API}/api/tasks/${_dynamicAdjustTaskId}/adjust-load`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action,
+                        threads,
+                        ramp_time: action === 'decrease' ? 0 : ramp,
+                        duration: action === 'decrease' ? 0 : duration,
+                    })
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    closeDynamicAdjustModal();
+                    alert(`动态调压命令已下发：${data.segment_id || '已处理'}`);
+                    loadTasks();
+                } else {
+                    alert(data.detail || '动态调压失败');
+                }
+            } catch (e) {
+                alert('动态调压失败: ' + e.message);
+            }
+        }
 
         async function showAdjustModal(taskId) {
             _adjustTaskId = taskId;
@@ -2402,7 +2858,7 @@
                 const data = await res.json();
                 if (res.ok) {
                     closeAdjustModal();
-                    alert(`新任务已启动: ${data.task_id}`);
+                    alert(`新任务已启动: ${formatTaskId(data.task_id)}`);
                     loadTasks();
                 } else {
                     alert(data.detail || '操作失败');
@@ -2418,7 +2874,7 @@
                 const res = await fetch(`${API}/api/tasks/${taskId}/rerun`, { method: 'POST' });
                 const data = await res.json();
                 if (res.ok) {
-                    alert(`新任务已启动: ${data.task_id}`);
+                    alert(`新任务已启动: ${formatTaskId(data.task_id)}`);
                     loadTasks();
                 } else {
                     alert(data.detail || '重跑失败');
@@ -2435,30 +2891,58 @@
         }
 
         let currentTaskId = '';
+        function encodePathSegment(value) {
+            return encodeURIComponent(String(value || ''));
+        }
+
         async function viewTask(taskId) {
             document.getElementById('tasks-list-view').classList.add('hidden');
             document.getElementById('task-detail-view').classList.remove('hidden');
             currentTaskId = taskId;
-            document.getElementById('detail-task-id').textContent = taskId;
-            document.getElementById('export-report-btn').href = `${API}/api/results/tasks/${taskId}/export`;
-            document.getElementById('export-report-btn').style.display = 'inline-block';
-            document.getElementById('export-pdf-btn').href = `${API}/api/results/tasks/${taskId}/export-pdf`;
-            document.getElementById('export-pdf-btn').style.display = 'inline-block';
+            const taskPathId = encodePathSegment(taskId);
+            document.getElementById('detail-task-id').textContent = formatTaskId(taskId);
+            document.getElementById('export-report-btn').href = `${API}/api/results/tasks/${taskPathId}/export`;
+            document.getElementById('export-report-btn').style.display = 'none';
+            document.getElementById('export-pdf-btn').href = `${API}/api/results/tasks/${taskPathId}/export-pdf`;
+            document.getElementById('export-pdf-btn').style.display = 'none';
             // 获取脚本名称
             try {
-                const taskRes = await fetch(`${API}/api/tasks/${taskId}`);
+                const taskRes = await fetch(`${API}/api/tasks/${taskPathId}`);
                 if (taskRes.ok) {
                     const task = await taskRes.json();
-                    const scriptsRes = await fetch(`${API}/api/scripts/`);
+                    const scriptsRes = await fetch(`${API}/api/scripts/?limit=500`);
                     if (scriptsRes.ok) {
                         const scripts = await scriptsRes.json();
                         const script = (scripts.scripts || []).find(s => s.script_id === task.script_id);
                         const name = script ? (script.original_name || script.filename) : task.script_id;
-                        document.getElementById('detail-task-id').textContent = `${taskId.substring(0, 8)} — ${name}`;
+                        document.getElementById('detail-task-id').textContent = `${formatTaskId(taskId, task)} — ${name}`;
                     }
                 }
             } catch (e) {}
             loadTaskDetail(taskId);
+        }
+
+        function setReportDetailMode(mode, task) {
+            const live = document.getElementById('live-monitor');
+            const pending = document.getElementById('report-pending-note');
+            const finalContent = document.getElementById('final-report-content');
+            const exportHtml = document.getElementById('export-report-btn');
+            const exportPdf = document.getElementById('export-pdf-btn');
+
+            const isRunning = mode === 'running';
+            if (live) live.classList.toggle('hidden', !isRunning);
+            if (finalContent) finalContent.style.display = isRunning ? 'none' : 'block';
+            if (isRunning && exportHtml) exportHtml.style.display = 'none';
+            if (isRunning && exportPdf) exportPdf.style.display = 'none';
+            if (pending) {
+                pending.classList.toggle('hidden', !isRunning);
+                if (isRunning) {
+                    const elapsed = task && task.start_time ? Math.max(0, Math.round(Date.now() / 1000 - task.start_time)) : 0;
+                    pending.textContent = `任务运行中，已运行 ${elapsed}s。测试报告会在任务结束并完成结果采集后显示，当前页面只展示实时监控数据。`;
+                } else {
+                    pending.textContent = '';
+                }
+            }
         }
 
         function showTaskList() {
@@ -2472,6 +2956,8 @@
             document.getElementById('summary-cards').innerHTML = '';
             document.getElementById('label-stats-tbody').innerHTML = '';
             document.getElementById('request-log-tbody').innerHTML = '';
+            currentLabelStats = [];
+            clearPagination('labelStats', 'label-stats-pagination');
             var respSection = document.getElementById('response-code-section');
             if (respSection) respSection.style.display = 'none';
             Object.values(charts).forEach(c => { try { c.dispose(); } catch(e){} });
@@ -2480,8 +2966,9 @@
             try {
                 // 先尝试从内存获取任务信息
                 let task = null;
+                const taskPathId = encodePathSegment(taskId);
                 try {
-                    const taskRes = await fetch(`${API}/api/tasks/${taskId}`);
+                    const taskRes = await fetch(`${API}/api/tasks/${taskPathId}`);
                     if (taskRes.ok) {
                         task = await taskRes.json();
                     }
@@ -2489,18 +2976,21 @@
 
                 // 检查是否是运行中的任务
                 if (task && task.status === 'running') {
-                    document.getElementById('live-monitor').classList.remove('hidden');
+                    setReportDetailMode('running', task);
                     startDetailAutoRefresh(taskId);
+                    return;
                 } else {
-                    document.getElementById('live-monitor').classList.add('hidden');
+                    setReportDetailMode('final', task);
                 }
 
                 // 加载结果数据
-                const res = await fetch(`${API}/api/results/tasks/${taskId}/summary`);
+                const res = await fetch(`${API}/api/results/tasks/${taskPathId}/summary`);
                 console.log('Summary API response:', res.status);
                 if (res.ok) {
                     const data = await res.json();
                     console.log('Summary data:', data);
+                    document.getElementById('export-report-btn').style.display = 'inline-block';
+                    document.getElementById('export-pdf-btn').style.display = 'inline-block';
                     renderSummary(data);
                     renderCharts(data);
 
@@ -2512,20 +3002,15 @@
 
                     loadRequestLogs(0);
                 } else {
-                    const isRunning = task && task.status === 'running';
-                    const noResults = task && Object.keys(task.results || {}).length === 0;
-                    let statusText = isRunning ? '运行中...' : (task ? task.status : '未知');
-                    let statusColor = isRunning ? 'blue' : 'yellow';
-                    let extraInfo = '';
-                    if (isRunning && noResults) {
-                        const elapsed = task.start_time ? Math.round(Date.now() / 1000 - task.start_time) : 0;
-                        extraInfo = `<div style="margin-top:8px;font-size:12px;color:#d97706">⚠️ 任务已运行 ${elapsed}s 但尚未收到结果，可能 Agent 未响应</div>`;
-                    }
+                    document.getElementById('export-report-btn').style.display = 'none';
+                    document.getElementById('export-pdf-btn').style.display = 'none';
+                    let statusText = task ? task.status : '未知';
+                    let statusColor = task && task.status === 'failed' ? 'red' : 'yellow';
                     document.getElementById('summary-cards').innerHTML =
                         `<div class="card"><div class="label">状态</div><div class="value ${statusColor}">${statusText}</div></div>
                          <div class="card"><div class="label">脚本</div><div class="value" style="font-size:16px">${scriptMap[task?.script_id] || task?.script_id || '-'}</div></div>
-                         <div class="card"><div class="label">节点</div><div class="value" style="font-size:14px">${resolveNodesDisplay(task?.target_agents).join(', ')}</div></div>
-                         ${extraInfo}`;
+                         <div class="card"><div class="label">节点</div><div class="value" style="font-size:14px">${formatNodeList(task?.target_agents)}</div></div>
+                         <div class="card"><div class="label">报告状态</div><div class="value yellow" style="font-size:15px">结果文件未生成</div></div>`;
                 }
             } catch (e) {
                 console.error('loadTaskDetail error:', e);
@@ -2536,12 +3021,13 @@
 
         function startDetailAutoRefresh(taskId) {
             if (detailTimer) clearInterval(detailTimer);
-            window._liveData = { timestamps: [], tps: [], rt: [], errorRate: [], threads: [] };
+            detailTimer = null;
+            window._liveData = { timestamps: [], tps: [], rt: [], errorRate: [], threads: [], elapsed: [] };
             window._liveTaskStartTime = null;
             window._liveDesignCurve = null;
             window._liveRefreshInterval = 1000;
             window._lastRenderTime = 0;
-            ['_liveTpsChart','_liveRtChart','_liveThreadsChart','_liveErrChart'].forEach(k => {
+            ['_liveCombinedChart','_liveTpsChart','_liveRtChart','_liveThreadsChart','_liveErrChart'].forEach(k => {
                 if (window[k]) { window[k].dispose(); window[k] = null; }
             });
 
@@ -2551,6 +3037,7 @@
             el.innerHTML =
                 '<div class="live-bar" style="flex-wrap:wrap;margin-bottom:12px;align-items:center;">' +
                 '<div class="item"><span class="dot"></span> 实时监控</div>' +
+                '<div class="item" id="live-status" style="color:#666;">等待首次进度</div>' +
                 '<div class="item">运行: <strong id="live-elapsed">0s</strong></div>' +
                 '<div class="item">TPS: <strong id="live-tps-val">0</strong></div>' +
                 '<div class="item">平均RT: <strong id="live-rt-val">0ms</strong></div>' +
@@ -2565,23 +3052,17 @@
                 '<button class="live-interval-btn" data-ms="10000" onclick="setLiveRefreshInterval(10000)" style="padding:2px 8px;border:1px solid #d0d0d0;border-radius:3px;font-size:11px;cursor:pointer;background:#fff;color:#555;">10s</button>' +
                 '<button class="live-interval-btn" data-ms="30000" onclick="setLiveRefreshInterval(30000)" style="padding:2px 8px;border:1px solid #d0d0d0;border-radius:3px;font-size:11px;cursor:pointer;background:#fff;color:#555;">30s</button>' +
                 '</div></div>' +
-                '<div class="live-chart-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">' +
-                '<div style="background:#fff;border:1px solid #e0e0e0;border-radius:6px;padding:12px;">' +
-                '<div style="font-size:12px;font-weight:500;color:#666;margin-bottom:8px;">TPS 趋势</div>' +
-                '<div id="live-chart-tps" style="height:180px;"></div></div>' +
-                '<div style="background:#fff;border:1px solid #e0e0e0;border-radius:6px;padding:12px;">' +
-                '<div style="font-size:12px;font-weight:500;color:#666;margin-bottom:8px;">响应时间趋势</div>' +
-                '<div id="live-chart-rt" style="height:180px;"></div></div>' +
-                '<div style="background:#fff;border:1px solid #e0e0e0;border-radius:6px;padding:12px;">' +
-                '<div style="font-size:12px;font-weight:500;color:#666;margin-bottom:8px;">并发用户数</div>' +
-                '<div id="live-chart-threads" style="height:180px;"></div></div>' +
-                '<div style="background:#fff;border:1px solid #e0e0e0;border-radius:6px;padding:12px;">' +
-                '<div style="font-size:12px;font-weight:500;color:#666;margin-bottom:8px;">错误率趋势</div>' +
-                '<div id="live-chart-error" style="height:180px;"></div></div>' +
+                '<div class="live-chart-panel" style="background:#fff;border:1px solid #e0e0e0;border-radius:6px;padding:12px;">' +
+                '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px;flex-wrap:wrap;">' +
+                '<div style="font-size:13px;font-weight:600;color:#333;">实时压测曲线</div>' +
+                '<div style="font-size:11px;color:#777;">横轴：运行时间；左轴：TPS/并发；右轴：RT(ms)；右偏移轴：错误率(%)</div>' +
+                '</div>' +
+                '<div id="live-chart-combined" style="height:420px;min-height:360px;"></div>' +
                 '</div>';
 
             setTimeout(function() {
                 initLiveCharts();
+                loadLiveProgressHistory(taskId);
             }, 100);
 
             fetch(`${API}/api/tasks/${taskId}`).then(r=>r.json()).then(task => {
@@ -2592,6 +3073,11 @@
                 var duration = parseInt(args.duration) || 60;
                 window._liveDesignCurve = calcDesignCurve(maxThreads, rampTime, duration);
             }).catch(()=>{});
+
+            pollLiveProgress(taskId);
+            detailTimer = setInterval(function() {
+                pollLiveProgress(taskId);
+            }, 2000);
 
             var wsProto = location.protocol === 'https:' ? 'wss:' : 'ws:';
             var ws = new WebSocket(wsProto + '//' + location.host + '/ws');
@@ -2607,6 +3093,7 @@
                         var r = msg.data;
                         if (r && r.task_id === taskId) {
                             clearInterval(detailTimer); detailTimer = null;
+                            setLiveStatus('任务已结束，正在生成测试报告...');
                             document.getElementById('live-monitor').classList.add('hidden');
                             if (window._detailWs) { try { window._detailWs.close(); } catch(e){} }
                             loadTaskDetail(taskId);
@@ -2616,71 +3103,64 @@
                 } catch(e) {}
             };
             ws.onclose = function() {
-                detailTimer = setInterval(async () => {
-                    try {
-                        const taskRes = await fetch(`${API}/api/tasks/${taskId}`);
-                        const task = await taskRes.json();
-                        if (task.status !== 'running') {
-                            clearInterval(detailTimer); detailTimer = null;
-                            document.getElementById('live-monitor').classList.add('hidden');
-                            loadTaskDetail(taskId); loadTasks(); return;
-                        }
-                        const pRes = await fetch(`${API}/api/tasks/${taskId}/progress`);
-                        const pData = await pRes.json();
-                        if (pData.data) throttledRender(pData.data);
-                    } catch (e) {}
-                }, 2000);
+                setLiveStatus('WebSocket 已断开，正在使用轮询刷新');
             };
+        }
+
+        async function pollLiveProgress(taskId) {
+            try {
+                const taskRes = await fetch(`${API}/api/tasks/${taskId}`);
+                const task = await taskRes.json();
+                if (task.status !== 'running') {
+                    if (detailTimer) { clearInterval(detailTimer); detailTimer = null; }
+                    setLiveStatus('任务已结束，正在生成测试报告...');
+                    document.getElementById('live-monitor').classList.add('hidden');
+                    if (window._detailWs) { try { window._detailWs.close(); } catch(e){} window._detailWs = null; }
+                    loadTaskDetail(taskId);
+                    loadTasks();
+                    return;
+                }
+
+                setReportDetailMode('running', task);
+                const pRes = await fetch(`${API}/api/tasks/${taskId}/progress`);
+                const pData = await pRes.json();
+                if (pData.data) {
+                    renderLiveMonitor(pData.data);
+                } else {
+                    const elapsed = task.start_time ? Math.max(0, Math.round(Date.now() / 1000 - task.start_time)) : 0;
+                    setLiveStatus(`已运行 ${elapsed}s，等待 Agent 上报首批采样数据`);
+                }
+            } catch (e) {
+                setLiveStatus('实时数据刷新失败，等待下次轮询');
+            }
+        }
+
+        async function loadLiveProgressHistory(taskId) {
+            try {
+                const res = await fetch(`${API}/api/tasks/${taskId}/progress/history`);
+                const data = await res.json();
+                seedLiveHistory(data.data || []);
+            } catch (e) {}
+        }
+
+        function setLiveStatus(text) {
+            const status = document.getElementById('live-status');
+            if (status) status.textContent = text || '';
         }
 
         function initLiveCharts() {
             if (!window.echarts) return;
-            var tpsEl = document.getElementById('live-chart-tps');
-            var rtEl = document.getElementById('live-chart-rt');
-            var threadsEl = document.getElementById('live-chart-threads');
-            var errEl = document.getElementById('live-chart-error');
-            if (!tpsEl || !rtEl || !threadsEl || !errEl) return;
+            var combinedEl = document.getElementById('live-chart-combined');
+            if (!combinedEl) return;
 
-            window._liveTpsChart = echarts.init(tpsEl);
-            window._liveRtChart = echarts.init(rtEl);
-            window._liveThreadsChart = echarts.init(threadsEl);
-            window._liveErrChart = echarts.init(errEl);
-
-            var baseXAxis = { type: 'category', data: [], axisLabel: { fontSize: 10 }, boundaryGap: false };
-            var baseGrid = { left: 50, right: 16, top: 16, bottom: 28 };
-
-            window._liveTpsChart.setOption({
-                tooltip: { trigger: 'axis' }, grid: baseGrid,
-                xAxis: baseXAxis,
-                yAxis: { type: 'value', name: 'TPS', axisLabel: { fontSize: 10 } },
-                series: [{ type: 'line', data: [], smooth: true, symbol: 'none',
-                    lineStyle: { color: '#2563eb', width: 2 },
-                    areaStyle: { color: 'rgba(37,99,235,0.08)' } }]
-            });
-            window._liveRtChart.setOption({
-                tooltip: { trigger: 'axis' }, grid: baseGrid,
-                xAxis: baseXAxis,
-                yAxis: { type: 'value', name: 'ms', axisLabel: { fontSize: 10 } },
-                series: [{ type: 'line', data: [], smooth: true, symbol: 'none',
-                    lineStyle: { color: '#16a34a', width: 2 },
-                    areaStyle: { color: 'rgba(22,163,74,0.08)' } }]
-            });
-            window._liveThreadsChart.setOption({
-                tooltip: { trigger: 'axis' }, grid: baseGrid,
-                xAxis: baseXAxis,
-                yAxis: { type: 'value', name: '线程数', axisLabel: { fontSize: 10 } },
-                series: [{ type: 'line', data: [], smooth: true, symbol: 'none',
-                    lineStyle: { color: '#9333ea', width: 2 },
-                    areaStyle: { color: 'rgba(147,51,234,0.08)' } }]
-            });
-            window._liveErrChart.setOption({
-                tooltip: { trigger: 'axis' }, grid: baseGrid,
-                xAxis: baseXAxis,
-                yAxis: { type: 'value', name: '%', axisLabel: { fontSize: 10 }, max: function(v){ return Math.max(v.max * 1.2, 1); } },
-                series: [{ type: 'line', data: [], smooth: true, symbol: 'none',
-                    lineStyle: { color: '#dc2626', width: 2 },
-                    areaStyle: { color: 'rgba(220,38,38,0.08)' } }]
-            });
+            window._liveCombinedChart = echarts.init(combinedEl);
+            renderLiveCharts(ensureLiveData(), 0);
+            if (!window._liveResizeBound) {
+                window.addEventListener('resize', function() {
+                    if (window._liveCombinedChart) window._liveCombinedChart.resize();
+                });
+                window._liveResizeBound = true;
+            }
         }
 
         function throttledRender(p) {
@@ -2718,12 +3198,49 @@
             return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
         }
 
-        function renderLiveMonitor(p) {
-            var el = document.getElementById('live-monitor');
+        function ensureLiveData() {
+            if (!window._liveData) {
+                window._liveData = { timestamps: [], tps: [], rt: [], errorRate: [], threads: [], elapsed: [] };
+            }
+            if (!window._liveData.elapsed) window._liveData.elapsed = [];
+            return window._liveData;
+        }
+
+        function appendLivePoint(p) {
+            var ld = ensureLiveData();
+            var elapsed = Number(p.elapsed || 0);
+            var point = {
+                label: formatElapsed(elapsed),
+                elapsed: elapsed,
+                tps: Number(p.throughput || 0),
+                rt: Number(p.avg_response_time || 0),
+                errorRate: Number(p.error_rate || 0),
+                threads: Number(p.active_threads || 0),
+            };
+            var lastIndex = ld.elapsed.length - 1;
+            if (lastIndex >= 0 && ld.elapsed[lastIndex] === point.elapsed) {
+                ld.timestamps[lastIndex] = point.label;
+                ld.tps[lastIndex] = point.tps;
+                ld.rt[lastIndex] = point.rt;
+                ld.errorRate[lastIndex] = point.errorRate;
+                ld.threads[lastIndex] = point.threads;
+            } else {
+                ld.timestamps.push(point.label);
+                ld.elapsed.push(point.elapsed);
+                ld.tps.push(point.tps);
+                ld.rt.push(point.rt);
+                ld.errorRate.push(point.errorRate);
+                ld.threads.push(point.threads);
+            }
+            if (ld.timestamps.length > 600) {
+                ld.timestamps.shift(); ld.elapsed.shift(); ld.tps.shift(); ld.rt.shift(); ld.errorRate.shift(); ld.threads.shift();
+            }
+            return { data: ld, elapsed: elapsed };
+        }
+
+        function updateLiveHeader(p) {
             var successRate = p.success_rate != null ? p.success_rate : (100 - (p.error_rate || 0));
             var bytesRecv = p.bytes_received || 0;
-
-            if (!el.querySelector('.live-chart-grid')) return;
 
             document.getElementById('live-elapsed').textContent = p.elapsed + 's';
             document.getElementById('live-tps-val').textContent = (p.throughput || 0).toFixed(1);
@@ -2734,103 +3251,182 @@
             document.getElementById('live-threads-val').textContent = p.active_threads || 0;
             document.getElementById('live-samples-val').textContent = p.total_samples || 0;
             document.getElementById('live-bytes-val').textContent = formatBytes(bytesRecv);
+            setLiveStatus('实时数据已更新');
+        }
 
-            if (!window._liveData) window._liveData = { timestamps: [], tps: [], rt: [], errorRate: [], threads: [] };
-            var ld = window._liveData;
-            var elapsed = p.elapsed || 0;
-            ld.timestamps.push(formatElapsed(elapsed));
-            ld.tps.push(p.throughput || 0);
-            ld.rt.push(p.avg_response_time || 0);
-            ld.errorRate.push(p.error_rate || 0);
-            ld.threads.push(p.active_threads || 0);
-            if (ld.timestamps.length > 600) {
-                ld.timestamps.shift(); ld.tps.shift(); ld.rt.shift(); ld.errorRate.shift(); ld.threads.shift();
-            }
+        function seedLiveHistory(history) {
+            if (!Array.isArray(history) || history.length === 0) return;
+            const rows = history
+                .filter(p => p && p.elapsed != null)
+                .sort((a, b) => Number(a.elapsed || 0) - Number(b.elapsed || 0))
+                .slice(-600);
+            if (rows.length === 0) return;
 
-            setTimeout(function() { renderLiveCharts(ld, elapsed); }, 50);
+            window._liveData = { timestamps: [], tps: [], rt: [], errorRate: [], threads: [], elapsed: [] };
+            rows.forEach(appendLivePoint);
+            const last = rows[rows.length - 1];
+            updateLiveHeader(last);
+            renderLiveCharts(window._liveData, Number(last.elapsed || 0));
+        }
+
+        function renderLiveMonitor(p) {
+            var el = document.getElementById('live-monitor');
+            if (!el.querySelector('#live-chart-combined')) return;
+
+            updateLiveHeader(p);
+            var point = appendLivePoint(p);
+            setTimeout(function() { renderLiveCharts(point.data, point.elapsed); }, 50);
         }
 
         function renderLiveCharts(ld, currentElapsed) {
             if (!window.echarts) return;
 
-            var tpsEl = document.getElementById('live-chart-tps');
-            var rtEl = document.getElementById('live-chart-rt');
-            var threadsEl = document.getElementById('live-chart-threads');
-            var errEl = document.getElementById('live-chart-error');
-            if (!tpsEl || !rtEl || !threadsEl || !errEl) return;
-
-            if (!window._liveTpsChart) window._liveTpsChart = echarts.init(tpsEl);
-            if (!window._liveRtChart) window._liveRtChart = echarts.init(rtEl);
-            if (!window._liveThreadsChart) window._liveThreadsChart = echarts.init(threadsEl);
-            if (!window._liveErrChart) window._liveErrChart = echarts.init(errEl);
-
-            var baseXAxis = { type: 'category', data: ld.timestamps, axisLabel: { fontSize: 10 }, boundaryGap: false };
-            var baseGrid = { left: 50, right: 16, top: 16, bottom: 28 };
-            var baseTooltip = { trigger: 'axis' };
-
-            window._liveTpsChart.setOption({
-                tooltip: baseTooltip, grid: baseGrid,
-                xAxis: baseXAxis,
-                yAxis: { type: 'value', name: 'TPS', axisLabel: { fontSize: 10 } },
-                series: [{
-                    type: 'line', data: ld.tps, smooth: true, symbol: 'none',
-                    lineStyle: { color: '#2563eb', width: 2 },
-                    areaStyle: { color: 'rgba(37,99,235,0.08)' }
-                }]
-            });
-
-            window._liveRtChart.setOption({
-                tooltip: baseTooltip, grid: baseGrid,
-                xAxis: baseXAxis,
-                yAxis: { type: 'value', name: 'ms', axisLabel: { fontSize: 10 } },
-                series: [{
-                    type: 'line', data: ld.rt, smooth: true, symbol: 'none',
-                    lineStyle: { color: '#16a34a', width: 2 },
-                    areaStyle: { color: 'rgba(22,163,74,0.08)' }
-                }]
-            });
-
-            var threadsSeries = [{
-                type: 'line', data: ld.threads, smooth: true, symbol: 'none',
-                lineStyle: { color: '#9333ea', width: 2 },
-                areaStyle: { color: 'rgba(147,51,234,0.08)' },
-                name: '实际并发'
-            }];
+            var combinedEl = document.getElementById('live-chart-combined');
+            if (!combinedEl) return;
+            if (!window._liveCombinedChart) window._liveCombinedChart = echarts.init(combinedEl);
 
             var designData = [];
             if (window._liveDesignCurve) {
                 var designMap = {};
                 window._liveDesignCurve.forEach(function(pt) { designMap[pt.time] = pt.threads; });
                 for (var i = 0; i < ld.timestamps.length; i++) {
-                    var sec = i;
+                    var sec = ld.elapsed ? Math.round(ld.elapsed[i] || 0) : i;
                     if (designMap[sec] !== undefined) designData.push(designMap[sec]);
                     else designData.push(null);
                 }
-                threadsSeries.push({
-                    type: 'line', data: designData, smooth: false, symbol: 'none',
-                    lineStyle: { color: '#9333ea', width: 1.5, type: 'dashed' },
-                    name: '设计曲线'
+            }
+
+            var series = [
+                {
+                    name: 'TPS (/s)',
+                    type: 'line',
+                    yAxisIndex: 0,
+                    data: ld.tps,
+                    smooth: true,
+                    symbol: 'none',
+                    lineStyle: { color: '#2563eb', width: 2.4 },
+                    itemStyle: { color: '#2563eb' },
+                    areaStyle: { color: 'rgba(37,99,235,0.08)' },
+                },
+                {
+                    name: '并发用户',
+                    type: 'line',
+                    yAxisIndex: 0,
+                    data: ld.threads,
+                    smooth: true,
+                    symbol: 'none',
+                    lineStyle: { color: '#7c3aed', width: 2 },
+                    itemStyle: { color: '#7c3aed' },
+                },
+                {
+                    name: '平均RT (ms)',
+                    type: 'line',
+                    yAxisIndex: 1,
+                    data: ld.rt,
+                    smooth: true,
+                    symbol: 'none',
+                    lineStyle: { color: '#16a34a', width: 2.4 },
+                    itemStyle: { color: '#16a34a' },
+                },
+                {
+                    name: '错误率 (%)',
+                    type: 'line',
+                    yAxisIndex: 2,
+                    data: ld.errorRate,
+                    smooth: true,
+                    symbol: 'none',
+                    lineStyle: { color: '#dc2626', width: 2 },
+                    itemStyle: { color: '#dc2626' },
+                },
+            ];
+
+            if (window._liveDesignCurve) {
+                series.push({
+                    name: '设计并发',
+                    type: 'line',
+                    yAxisIndex: 0,
+                    data: designData,
+                    smooth: false,
+                    symbol: 'none',
+                    lineStyle: { color: '#7c3aed', width: 1.5, type: 'dashed' },
+                    itemStyle: { color: '#7c3aed' },
                 });
             }
 
-            window._liveThreadsChart.setOption({
-                tooltip: baseTooltip, grid: baseGrid,
-                legend: { show: window._liveDesignCurve != null, bottom: 0, textStyle: { fontSize: 10 } },
-                xAxis: baseXAxis,
-                yAxis: { type: 'value', name: '线程数', axisLabel: { fontSize: 10 } },
-                series: threadsSeries
-            });
-
-            window._liveErrChart.setOption({
-                tooltip: baseTooltip, grid: baseGrid,
-                xAxis: baseXAxis,
-                yAxis: { type: 'value', name: '%', axisLabel: { fontSize: 10 }, max: function(v){ return Math.max(v.max * 1.2, 1); } },
-                series: [{
-                    type: 'line', data: ld.errorRate, smooth: true, symbol: 'none',
-                    lineStyle: { color: '#dc2626', width: 2 },
-                    areaStyle: { color: 'rgba(220,38,38,0.08)' }
-                }]
-            });
+            window._liveCombinedChart.setOption({
+                animation: false,
+                color: ['#2563eb', '#7c3aed', '#16a34a', '#dc2626', '#7c3aed'],
+                tooltip: {
+                    trigger: 'axis',
+                    axisPointer: { type: 'cross' },
+                    formatter: function(params) {
+                        var title = params && params[0] ? params[0].axisValue : '-';
+                        var html = '<div style="font-size:12px;color:#666;margin-bottom:4px">运行时间 ' + title + '</div>';
+                        params.forEach(function(p) {
+                            var unit = '';
+                            if (p.seriesName.indexOf('TPS') >= 0) unit = ' /s';
+                            else if (p.seriesName.indexOf('RT') >= 0) unit = ' ms';
+                            else if (p.seriesName.indexOf('错误率') >= 0) unit = ' %';
+                            else unit = ' 用户';
+                            var value = Number(p.value || 0);
+                            var display = unit.trim() === '%' ? value.toFixed(2) : value.toFixed(1);
+                            html += '<div style="font-size:12px">' + p.marker + ' ' + p.seriesName + ': <strong>' + display + '</strong>' + unit + '</div>';
+                        });
+                        return html;
+                    }
+                },
+                legend: {
+                    top: 0,
+                    left: 8,
+                    itemWidth: 18,
+                    itemHeight: 8,
+                    textStyle: { fontSize: 11, color: '#555' },
+                },
+                grid: { left: 64, right: 108, top: 46, bottom: 54 },
+                dataZoom: [
+                    { type: 'inside', xAxisIndex: 0, filterMode: 'none' },
+                    { type: 'slider', xAxisIndex: 0, height: 18, bottom: 18, filterMode: 'none' },
+                ],
+                xAxis: {
+                    type: 'category',
+                    name: '运行时间',
+                    nameLocation: 'middle',
+                    nameGap: 32,
+                    data: ld.timestamps,
+                    boundaryGap: false,
+                    axisLabel: { fontSize: 10, color: '#666' },
+                    axisLine: { lineStyle: { color: '#d0d0d0' } },
+                },
+                yAxis: [
+                    {
+                        type: 'value',
+                        name: 'TPS / 并发',
+                        position: 'left',
+                        min: 0,
+                        axisLabel: { fontSize: 10, color: '#555' },
+                        splitLine: { lineStyle: { color: '#f0f0f0' } },
+                    },
+                    {
+                        type: 'value',
+                        name: 'RT (ms)',
+                        position: 'right',
+                        min: 0,
+                        axisLabel: { fontSize: 10, color: '#16a34a' },
+                        splitLine: { show: false },
+                    },
+                    {
+                        type: 'value',
+                        name: '错误率 (%)',
+                        position: 'right',
+                        offset: 58,
+                        min: 0,
+                        max: function(v) { return Math.max(1, Math.ceil((v.max || 0) * 1.2)); },
+                        axisLabel: { fontSize: 10, color: '#dc2626', formatter: '{value}%' },
+                        splitLine: { show: false },
+                    },
+                ],
+                series: series,
+            }, false);
         }
 
         // ===== 并发场景配置 =====
@@ -2853,6 +3449,7 @@
         let stepIdCounter = 0;
         let createFormInitialized = false;
         let createSubmitInFlight = false;
+        let createTimeoutManual = false;
         let createFormState = {
             loaded: false,
             scripts: [],
@@ -2874,11 +3471,7 @@
                 document.getElementById('create-threads').value = preset.threads;
                 document.getElementById('create-ramp').value = preset.ramp;
                 document.getElementById('create-duration').value = preset.duration;
-                const timeoutInput = document.getElementById('create-timeout');
-                const suggestedTimeout = preset.duration + 60;
-                if (timeoutInput && (parseInt(timeoutInput.value, 10) || 0) < suggestedTimeout) {
-                    timeoutInput.value = suggestedTimeout;
-                }
+                syncCreateTimeoutWithScenario(false);
             }
             document.getElementById('scenario-advanced').style.display = preset.advanced ? 'block' : 'none';
             document.getElementById('custom-scenario-builder').style.display = scenario === 'custom' ? 'block' : 'none';
@@ -3302,7 +3895,7 @@
             const agents = createFormState.availableAgents || [];
             if (agents.length > 0) {
                 const first = agents[0];
-                auto.textContent = `将自动使用 ${agents.length} 个空闲 Agent 中的 1 个，当前优先节点：${first.host || first.agent_id}`;
+                auto.textContent = `将自动使用 ${agents.length} 个空闲 Agent 中的 1 个，当前优先节点：${getAgentDisplayName(first)}`;
             } else {
                 auto.textContent = '暂无空闲 Agent，启动 Agent 或等待当前任务完成后可创建任务。';
             }
@@ -3392,6 +3985,27 @@
             if (!scenarioLoadsImages(scenario)) return '';
             const maxImages = scenario.resource_load?.max_images_per_response || 6;
             return `加载图片资源，最多 ${maxImages} 张/响应`;
+        }
+
+        function estimateCreateTimeoutSeconds(scenario) {
+            const duration = Math.max(1, parseInt(scenario?.duration, 10) || 1);
+            const ramp = Math.max(0, parseInt(scenario?.ramp_time, 10) || 0);
+            let buffer = Math.ceil(duration * 0.2);
+            buffer = Math.max(60, Math.min(buffer, 300));
+            if (scenarioLoadsImages(scenario)) buffer += 60;
+            return Math.ceil(Math.max(120, duration + ramp + buffer) / 10) * 10;
+        }
+
+        function syncCreateTimeoutWithScenario(force) {
+            const timeoutInput = document.getElementById('create-timeout');
+            if (!timeoutInput) return;
+            if (!force && createTimeoutManual) return;
+            timeoutInput.value = estimateCreateTimeoutSeconds(getCreateScenarioConfig());
+        }
+
+        function onCreateTimeoutInput() {
+            createTimeoutManual = true;
+            updateCreateSummary();
         }
 
         function estimateCreateHeapMb(threads, captureErrorLog, loadImages) {
@@ -3639,10 +4253,14 @@
             if (!chartDom) return;
             const timeoutInput = document.getElementById('create-timeout');
             if (timeoutInput) {
-                const durationVal = getCreateScenarioConfig().duration || 0;
+                const scenario = getCreateScenarioConfig();
+                const durationVal = scenario.duration || 0;
                 const timeoutVal = parseInt(timeoutInput.value, 10) || 0;
-                if (durationVal > 0 && timeoutVal < durationVal) {
-                    timeoutInput.value = durationVal + 60;
+                if (!createTimeoutManual) {
+                    syncCreateTimeoutWithScenario(false);
+                } else if (durationVal > 0 && timeoutVal < durationVal) {
+                    timeoutInput.value = estimateCreateTimeoutSeconds(scenario);
+                    createTimeoutManual = false;
                 }
             }
             syncCreateHeapWithScenario();
@@ -3673,9 +4291,9 @@
             setCreateFormStatus('', '');
             try {
                 const [scriptsRes, nodesRes, csvsRes, registryRes] = await Promise.all([
-                    fetch(`${API}/api/scripts/`),
+                    fetch(`${API}/api/scripts/?limit=500`),
                     fetch(`${API}/api/nodes/available/list`),
-                    fetch(`${API}/api/data/csv`),
+                    fetch(`${API}/api/data/csv?limit=500`),
                     fetch(`${API}/api/registry/`).catch(() => ({json: () => ({nodes: []})})),
                 ]);
                 const scripts = await scriptsRes.json();
@@ -3702,9 +4320,10 @@
                 if (availableAgents.length > 0) {
                     nodesHtml += '<div style="font-size:11px;color:#888;font-weight:600;padding:6px 12px 2px;">Agent 节点</div>';
                     availableAgents.forEach(a => {
+                        const displayName = getAgentDisplayName(a);
                         nodesHtml += `<label style="display:flex;align-items:center;gap:8px;padding:7px 12px;cursor:pointer;font-size:13px;transition:background 0.15s;" onmouseover="this.style.background='#f0f7ff'" onmouseout="this.style.background=''">
                             <input type="radio" name="create-agent-primary" class="create-node-cb" value="${a.agent_id}" data-type="agent" onchange="updateNodeSelection()" style="width:15px;height:15px;accent-color:#2563eb;">
-                            <span style="flex:1;"><span style="font-weight:500;">${a.host}</span> <span style="color:#888;font-size:11px;">${a.agent_id}</span></span>
+                            <span style="flex:1;"><span style="font-weight:500;">${displayName}</span></span>
                             <span style="font-size:10px;padding:1px 6px;border-radius:3px;background:#dcfce7;color:#166534;">空闲</span>
                         </label>`;
                     });
@@ -3762,7 +4381,7 @@
                 if (res.ok) {
                     setCreateFormStatus('success', `脚本已上传：${file.name} (${(file.size/1024).toFixed(1)}KB)`);
                     input.value = '';
-                    const scriptsRes = await fetch(`${API}/api/scripts/`);
+                    const scriptsRes = await fetch(`${API}/api/scripts/?limit=500`);
                     const scripts = await scriptsRes.json();
                     const previousScript = document.getElementById('create-script')?.value || '';
                     createFormState.scripts = scripts.scripts || [];
@@ -4020,7 +4639,7 @@
 
         async function refreshCsvList() {
             try {
-                const res = await fetch(`${API}/api/data/csv`);
+                const res = await fetch(`${API}/api/data/csv?limit=500`);
                 const data = await res.json();
                 const csvSel = document.getElementById('create-csv-file');
                 const currentVal = csvSel.value;
@@ -4041,7 +4660,7 @@
             const threads = scenarioConfig.threads || 1;
             const ramp = scenarioConfig.ramp_time || 0;
             const duration = scenarioConfig.duration || 10;
-            const timeout = parseInt(document.getElementById('create-timeout').value) || 300;
+            const timeout = parseInt(document.getElementById('create-timeout').value) || estimateCreateTimeoutSeconds(scenarioConfig);
             const nodePayload = getCreateNodePayload();
             const runtime = getCreateRuntimeOptions();
             const jmeterProperties = getCreateJMeterProperties();
@@ -4090,7 +4709,7 @@
                 });
                 const data = await res.json();
                 if (res.ok) {
-                    setCreateFormStatus('success', `任务已启动：${data.task_id}`);
+                    setCreateFormStatus('success', `任务已启动：${formatTaskId(data.task_id)}`);
                     setTimeout(function() { showPage('tasks'); }, 500);
                 } else {
                     let msg = data.detail || '未知错误';
@@ -4112,21 +4731,84 @@
         }
 
         // ===== 结果渲染 =====
+        let currentLabelStats = [];
+
+        function formatMetricNumber(value, decimals = 2) {
+            const num = Number(value || 0);
+            if (!Number.isFinite(num)) return '0';
+            if (Math.abs(num) >= 100) return String(Math.round(num));
+            return String(Number(num.toFixed(decimals)));
+        }
+
+        function calcStableQpsFromSeries(values) {
+            const nums = (values || []).map(v => Number(v || 0)).filter(v => Number.isFinite(v));
+            if (nums.length === 0) return { value: 0, window: 'all' };
+            const trim = Math.floor(nums.length * 0.1);
+            if (nums.length >= 10 && trim > 0 && nums.length - trim * 2 >= 1) {
+                const stable = nums.slice(trim, nums.length - trim);
+                return {
+                    value: stable.reduce((sum, v) => sum + v, 0) / stable.length,
+                    window: 'middle_80_percent',
+                };
+            }
+            return {
+                value: nums.reduce((sum, v) => sum + v, 0) / nums.length,
+                window: 'all',
+            };
+        }
+
+        function calcTrafficFromSamples(samples) {
+            const buckets = {};
+            let total = 0;
+            (samples || []).forEach(sample => {
+                const received = Number(sample.bytes || 0);
+                const sent = Number(sample.sent_bytes || 0);
+                const bytes = received + sent;
+                total += bytes;
+                const ts = Number(sample.timestamp || 0);
+                const bucket = Math.floor(ts / 1000) * 1000;
+                buckets[bucket] = (buckets[bucket] || 0) + bytes;
+            });
+            const peak = Object.values(buckets).reduce((max, v) => Math.max(max, v), 0);
+            return { total, peak };
+        }
+
+        function getReportSummaryMetrics(data) {
+            const summary = data.summary || {};
+            const ts = data.time_series || {};
+            const qpsValues = Array.isArray(ts.tps) ? ts.tps : [];
+            const stableFallback = calcStableQpsFromSeries(qpsValues);
+            const maxQpsFallback = qpsValues.length ? Math.max(...qpsValues.map(v => Number(v || 0))) : Number(summary.tps || 0);
+            const sampleTraffic = calcTrafficFromSamples(data.time_series_data || []);
+            const networkSeries = Array.isArray(ts.network_bytes) ? ts.network_bytes.map(v => Number(v || 0)) : [];
+            const totalFromSeries = networkSeries.reduce((sum, v) => sum + v, 0);
+            const peakFromSeries = networkSeries.reduce((max, v) => Math.max(max, v), 0);
+
+            return {
+                stableQps: Number(summary.stable_qps != null ? summary.stable_qps : stableFallback.value),
+                maxQps: Number(summary.max_qps != null ? summary.max_qps : maxQpsFallback),
+                stableWindow: summary.stable_window || stableFallback.window,
+                totalNetworkBytes: Number(summary.total_network_bytes != null ? summary.total_network_bytes : (sampleTraffic.total || totalFromSeries || summary.total_bytes_received || 0)),
+                peakNetworkBytesPerSec: Number(summary.peak_network_bytes_per_sec != null ? summary.peak_network_bytes_per_sec : (sampleTraffic.peak || peakFromSeries || 0)),
+            };
+        }
+
         function renderSummary(data) {
             const s = data.summary;
             const successRate = s.success_rate != null ? s.success_rate : (100 - (s.error_rate || 0));
             const avgLatency = s.avg_latency != null ? s.avg_latency : s.avg_response_time || 0;
-            const bytesRecv = s.total_bytes_received || 0;
+            const metrics = getReportSummaryMetrics(data);
+            const stableQpsDesc = metrics.stableWindow === 'middle_80_percent' ? '去掉前后10%后的平均值' : '按全程时序平均值估算';
             const respDist = s.response_code_dist || {};
             document.getElementById('summary-cards').innerHTML = `
+                <div class="card"><div class="label">稳定期 QPS</div><div class="value blue">${formatMetricNumber(metrics.stableQps)}</div><div class="desc" title="${stableQpsDesc}">${stableQpsDesc}</div></div>
+                <div class="card"><div class="label">最大 QPS</div><div class="value blue">${formatMetricNumber(metrics.maxQps)}</div><div class="desc">1 秒粒度峰值</div></div>
                 <div class="card"><div class="label">总请求数</div><div class="value blue">${s.total_samples}</div></div>
                 <div class="card"><div class="label">成功率</div><div class="value ${successRate >= 99 ? 'green' : successRate >= 95 ? 'yellow' : 'red'}">${successRate.toFixed(2)}%</div></div>
                 <div class="card"><div class="label">平均RT</div><div class="value green">${s.avg_response_time}ms</div></div>
-                <div class="card"><div class="label">P90</div><div class="value yellow">${s.p90}ms</div></div>
                 <div class="card"><div class="label">P99</div><div class="value red">${s.p99}ms</div></div>
-                <div class="card"><div class="label">最小/最大</div><div class="value" style="font-size:15px">${s.min_response_time}/${s.max_response_time}ms</div></div>
                 <div class="card"><div class="label">错误率</div><div class="value ${s.error_rate > 0 ? 'red' : 'green'}">${s.error_rate}%</div></div>
-                <div class="card"><div class="label">网络流量</div><div class="value blue" style="font-size:14px">${formatBytes(bytesRecv)}</div></div>
+                <div class="card"><div class="label">网络流量</div><div class="value blue" style="font-size:14px">${formatBytes(metrics.peakNetworkBytesPerSec)}/s</div><div class="desc" title="整个压测场景总流量 ${formatBytes(metrics.totalNetworkBytes)}">总量 ${formatBytes(metrics.totalNetworkBytes)}</div></div>
                 <div class="card"><div class="label">平均延迟</div><div class="value">${avgLatency}ms</div></div>
             `;
 
@@ -4143,7 +4825,18 @@
                 respSection.style.display = 'block';
             }
 
-            document.getElementById('label-stats-tbody').innerHTML = (data.label_stats || []).map(l => `
+            currentLabelStats = data.label_stats || [];
+            resetPagination('labelStats');
+            renderLabelStatsTable();
+        }
+
+        function renderLabelStatsTable() {
+            const tbody = document.getElementById('label-stats-tbody');
+            if (!tbody) return;
+            const page = paginateItems('labelStats', currentLabelStats, renderLabelStatsTable, {
+                containerId: 'label-stats-pagination',
+            });
+            tbody.innerHTML = page.items.map(l => `
                 <tr>
                     <td>${l.label}</td><td>${l.count}</td>
                     <td style="color:#2563eb;font-weight:500">${l.tps}</td>
@@ -4304,39 +4997,40 @@
             renderLabelChart(idx);
         }
 
-        function renderLabelChart(idx) {
+        async function renderLabelChart(idx) {
             if (!currentChartData) return;
             const labelStats = currentChartData.label_stats || [];
             if (!labelStats[idx]) return;
 
             const label = labelStats[idx].label;
-            const samples = (currentChartData.time_series_data || []).filter(s => s.label === label);
-
             if (charts.label) charts.label.dispose();
+            const chartEl = document.getElementById('chart-label');
+            chartEl.innerHTML = '<div style="text-align:center;padding:40px;color:#888">加载中...</div>';
 
-            if (samples.length === 0) {
-                document.getElementById('chart-label').innerHTML = '<div style="text-align:center;padding:40px;color:#888">该接口无时序数据</div>';
+            let ts = null;
+            try {
+                const res = await fetch(`${API}/api/results/tasks/${encodePathSegment(currentTaskId)}/label-timeseries?label=${encodeURIComponent(label)}`);
+                if (!res.ok) {
+                    const errorData = await res.json().catch(() => ({}));
+                    throw new Error(errorData.detail || `label timeseries request failed: ${res.status}`);
+                }
+                const data = await res.json();
+                ts = data.time_series || {};
+            } catch (e) {
+                console.error('renderLabelChart error:', e);
+                chartEl.innerHTML = `<div style="text-align:center;padding:40px;color:#dc2626">接口曲线加载失败：${e.message || '结果数据不可用'}</div>`;
                 return;
             }
 
-            // 按秒聚合
-            const bucketSize = 1000;
-            const buckets = {};
-            samples.forEach(s => {
-                const key = Math.floor(s.timestamp / bucketSize) * bucketSize;
-                if (!buckets[key]) buckets[key] = { count: 0, errors: 0, total_rt: 0 };
-                buckets[key].count++;
-                buckets[key].total_rt += s.elapsed;
-                if (!s.success) buckets[key].errors++;
-            });
+            if (!ts.timestamps || ts.timestamps.length === 0) {
+                chartEl.innerHTML = '<div style="text-align:center;padding:40px;color:#888">该接口无时序数据</div>';
+                return;
+            }
 
-            const sortedKeys = Object.keys(buckets).map(Number).sort();
-            const labels = sortedKeys.map(k => new Date(k).toLocaleTimeString());
-            const tps = sortedKeys.map(k => buckets[k].count);
-            const avgRt = sortedKeys.map(k => Math.round(buckets[k].total_rt / buckets[k].count));
-            const errRate = sortedKeys.map(k => buckets[k].count > 0 ? Math.round(buckets[k].errors / buckets[k].count * 100) : 0);
+            chartEl.innerHTML = '';
+            const labels = ts.timestamps.map(k => new Date(k).toLocaleTimeString());
 
-            charts.label = echarts.init(document.getElementById('chart-label'));
+            charts.label = echarts.init(chartEl);
             charts.label.setOption({
                 backgroundColor: 'transparent',
                 tooltip: { trigger: 'axis', axisPointer: { type: 'cross' } },
@@ -4347,9 +5041,9 @@
                     { type: 'value', name: 'ms / %', ...{ axisLabel: { color: '#666' }, splitLine: { show: false } } }
                 ],
                 series: [
-                    { name: 'TPS', type: 'line', data: tps, smooth: true, lineStyle: { width: 2.5, color: '#2563eb' }, itemStyle: { color: '#2563eb' }, symbol: 'circle', symbolSize: 4, areaStyle: { color: 'rgba(37,99,235,0.08)' }, yAxisIndex: 0 },
-                    { name: '平均RT(ms)', type: 'line', data: avgRt, smooth: true, lineStyle: { width: 2.5, color: '#16a34a' }, itemStyle: { color: '#16a34a' }, symbol: 'circle', symbolSize: 4, areaStyle: { color: 'rgba(22,163,74,0.06)' }, yAxisIndex: 1 },
-                    { name: '错误率(%)', type: 'line', data: errRate, smooth: true, lineStyle: { width: 2, color: '#dc2626' }, itemStyle: { color: '#dc2626' }, symbol: 'circle', symbolSize: 4, yAxisIndex: 1 }
+                    { name: 'TPS', type: 'line', data: ts.tps || [], smooth: true, lineStyle: { width: 2.5, color: '#2563eb' }, itemStyle: { color: '#2563eb' }, symbol: 'circle', symbolSize: 4, areaStyle: { color: 'rgba(37,99,235,0.08)' }, yAxisIndex: 0 },
+                    { name: '平均RT(ms)', type: 'line', data: ts.avg_rt || [], smooth: true, lineStyle: { width: 2.5, color: '#16a34a' }, itemStyle: { color: '#16a34a' }, symbol: 'circle', symbolSize: 4, areaStyle: { color: 'rgba(22,163,74,0.06)' }, yAxisIndex: 1 },
+                    { name: '错误率(%)', type: 'line', data: ts.error_rate || [], smooth: true, lineStyle: { width: 2, color: '#dc2626' }, itemStyle: { color: '#dc2626' }, symbol: 'circle', symbolSize: 4, yAxisIndex: 1 }
                 ],
                 grid: { left: 60, right: 60, top: 40, bottom: 30 },
             });
@@ -4371,7 +5065,7 @@
             tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:#888"><span class="dot" style="display:inline-block;width:8px;height:8px;background:#2563eb;border-radius:50%;animation:pulse 1s infinite;margin-right:6px"></span>加载中...</td></tr>';
 
             try {
-                let url = `${API}/api/results/tasks/${taskId}/samples?offset=${offset}&limit=${logPageSize}`;
+                let url = `${API}/api/results/tasks/${encodePathSegment(taskId)}/samples?offset=${offset}&limit=${logPageSize}`;
                 if (label) url += `&label=${encodeURIComponent(label)}`;
                 if (errorsOnly) url += `&errors_only=true`;
 
@@ -4425,7 +5119,7 @@
         async function showRequestDetail(index) {
             const taskId = currentTaskId;
             try {
-                const res = await fetch(`${API}/api/results/tasks/${taskId}/sample/${index}`);
+                const res = await fetch(`${API}/api/results/tasks/${encodePathSegment(taskId)}/sample/${index}`);
                 const data = await res.json();
                 const s = data.sample;
 
@@ -4516,24 +5210,40 @@
         }
 
         // ===== 节点管理 =====
+        let agentNodes = [];
+        let registryNodes = [];
+
         async function loadNodes() {
             try {
                 const res = await fetch(`${API}/api/nodes/`);
                 const data = await res.json();
-                document.getElementById('nodes-tbody').innerHTML = (data.agents || []).map(a => `
-                    <tr>
-                        <td style="font-family:monospace;font-size:12px">${a.host}:${a.port}</td>
-                        <td style="font-size:12px;color:#888">${a.agent_id}</td>
-                        <td><span class="status-badge ${a.status === 'online' ? 'status-completed' : 'status-failed'}">${a.status === 'online' ? '在线' : '离线'}</span></td>
-                        <td>${a.cpu_usage}%</td>
-                        <td>${a.memory_usage}%</td>
-                        <td style="font-size:12px">${a.current_task_id || '-'}</td>
-                    </tr>
-                `).join('') || '<tr><td colspan="6" class="empty-tip">暂无在线节点</td></tr>';
+                agentNodes = data.agents || [];
+                renderAgentNodes();
             } catch (e) { console.error('loadNodes error:', e); }
 
             loadRegistryNodes();
             loadSlaveStatus();
+        }
+
+        function renderAgentNodes() {
+            const tbody = document.getElementById('nodes-tbody');
+            if (!tbody) return;
+            if (agentNodes.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="empty-tip">暂无在线节点</td></tr>';
+                clearPagination('nodes');
+                return;
+            }
+            const page = paginateItems('nodes', agentNodes, renderAgentNodes);
+            tbody.innerHTML = page.items.map(a => `
+                <tr>
+                    <td style="font-family:monospace;font-size:12px">${getAgentDisplayName(a)}</td>
+                    <td style="font-size:12px;color:#888">${a.agent_id}</td>
+                    <td><span class="status-badge ${a.status === 'online' ? 'status-completed' : 'status-failed'}">${a.status === 'online' ? '在线' : '离线'}</span></td>
+                    <td>${a.cpu_usage}%</td>
+                    <td>${a.memory_usage}%</td>
+                    <td style="font-size:12px">${formatTaskId(a.current_task_id)}</td>
+                </tr>
+            `).join('');
         }
 
         // ===== 注册节点管理 =====
@@ -4541,37 +5251,45 @@
             try {
                 const res = await fetch(`${API}/api/registry/`);
                 const data = await res.json();
-                const nodes = data.nodes || [];
+                registryNodes = data.nodes || [];
+                const nodes = registryNodes;
                 const tbody = document.getElementById('registry-tbody');
                 const noReg = document.getElementById('no-registry');
 
                 if (nodes.length === 0) {
                     tbody.innerHTML = '';
                     noReg.style.display = 'block';
+                    clearPagination('registry');
                     return;
                 }
                 noReg.style.display = 'none';
-
-                tbody.innerHTML = nodes.map(n => {
-                    const statusMap = {
-                        verified: ['已验证', 'status-completed'],
-                        pending: ['待验证', 'status-pending'],
-                        failed: ['验证失败', 'status-failed'],
-                    };
-                    const [label, cls] = statusMap[n.status] || [n.status, 'status-pending'];
-                    const lastCheck = n.last_check ? new Date(n.last_check * 1000).toLocaleString() : '从未验证';
-                    return `<tr>
-                        <td style="font-family:monospace;font-size:12px">${n.ip}:${n.port}</td>
-                        <td>${n.name || '-'}</td>
-                        <td><span class="status-badge ${cls}">${label}</span></td>
-                        <td style="font-size:12px;color:#888">${lastCheck}</td>
-                        <td>
-                            <button class="btn-success btn-sm" onclick="verifyRegistryNode('${n.node_id}')">验证</button>
-                            <button class="btn-danger btn-sm" style="margin-left:4px" onclick="removeRegistryNode('${n.node_id}')">删除</button>
-                        </td>
-                    </tr>`;
-                }).join('');
+                renderRegistryNodes();
             } catch (e) { console.error('loadRegistryNodes error:', e); }
+        }
+
+        function renderRegistryNodes() {
+            const tbody = document.getElementById('registry-tbody');
+            if (!tbody) return;
+            const page = paginateItems('registry', registryNodes, renderRegistryNodes);
+            tbody.innerHTML = page.items.map(n => {
+                const statusMap = {
+                    verified: ['已验证', 'status-completed'],
+                    pending: ['待验证', 'status-pending'],
+                    failed: ['验证失败', 'status-failed'],
+                };
+                const [label, cls] = statusMap[n.status] || [n.status, 'status-pending'];
+                const lastCheck = n.last_check ? new Date(n.last_check * 1000).toLocaleString() : '从未验证';
+                return `<tr>
+                    <td style="font-family:monospace;font-size:12px">${n.ip}:${n.port}</td>
+                    <td>${n.name || '-'}</td>
+                    <td><span class="status-badge ${cls}">${label}</span></td>
+                    <td style="font-size:12px;color:#888">${lastCheck}</td>
+                    <td>
+                        <button class="btn-success btn-sm" onclick="verifyRegistryNode('${n.node_id}')">验证</button>
+                        <button class="btn-danger btn-sm" style="margin-left:4px" onclick="removeRegistryNode('${n.node_id}')">删除</button>
+                    </td>
+                </tr>`;
+            }).join('');
         }
 
         async function addRegistryNode() {
@@ -4713,32 +5431,43 @@
         }
 
         // ===== 变量管理 =====
+        let varsList = [];
+        let csvsList = [];
+
         async function loadVars() {
             try {
                 const res = await fetch(`${API}/api/data/vars`);
                 const data = await res.json();
+                varsList = data.vars || [];
                 const tbody = document.getElementById('vars-tbody');
                 const noVars = document.getElementById('no-vars');
 
-                if (data.vars.length === 0) {
+                if (varsList.length === 0) {
                     tbody.innerHTML = '';
                     noVars.style.display = 'block';
+                    clearPagination('vars');
                     return;
                 }
                 noVars.style.display = 'none';
-
-                tbody.innerHTML = data.vars.map(v => `
-                    <tr>
-                        <td style="font-family:monospace;color:#2563eb">${v.name}</td>
-                        <td style="font-family:monospace;font-size:12px">${v.value}</td>
-                        <td>${v.description || '-'}</td>
-                        <td style="font-size:12px;color:#888">${new Date(v.updated_at * 1000).toLocaleString()}</td>
-                        <td>
-                            <button class="btn-danger btn-sm" onclick="deleteVar('${v.id}')">删除</button>
-                        </td>
-                    </tr>
-                `).join('');
+                renderVars();
             } catch (e) { console.error('loadVars error:', e); }
+        }
+
+        function renderVars() {
+            const tbody = document.getElementById('vars-tbody');
+            if (!tbody) return;
+            const page = paginateItems('vars', varsList, renderVars);
+            tbody.innerHTML = page.items.map(v => `
+                <tr>
+                    <td style="font-family:monospace;color:#2563eb">${v.name}</td>
+                    <td style="font-family:monospace;font-size:12px">${v.value}</td>
+                    <td>${v.description || '-'}</td>
+                    <td style="font-size:12px;color:#888">${new Date(v.updated_at * 1000).toLocaleString()}</td>
+                    <td>
+                        <button class="btn-danger btn-sm" onclick="deleteVar('${v.id}')">删除</button>
+                    </td>
+                </tr>
+            `).join('');
         }
 
         async function addVar() {
@@ -4778,32 +5507,40 @@
         // ===== CSV 管理 =====
         async function loadCsvs() {
             try {
-                const res = await fetch(`${API}/api/data/csv`);
+                const res = await fetch(`${API}/api/data/csv?limit=500`);
                 const data = await res.json();
+                csvsList = data.csvs || [];
                 const tbody = document.getElementById('csvs-tbody');
                 const noCsvs = document.getElementById('no-csvs');
 
-                if (data.csvs.length === 0) {
+                if (csvsList.length === 0) {
                     tbody.innerHTML = '';
                     noCsvs.style.display = 'block';
+                    clearPagination('csvs');
                     return;
                 }
                 noCsvs.style.display = 'none';
-
-                tbody.innerHTML = data.csvs.map(c => `
-                    <tr>
-                        <td style="font-family:monospace">${escapeHtml(c.filename)}</td>
-                        <td>${(c.headers || []).length}</td>
-                        <td>${c.row_count || 0}</td>
-                        <td>${(c.size / 1024).toFixed(1)} KB</td>
-                        <td><button class="filter-btn csv-preview-btn" data-csv-id="${escapeAttribute(c.csv_id)}" data-csv-filename="${escapeAttribute(c.filename)}">预览</button></td>
-                        <td><button class="btn-danger btn-sm" onclick="deleteCsv('${escapeAttribute(c.csv_id)}')">删除</button></td>
-                    </tr>
-                `).join('');
-                tbody.querySelectorAll('.csv-preview-btn').forEach(btn => {
-                    btn.addEventListener('click', () => previewCsv(btn.dataset.csvId, btn.dataset.csvFilename));
-                });
+                renderCsvs();
             } catch (e) { console.error('loadCsvs error:', e); }
+        }
+
+        function renderCsvs() {
+            const tbody = document.getElementById('csvs-tbody');
+            if (!tbody) return;
+            const page = paginateItems('csvs', csvsList, renderCsvs);
+            tbody.innerHTML = page.items.map(c => `
+                <tr>
+                    <td style="font-family:monospace">${escapeHtml(c.filename)}</td>
+                    <td>${(c.headers || []).length}</td>
+                    <td>${c.row_count || 0}</td>
+                    <td>${(c.size / 1024).toFixed(1)} KB</td>
+                    <td><button class="filter-btn csv-preview-btn" data-csv-id="${escapeAttribute(c.csv_id)}" data-csv-filename="${escapeAttribute(c.filename)}">预览</button></td>
+                    <td><button class="btn-danger btn-sm" onclick="deleteCsv('${escapeAttribute(c.csv_id)}')">删除</button></td>
+                </tr>
+            `).join('');
+            tbody.querySelectorAll('.csv-preview-btn').forEach(btn => {
+                btn.addEventListener('click', () => previewCsv(btn.dataset.csvId, btn.dataset.csvFilename));
+            });
         }
 
         async function uploadCsv() {
@@ -4960,24 +5697,39 @@
             }
         });
 
+        let scriptsList = [];
+
         async function loadScripts() {
             try {
-                const res = await fetch(`${API}/api/scripts/`);
+                const res = await fetch(`${API}/api/scripts/?limit=500`);
                 const data = await res.json();
-                document.getElementById('scripts-tbody').innerHTML = (data.scripts || []).map(s => `
-                    <tr>
-                        <td style="font-family:monospace;font-size:12px">${s.script_id}</td>
-                        <td>${s.original_name || s.filename}</td>
-                        <td>${(s.size / 1024).toFixed(1)} KB</td>
-                        <td style="font-size:12px;color:#888">${new Date(s.modified_at * 1000).toLocaleString()}</td>
-                        <td>
-                            <button class="btn-primary btn-sm" onclick="quickRunScript('${s.script_id}')">快速运行</button>
-                            <button class="btn-success btn-sm" style="margin-left:4px" onclick="openEditor('${s.script_id}')">编辑</button>
-                            <button class="btn-danger btn-sm" style="margin-left:4px" onclick="deleteScript('${s.script_id}')">删除</button>
-                        </td>
-                    </tr>
-                `).join('') || '<tr><td colspan="5" class="empty-tip">暂无脚本，请上传 .jmx 文件或新建</td></tr>';
+                scriptsList = (data.scripts || []).sort((a, b) => (b.modified_at || 0) - (a.modified_at || 0));
+                renderScripts();
             } catch (e) { console.error('loadScripts error:', e); }
+        }
+
+        function renderScripts() {
+            const tbody = document.getElementById('scripts-tbody');
+            if (!tbody) return;
+            if (scriptsList.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="empty-tip">暂无脚本，请上传 .jmx 文件或新建</td></tr>';
+                clearPagination('scripts');
+                return;
+            }
+            const page = paginateItems('scripts', scriptsList, renderScripts);
+            tbody.innerHTML = page.items.map(s => `
+                <tr>
+                    <td style="font-family:monospace;font-size:12px">${s.script_id}</td>
+                    <td>${s.original_name || s.filename}</td>
+                    <td>${(s.size / 1024).toFixed(1)} KB</td>
+                    <td style="font-size:12px;color:#888">${new Date(s.modified_at * 1000).toLocaleString()}</td>
+                    <td>
+                        <button class="btn-primary btn-sm" onclick="quickRunScript('${s.script_id}')">快速运行</button>
+                        <button class="btn-success btn-sm" style="margin-left:4px" onclick="openEditor('${s.script_id}')">编辑</button>
+                        <button class="btn-danger btn-sm" style="margin-left:4px" onclick="deleteScript('${s.script_id}')">删除</button>
+                    </td>
+                </tr>
+            `).join('');
         }
 
         async function uploadScript() {
@@ -5023,7 +5775,7 @@
                 });
                 const data = await res.json();
                 if (res.ok) {
-                    alert(`任务已启动: ${data.task_id}`);
+                    alert(`任务已启动: ${formatTaskId(data.task_id)}`);
                     showPage('tasks');
                 } else {
                     alert('启动失败: ' + (data.detail || '未知错误'));
@@ -5113,7 +5865,7 @@
                 const data = await res.json();
                 if (res.ok) {
                     document.getElementById('exec-result').classList.remove('hidden');
-                    document.getElementById('exec-result-content').innerHTML = `<div style="padding:12px;color:#2563eb">任务已启动: ${data.task_id}，跳转到任务页面查看结果...</div>`;
+                    document.getElementById('exec-result-content').innerHTML = `<div style="padding:12px;color:#2563eb">任务已启动: ${formatTaskId(data.task_id)}，跳转到任务页面查看结果...</div>`;
                     setTimeout(() => {
                         if (confirm('跳转到任务页面查看结果？')) {
                             showPage('tasks');
@@ -5548,6 +6300,26 @@
         }
 
         // ===== 性能趋势 =====
+        let trendItems = [];
+
+        function renderTrendTable() {
+            const tbody = document.getElementById('trend-tbody');
+            if (!tbody) return;
+            const page = paginateItems('trend', trendItems, renderTrendTable);
+            tbody.innerHTML = page.items.map(t => {
+                return `<tr>
+                    <td style="font-weight:500">${t.label}</td>
+                    <td>${t.total_samples}</td>
+                    <td style="color:#2563eb;font-weight:500">${t.tps || 0}</td>
+                    <td>${t.avg_response_time}ms</td>
+                    <td>${t.p50}ms</td>
+                    <td>${t.p90}ms</td>
+                    <td>${t.p99}ms</td>
+                    <td style="color:${t.error_rate > 0 ? '#dc2626' : '#16a34a'}">${t.error_rate}%</td>
+                </tr>`;
+            }).join('');
+        }
+
         async function loadTrend() {
             const label = document.getElementById('trend-label').value;
             const loading = document.getElementById('trend-loading');
@@ -5593,6 +6365,7 @@
                 const elapsed = Date.now() - startTime;
                 if (elapsed < 800) await new Promise(r => setTimeout(r, 800 - elapsed));
                 const items = data.tasks || [];
+                trendItems = items;
                 const labels = data.labels || [];
 
                 // 更新 label 下拉框
@@ -5607,25 +6380,14 @@
                 if (items.length === 0) {
                     tbody.innerHTML = '';
                     noTrend.style.display = 'block';
+                    clearPagination('trend');
                     loading.style.display = 'none';
                     clearInterval(emojiTimer);
                     clearInterval(tipTimer);
                     return;
                 }
                 noTrend.style.display = 'none';
-
-                tbody.innerHTML = items.map(t => {
-                    return `<tr>
-                        <td style="font-weight:500">${t.label}</td>
-                        <td>${t.total_samples}</td>
-                        <td style="color:#2563eb;font-weight:500">${t.tps || 0}</td>
-                        <td>${t.avg_response_time}ms</td>
-                        <td>${t.p50}ms</td>
-                        <td>${t.p90}ms</td>
-                        <td>${t.p99}ms</td>
-                        <td style="color:${t.error_rate > 0 ? '#dc2626' : '#16a34a'}">${t.error_rate}%</td>
-                    </tr>`;
-                }).join('');
+                renderTrendTable();
 
                 // 图表：按接口对比 TPS 和 RT 曲线
                 if (charts.trend) charts.trend.dispose();
@@ -5668,6 +6430,9 @@
         }
 
         // ===== 告警规则 =====
+        let alertsList = [];
+        let alertMetricMap = {};
+
         async function loadAlerts() {
             try {
                 const [rulesRes, metricsRes] = await Promise.all([
@@ -5676,7 +6441,8 @@
                 ]);
                 const rulesData = await rulesRes.json();
                 const metricsData = await metricsRes.json();
-                const rules = (rulesData.rules || []).sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
+                alertsList = (rulesData.rules || []).sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
+                const rules = alertsList;
                 const metrics = metricsData.metrics || [];
 
                 const tbody = document.getElementById('alerts-tbody');
@@ -5685,34 +6451,40 @@
                 if (rules.length === 0) {
                     tbody.innerHTML = '';
                     noAlerts.style.display = 'block';
+                    clearPagination('alerts');
                     return;
                 }
                 noAlerts.style.display = 'none';
 
-                const metricMap = {};
-                metrics.forEach(m => metricMap[m.key] = m.name);
-
-                tbody.innerHTML = rules.map(r => {
-                    const created = formatTimeShort(r.created_at);
-                    const lastTriggered = r.last_triggered ? formatTimeShort(r.last_triggered) : '-';
-                    return `<tr>
-                        <td>${r.name}</td>
-                        <td>${metricMap[r.metric] || r.metric}</td>
-                        <td>${r.operator}</td>
-                        <td>${r.threshold}</td>
-                        <td>${r.triggered_count || 0}</td>
-                        <td style="font-size:12px;color:#888">${created}</td>
-                        <td><span class="status-badge ${r.enabled ? 'status-completed' : 'status-stopped'}">${r.enabled ? '启用' : '禁用'}</span></td>
-                        <td>
-                            <button class="filter-btn btn-sm" onclick="toggleAlert('${r.rule_id}', ${!r.enabled})">${r.enabled ? '禁用' : '启用'}</button>
-                            <button class="btn-danger btn-sm" style="margin-left:4px" onclick="deleteAlert('${r.rule_id}')">删除</button>
-                        </td>
-                    </tr>`;
-                }).join('');
+                alertMetricMap = {};
+                metrics.forEach(m => alertMetricMap[m.key] = m.name);
+                renderAlerts();
 
                 const sel = document.getElementById('alert-metric');
                 sel.innerHTML = metrics.map(m => `<option value="${m.key}">${m.name}</option>`).join('');
             } catch (e) { console.error('loadAlerts error:', e); }
+        }
+
+        function renderAlerts() {
+            const tbody = document.getElementById('alerts-tbody');
+            if (!tbody) return;
+            const page = paginateItems('alerts', alertsList, renderAlerts);
+            tbody.innerHTML = page.items.map(r => {
+                const created = formatTimeShort(r.created_at);
+                return `<tr>
+                    <td>${r.name}</td>
+                    <td>${alertMetricMap[r.metric] || r.metric}</td>
+                    <td>${r.operator}</td>
+                    <td>${r.threshold}</td>
+                    <td>${r.triggered_count || 0}</td>
+                    <td style="font-size:12px;color:#888">${created}</td>
+                    <td><span class="status-badge ${r.enabled ? 'status-completed' : 'status-stopped'}">${r.enabled ? '启用' : '禁用'}</span></td>
+                    <td>
+                        <button class="filter-btn btn-sm" onclick="toggleAlert('${r.rule_id}', ${!r.enabled})">${r.enabled ? '禁用' : '启用'}</button>
+                        <button class="btn-danger btn-sm" style="margin-left:4px" onclick="deleteAlert('${r.rule_id}')">删除</button>
+                    </td>
+                </tr>`;
+            }).join('');
         }
 
         function showCreateAlert() { document.getElementById('alert-create-modal').style.display = 'flex'; }
@@ -5753,36 +6525,46 @@
         }
 
         // ===== 环境管理 =====
+        let envsList = [];
+
         async function loadEnvs() {
             try {
                 const res = await fetch(`${API}/api/environments/`);
                 const data = await res.json();
-                const envs = (data.environments || []).sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
+                envsList = (data.environments || []).sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
+                const envs = envsList;
                 const tbody = document.getElementById('envs-tbody');
                 const noEnvs = document.getElementById('no-envs');
 
                 if (envs.length === 0) {
                     tbody.innerHTML = '';
                     noEnvs.style.display = 'block';
+                    clearPagination('envs');
                     return;
                 }
                 noEnvs.style.display = 'none';
-
-                tbody.innerHTML = envs.map(e => {
-                    const created = formatTimeShort(e.created_at);
-                    return `<tr>
-                        <td style="font-weight:500">${e.name}</td>
-                        <td style="font-family:monospace;font-size:12px">${e.base_url}</td>
-                        <td>${e.description || '-'}</td>
-                        <td>${Object.keys(e.variables || {}).length}</td>
-                        <td style="font-size:12px;color:#888">${created}</td>
-                        <td>
-                            <button class="btn-success btn-sm" onclick="testEnv('${e.env_id}')">测试</button>
-                            <button class="btn-danger btn-sm" style="margin-left:4px" onclick="deleteEnv('${e.env_id}')">删除</button>
-                        </td>
-                    </tr>`;
-                }).join('');
+                renderEnvs();
             } catch (e) { console.error('loadEnvs error:', e); }
+        }
+
+        function renderEnvs() {
+            const tbody = document.getElementById('envs-tbody');
+            if (!tbody) return;
+            const page = paginateItems('envs', envsList, renderEnvs);
+            tbody.innerHTML = page.items.map(e => {
+                const created = formatTimeShort(e.created_at);
+                return `<tr>
+                    <td style="font-weight:500">${e.name}</td>
+                    <td style="font-family:monospace;font-size:12px">${e.base_url}</td>
+                    <td>${e.description || '-'}</td>
+                    <td>${Object.keys(e.variables || {}).length}</td>
+                    <td style="font-size:12px;color:#888">${created}</td>
+                    <td>
+                        <button class="btn-success btn-sm" onclick="testEnv('${e.env_id}')">测试</button>
+                        <button class="btn-danger btn-sm" style="margin-left:4px" onclick="deleteEnv('${e.env_id}')">删除</button>
+                    </td>
+                </tr>`;
+            }).join('');
         }
 
         function showCreateEnv() { document.getElementById('env-create-modal').style.display = 'flex'; }
@@ -5837,36 +6619,49 @@
         }
 
         // ===== 模板管理 =====
+        let templatesList = [];
+
         async function loadTemplates() {
             try {
                 const res = await fetch(`${API}/api/templates/`);
                 const data = await res.json();
-                const templates = (data.templates || []).sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
-                const grid = document.getElementById('templates-grid');
-
-                const categoryColors = { '基础': '#2563eb', '进阶': '#d97706', '场景': '#16a34a', '自定义': '#9333ea' };
-
-                grid.innerHTML = templates.map(t => {
-                    const color = categoryColors[t.category] || '#666';
-                    const cfg = t.config || {};
-                    const created = t.created_at ? formatTimeShort(t.created_at) : '';
-                    return `<div style="background:#fff;border:1px solid #e0e0e0;border-radius:8px;padding:16px;">
-                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-                            <span style="font-size:14px;font-weight:600">${t.name}</span>
-                            <span style="font-size:11px;color:#fff;background:${color};padding:2px 8px;border-radius:10px">${t.category}</span>
-                        </div>
-                        <div style="font-size:12px;color:#666;margin-bottom:12px;line-height:1.5">${t.description || '-'}</div>
-                        <div style="font-size:12px;color:#888;margin-bottom:12px">
-                            并发: ${cfg.threads || '-'} | 预热: ${cfg.ramp_time || '-'}s | 持续: ${cfg.duration || '-'}s
-                        </div>
-                        ${created ? `<div style="font-size:11px;color:#aaa;margin-bottom:8px">创建: ${created}</div>` : ''}
-                        <div style="display:flex;gap:8px">
-                            <button class="btn-primary btn-sm" onclick="useTemplate('${t.template_id}')">使用模板</button>
-                            ${!t.builtin ? `<button class="btn-danger btn-sm" onclick="deleteTemplate('${t.template_id}')">删除</button>` : ''}
-                        </div>
-                    </div>`;
-                }).join('') || '<div class="empty-tip" style="grid-column:1/-1">暂无模板</div>';
+                templatesList = (data.templates || []).sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
+                renderTemplates();
             } catch (e) { console.error('loadTemplates error:', e); }
+        }
+
+        function renderTemplates() {
+            const templates = templatesList;
+            const grid = document.getElementById('templates-grid');
+            if (!grid) return;
+            if (templates.length === 0) {
+                grid.innerHTML = '<div class="empty-tip" style="grid-column:1/-1">暂无模板</div>';
+                clearPagination('templates');
+                return;
+            }
+            const page = paginateItems('templates', templates, renderTemplates);
+            const categoryColors = { '基础': '#2563eb', '进阶': '#d97706', '场景': '#16a34a', '自定义': '#9333ea' };
+
+            grid.innerHTML = page.items.map(t => {
+                const color = categoryColors[t.category] || '#666';
+                const cfg = t.config || {};
+                const created = t.created_at ? formatTimeShort(t.created_at) : '';
+                return `<div style="background:#fff;border:1px solid #e0e0e0;border-radius:8px;padding:16px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                        <span style="font-size:14px;font-weight:600">${t.name}</span>
+                        <span style="font-size:11px;color:#fff;background:${color};padding:2px 8px;border-radius:10px">${t.category}</span>
+                    </div>
+                    <div style="font-size:12px;color:#666;margin-bottom:12px;line-height:1.5">${t.description || '-'}</div>
+                    <div style="font-size:12px;color:#888;margin-bottom:12px">
+                        并发: ${cfg.threads || '-'} | 预热: ${cfg.ramp_time || '-'}s | 持续: ${cfg.duration || '-'}s
+                    </div>
+                    ${created ? `<div style="font-size:11px;color:#aaa;margin-bottom:8px">创建: ${created}</div>` : ''}
+                    <div style="display:flex;gap:8px">
+                        <button class="btn-primary btn-sm" onclick="useTemplate('${t.template_id}')">使用模板</button>
+                        ${!t.builtin ? `<button class="btn-danger btn-sm" onclick="deleteTemplate('${t.template_id}')">删除</button>` : ''}
+                    </div>
+                </div>`;
+            }).join('');
         }
 
         function useTemplate(templateId) {
@@ -5879,7 +6674,12 @@
                         if (cfg.threads) document.getElementById('create-threads').value = cfg.threads;
                         if (cfg.ramp_time) document.getElementById('create-ramp').value = cfg.ramp_time;
                         if (cfg.duration) document.getElementById('create-duration').value = cfg.duration;
-                        if (cfg.timeout) document.getElementById('create-timeout').value = cfg.timeout;
+                        if (cfg.timeout) {
+                            document.getElementById('create-timeout').value = cfg.timeout;
+                            createTimeoutManual = true;
+                        } else {
+                            createTimeoutManual = false;
+                        }
                         updateScenarioPreview();
                         updateCreateSummary();
                     }, 300);
@@ -5923,45 +6723,55 @@
         }
 
         // ===== 定时调度 =====
+        let schedulesList = [];
+
         async function loadSchedules() {
             try {
                 const res = await fetch(`${API}/api/scheduler/`);
                 const data = await res.json();
-                const schedules = (data.schedules || []).sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
+                schedulesList = (data.schedules || []).sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
+                const schedules = schedulesList;
                 const tbody = document.getElementById('schedule-tbody');
                 const noSchedules = document.getElementById('no-schedules');
 
                 if (schedules.length === 0) {
                     tbody.innerHTML = '';
                     noSchedules.style.display = 'block';
+                    clearPagination('schedule');
                     return;
                 }
                 noSchedules.style.display = 'none';
-
-                tbody.innerHTML = schedules.map(s => {
-                    const interval = s.interval_seconds > 0 ? (s.interval_seconds >= 86400 ? Math.round(s.interval_seconds/86400)+'天' : s.interval_seconds >= 3600 ? Math.round(s.interval_seconds/3600)+'小时' : s.interval_seconds+'秒') : '单次';
-                    const created = formatTimeShort(s.created_at);
-                    return `<tr>
-                        <td>${s.name}</td>
-                        <td style="font-family:monospace;font-size:12px">${s.script_id}</td>
-                        <td>${interval}</td>
-                        <td>${s.run_count || 0}</td>
-                        <td style="font-size:12px;color:#888">${created}</td>
-                        <td><span class="status-badge ${s.enabled ? 'status-completed' : 'status-stopped'}">${s.enabled ? '启用' : '禁用'}</span></td>
-                        <td>
-                            <button class="filter-btn btn-sm" onclick="toggleSchedule('${s.schedule_id}', ${!s.enabled})">${s.enabled ? '禁用' : '启用'}</button>
-                            <button class="btn-success btn-sm" style="margin-left:4px" onclick="runScheduleNow('${s.schedule_id}')">立即执行</button>
-                            <button class="btn-danger btn-sm" style="margin-left:4px" onclick="deleteSchedule('${s.schedule_id}')">删除</button>
-                        </td>
-                    </tr>`;
-                }).join('');
+                renderSchedules();
             } catch (e) { console.error('loadSchedules error:', e); }
+        }
+
+        function renderSchedules() {
+            const tbody = document.getElementById('schedule-tbody');
+            if (!tbody) return;
+            const page = paginateItems('schedule', schedulesList, renderSchedules);
+            tbody.innerHTML = page.items.map(s => {
+                const interval = s.interval_seconds > 0 ? (s.interval_seconds >= 86400 ? Math.round(s.interval_seconds/86400)+'天' : s.interval_seconds >= 3600 ? Math.round(s.interval_seconds/3600)+'小时' : s.interval_seconds+'秒') : '单次';
+                const created = formatTimeShort(s.created_at);
+                return `<tr>
+                    <td>${s.name}</td>
+                    <td style="font-family:monospace;font-size:12px">${s.script_id}</td>
+                    <td>${interval}</td>
+                    <td>${s.run_count || 0}</td>
+                    <td style="font-size:12px;color:#888">${created}</td>
+                    <td><span class="status-badge ${s.enabled ? 'status-completed' : 'status-stopped'}">${s.enabled ? '启用' : '禁用'}</span></td>
+                    <td>
+                        <button class="filter-btn btn-sm" onclick="toggleSchedule('${s.schedule_id}', ${!s.enabled})">${s.enabled ? '禁用' : '启用'}</button>
+                        <button class="btn-success btn-sm" style="margin-left:4px" onclick="runScheduleNow('${s.schedule_id}')">立即执行</button>
+                        <button class="btn-danger btn-sm" style="margin-left:4px" onclick="deleteSchedule('${s.schedule_id}')">删除</button>
+                    </td>
+                </tr>`;
+            }).join('');
         }
 
         async function showCreateSchedule() {
             document.getElementById('schedule-create-modal').style.display = 'flex';
             try {
-                const res = await fetch(`${API}/api/scripts/`);
+                const res = await fetch(`${API}/api/scripts/?limit=500`);
                 const data = await res.json();
                 document.getElementById('sch-script').innerHTML = (data.scripts || []).map(s =>
                     `<option value="${s.script_id}">${s.original_name || s.filename}</option>`
@@ -6005,7 +6815,7 @@
             try {
                 const res = await fetch(`${API}/api/scheduler/${id}/run-now`, { method: 'POST' });
                 const data = await res.json();
-                if (data.status === 'started') alert(`任务已启动: ${data.task_id}`);
+                if (data.status === 'started') alert(`任务已启动: ${formatTaskId(data.task_id)}`);
                 else alert(data.message || '执行失败');
                 loadSchedules();
             } catch (e) { alert('执行失败: ' + e.message); }
@@ -6017,25 +6827,36 @@
         }
 
         // ===== 通知设置 =====
+        let webhooksList = [];
+
         async function loadNotifyConfig() {
             try {
                 const res = await fetch(`${API}/api/notifications/config`);
                 const config = await res.json();
                 document.getElementById('notify-enabled').checked = config.enabled !== false;
-                const webhooks = config.webhooks || [];
+                webhooksList = config.webhooks || [];
+                const webhooks = webhooksList;
                 const tbody = document.getElementById('webhook-tbody');
                 const noWebhooks = document.getElementById('no-webhooks');
                 if (webhooks.length === 0) {
                     tbody.innerHTML = '';
                     noWebhooks.style.display = 'block';
+                    clearPagination('webhook');
                 } else {
                     noWebhooks.style.display = 'none';
-                    tbody.innerHTML = webhooks.map(url => `<tr>
-                        <td style="font-family:monospace;font-size:12px;word-break:break-all">${url}</td>
-                        <td><button class="btn-danger btn-sm" onclick="removeWebhook('${url}')">删除</button></td>
-                    </tr>`).join('');
+                    renderWebhooks();
                 }
             } catch (e) { console.error('loadNotifyConfig error:', e); }
+        }
+
+        function renderWebhooks() {
+            const tbody = document.getElementById('webhook-tbody');
+            if (!tbody) return;
+            const page = paginateItems('webhook', webhooksList, renderWebhooks);
+            tbody.innerHTML = page.items.map(url => `<tr>
+                <td style="font-family:monospace;font-size:12px;word-break:break-all">${url}</td>
+                <td><button class="btn-danger btn-sm" onclick="removeWebhook('${url}')">删除</button></td>
+            </tr>`).join('');
         }
         async function saveNotifyConfig() {
             const enabled = document.getElementById('notify-enabled').checked;
@@ -6077,22 +6898,25 @@
         }
 
         // ===== 任务对比 =====
+        let compareLabelRows = [];
+
         async function loadCompareForm() {
             try {
                 const [tasksRes, scriptsRes] = await Promise.allSettled([
-                    fetch(`${API}/api/results/tasks`),
-                    fetch(`${API}/api/scripts/`),
+                    fetch(`${API}/api/results/tasks?limit=500`),
+                    fetch(`${API}/api/scripts/?limit=500`),
                 ]);
                 const tasksData = tasksRes.status === 'fulfilled' ? await tasksRes.value.json() : { tasks: [] };
                 const scriptsData = scriptsRes.status === 'fulfilled' ? await scriptsRes.value.json() : { scripts: [] };
                 const tasks = tasksData.tasks || [];
                 const scripts = scriptsData.scripts || [];
+                rebuildTaskDisplayMap(tasks);
                 const scriptMap = {};
                 scripts.forEach(s => { scriptMap[s.script_id] = s.original_name || s.filename || s.script_id; });
 
                 const opts = tasks.map(t => {
                     const name = scriptMap[t.script_id] || t.script_id || '';
-                    const shortId = t.task_id.substring(0, 8);
+                    const shortId = formatTaskId(t.task_id, t);
                     const date = new Date(t.modified_at * 1000).toLocaleString();
                     const label = name ? `${shortId} — ${name} (${date})` : `${shortId} (${date})`;
                     return `<option value="${t.task_id}">${label}</option>`;
@@ -6122,7 +6946,7 @@
                 // 获取脚本名称
                 let scriptName1 = '', scriptName2 = '';
                 try {
-                    const scriptsRes = await fetch(`${API}/api/scripts/`);
+                    const scriptsRes = await fetch(`${API}/api/scripts/?limit=500`);
                     if (scriptsRes.ok) {
                         const scripts = (await scriptsRes.json()).scripts || [];
                         const scriptMap = {};
@@ -6142,8 +6966,8 @@
                     return a > b ? '#dc2626' : a < b ? '#16a34a' : '#888';
                 };
 
-                const labelA = scriptName1 || t1.task_id.substring(0, 8);
-                const labelB = scriptName2 || t2.task_id.substring(0, 8);
+                const labelA = scriptName1 || formatTaskId(t1.task_id, t1);
+                const labelB = scriptName2 || formatTaskId(t2.task_id, t2);
 
                 document.getElementById('compare-cards').innerHTML = `
                     <div class="card"><div class="label">指标</div><div class="value" style="font-size:14px">${labelA} / ${labelB}</div></div>
@@ -6196,17 +7020,12 @@
                 (t2.label_stats || []).forEach(l => l2Map[l.label] = l);
                 const allLabels = new Set([...Object.keys(l1Map), ...Object.keys(l2Map)]);
 
-                document.getElementById('compare-label-tbody').innerHTML = Array.from(allLabels).map(label => {
-                    const a = l1Map[label] || { avg: 0, error_rate: 0 };
-                    const b = l2Map[label] || { avg: 0, error_rate: 0 };
-                    return `<tr>
-                        <td>${label}</td>
-                        <td>${a.avg}ms</td><td>${b.avg}ms</td>
-                        <td style="color:${diffColor(a.avg, b.avg)}">${diff(a.avg, b.avg)}</td>
-                        <td>${a.error_rate}%</td><td>${b.error_rate}%</td>
-                        <td style="color:${diffColor(a.error_rate, b.error_rate)}">${diff(a.error_rate, b.error_rate)}</td>
-                    </tr>`;
-                }).join('');
+                compareLabelRows = Array.from(allLabels).map(label => ({
+                    label,
+                    a: l1Map[label] || { avg: 0, error_rate: 0 },
+                    b: l2Map[label] || { avg: 0, error_rate: 0 },
+                }));
+                renderCompareLabels();
 
                 window.addEventListener('resize', () => {
                     if (charts.compareTps) charts.compareTps.resize();
@@ -6215,8 +7034,33 @@
             } catch (e) { alert('对比失败: ' + e.message); }
         }
 
+        function renderCompareLabels() {
+            const tbody = document.getElementById('compare-label-tbody');
+            if (!tbody) return;
+            if (!compareLabelRows.length) {
+                tbody.innerHTML = '<tr><td colspan="7" class="empty-tip">暂无接口级数据</td></tr>';
+                clearPagination('compareLabels', 'compare-label-pagination');
+                return;
+            }
+            const page = paginateItems('compareLabels', compareLabelRows, renderCompareLabels, {
+                containerId: 'compare-label-pagination',
+            });
+            tbody.innerHTML = page.items.map(row => {
+                const a = row.a;
+                const b = row.b;
+                return `<tr>
+                    <td>${row.label}</td>
+                    <td>${a.avg}ms</td><td>${b.avg}ms</td>
+                    <td style="color:${diffColor(a.avg, b.avg)}">${diff(a.avg, b.avg)}</td>
+                    <td>${a.error_rate}%</td><td>${b.error_rate}%</td>
+                    <td style="color:${diffColor(a.error_rate, b.error_rate)}">${diff(a.error_rate, b.error_rate)}</td>
+                </tr>`;
+            }).join('');
+        }
+
         // ===== JTL 导入对比 =====
         let jtlFiles = [];
+        let jtlCompareLabelRows = [];
 
         async function uploadJtlFiles() {
             const fileInput = document.getElementById('jtl-upload');
@@ -6261,6 +7105,7 @@
                 fileList.innerHTML = '';
                 document.getElementById('jtl-compare-result').classList.add('hidden');
                 document.getElementById('jtl-empty').classList.remove('hidden');
+                clearPagination('jtlCompareLabels', 'jtl-compare-label-pagination');
                 return;
             }
 
@@ -6297,12 +7142,15 @@
                 renderJtlCompare();
             } else {
                 document.getElementById('jtl-compare-result').classList.add('hidden');
+                clearPagination('jtlCompareLabels', 'jtl-compare-label-pagination');
                 if (jtlFiles.length > 0) document.getElementById('jtl-empty').classList.remove('hidden');
             }
         }
 
         function clearJtlResults() {
             jtlFiles = [];
+            jtlCompareLabelRows = [];
+            clearPagination('jtlCompareLabels', 'jtl-compare-label-pagination');
             renderJtlFileList();
         }
 
@@ -6392,7 +7240,7 @@
                 `<tr><th style="min-width:120px">接口</th><th style="min-width:180px">URL</th>${fileHeaders}</tr>` +
                 `<tr><th></th><th></th>${metricHeaders}</tr>`;
 
-            const tbodyHtml = Object.keys(allLabelsMap).map(label => {
+            jtlCompareLabelRows = Object.keys(allLabelsMap).map(label => {
                 const url = allLabelsMap[label].url || '';
                 let displayUrl = url;
                 try {
@@ -6404,20 +7252,36 @@
                         displayUrl = url.substring(pathStart);
                     }
                 }
-                const cells = jtlFiles.map((f, i) => {
-                    const l = allLabelsMap[label][i];
-                    if (!l) return '<td style="text-align:right">-</td><td style="text-align:right">-</td><td style="text-align:right">-</td><td style="text-align:right">-</td>';
-                    const errColor = l.error_rate > 0 ? '#dc2626' : '#16a34a';
-                    return `<td style="text-align:right">${l.count}</td><td style="text-align:right">${l.avg}ms</td><td style="text-align:right">${l.tps}</td><td style="text-align:right;color:${errColor};font-weight:500">${l.error_rate}%</td>`;
-                }).join('');
-                return `<tr><td style="font-weight:500;white-space:nowrap">${label}</td><td style="font-size:11px;color:#888;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${url}">${displayUrl || '-'}</td>${cells}</tr>`;
-            }).join('');
-            document.getElementById('jtl-compare-label-tbody').innerHTML = tbodyHtml;
+                return { label, url, displayUrl, byFile: allLabelsMap[label] };
+            });
+            renderJtlCompareLabels();
 
             window.addEventListener('resize', () => {
                 if (charts.jtlTps) charts.jtlTps.resize();
                 if (charts.jtlRt) charts.jtlRt.resize();
             });
+        }
+
+        function renderJtlCompareLabels() {
+            const tbody = document.getElementById('jtl-compare-label-tbody');
+            if (!tbody) return;
+            if (!jtlCompareLabelRows.length) {
+                tbody.innerHTML = `<tr><td colspan="${2 + jtlFiles.length * 4}" class="empty-tip">暂无接口级数据</td></tr>`;
+                clearPagination('jtlCompareLabels', 'jtl-compare-label-pagination');
+                return;
+            }
+            const page = paginateItems('jtlCompareLabels', jtlCompareLabelRows, renderJtlCompareLabels, {
+                containerId: 'jtl-compare-label-pagination',
+            });
+            tbody.innerHTML = page.items.map(row => {
+                const cells = jtlFiles.map((f, i) => {
+                    const l = row.byFile[i];
+                    if (!l) return '<td style="text-align:right">-</td><td style="text-align:right">-</td><td style="text-align:right">-</td><td style="text-align:right">-</td>';
+                    const errColor = l.error_rate > 0 ? '#dc2626' : '#16a34a';
+                    return `<td style="text-align:right">${l.count}</td><td style="text-align:right">${l.avg}ms</td><td style="text-align:right">${l.tps}</td><td style="text-align:right;color:${errColor};font-weight:500">${l.error_rate}%</td>`;
+                }).join('');
+                return `<tr><td style="font-weight:500;white-space:nowrap">${row.label}</td><td style="font-size:11px;color:#888;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeAttribute(row.url)}">${row.displayUrl || '-'}</td>${cells}</tr>`;
+            }).join('');
         }
 
         // ===== 初始化 =====

@@ -18,6 +18,7 @@ import time
 import json
 import signal
 import socket
+import threading
 import psutil
 import redis
 import uuid
@@ -65,6 +66,11 @@ class JMeterAgent:
 
         self.runner = JMeterRunner(JMETER_HOME)
         self.current_task: TaskCommand = None
+        self._task_lock = threading.RLock()
+        self._task_thread = None
+        self._base_task_completed = False
+        self.adjust_runners = {}
+        self._segment_results = {}
 
         self.info = AgentInfo(
             agent_id=self.agent_id,
@@ -108,84 +114,84 @@ class JMeterAgent:
                 self._handle_execute(command)
             elif command.command == CommandType.STOP:
                 self._handle_stop(command)
+            elif command.command == CommandType.ADJUST_LOAD:
+                self._handle_adjust_load(command)
         except Exception as e:
             log_error(self.logger, e, "命令处理")
 
     def _handle_execute(self, command: TaskCommand):
-        """处理任务执行指令。准备脚本、执行 JMeter 并实时上报进度。"""
-        if self.runner.is_running:
-            self.logger.warning(f"Agent 忙碌，无法执行任务 {command.task_id}")
-            self._send_result(TaskResult(
-                task_id=command.task_id,
-                agent_id=self.agent_id,
-                status=TaskStatus.FAILED,
-                error_message="Agent busy with another task",
-            ))
-            return
+        """处理任务执行指令。任务在线程中运行，避免阻塞后续调压/停止命令。"""
+        with self._task_lock:
+            if self.current_task or self.runner.is_running:
+                self.logger.warning(f"Agent 忙碌，无法执行任务 {command.task_id}")
+                self._send_result(TaskResult(
+                    task_id=command.task_id,
+                    agent_id=self.agent_id,
+                    status=TaskStatus.FAILED,
+                    error_message="Agent busy with another task",
+                ))
+                return
 
-        self.current_task = command
-        self.info.current_task_id = command.task_id
-        self.info.status = "busy"
-        self._update_info()
+            self.current_task = command
+            self._base_task_completed = False
+            self._segment_results = {}
+            self.adjust_runners = {}
+            self.info.current_task_id = command.task_id
+            self.info.status = "busy"
+            self._update_info()
 
-        log_task_event(self.task_logger, command.task_id, "开始执行",
-                       {"agent": self.agent_id, "script": command.script_path})
+            self._task_thread = threading.Thread(
+                target=self._run_execute,
+                args=(command,),
+                daemon=True,
+            )
+            self._task_thread.start()
 
-        script_path = self._prepare_script(command)
-        result_dir = os.path.join(REPORTS_DIR, command.task_id, self.agent_id)
-        os.makedirs(result_dir, exist_ok=True)
+    def _safe_int(self, value, default: int = 0) -> int:
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return default
 
-        last_total = 0
-        last_time = time.time()
-        last_bytes_recv = 0
-        total_errors = 0
-        all_elapsed_times = []
+    def _make_progress_callback(self, task_id: str, segment_id: str, threads: int, start_time: float):
+        state = {
+            "last_total": 0,
+            "last_time": time.time(),
+            "all_elapsed_times": [],
+        }
 
         def on_progress(raw):
-            nonlocal last_total, last_time, last_bytes_recv, total_errors, all_elapsed_times
             now = time.time()
             elapsed = int(now - start_time)
-            total = raw.get("total_samples", 0)
-            errors = raw.get("error_count", 0)
-            times = raw.get("elapsed_times", [])
-            bytes_recv = raw.get("bytes_received", 0)
+            total = int(raw.get("total_samples", 0) or 0)
+            errors = int(raw.get("error_count", 0) or 0)
+            times = raw.get("elapsed_times", []) or []
+            bytes_recv = int(raw.get("bytes_received", 0) or 0)
 
-            interval = now - last_time
-
-            # TPS: 确保 interval_count 不为负数，最小为 0
-            if total >= last_total:
-                interval_count = total - last_total
-            else:
-                interval_count = 0
-
+            interval = now - state["last_time"]
+            interval_count = max(0, total - state["last_total"])
             current_tps = round(interval_count / interval, 2) if interval > 0 else 0
 
-            # 累计所有历史响应时间，用于计算整体平均 RT
-            total_errors = errors
             if times:
-                all_elapsed_times.extend(times)
-                # 只保留最近 5000 条，防止内存无限增长
-                if len(all_elapsed_times) > 5000:
-                    all_elapsed_times = all_elapsed_times[-5000:]
+                state["all_elapsed_times"].extend(times)
+                if len(state["all_elapsed_times"]) > 5000:
+                    state["all_elapsed_times"] = state["all_elapsed_times"][-5000:]
 
-            avg_rt = round(sum(all_elapsed_times) / len(all_elapsed_times), 2) if all_elapsed_times else 0
+            elapsed_times = state["all_elapsed_times"]
+            avg_rt = round(sum(elapsed_times) / len(elapsed_times), 2) if elapsed_times else 0
             error_rate = fmt_pct(errors / total * 100) if total > 0 else 0
             success_rate = fmt_pct((total - errors) / total * 100) if total > 0 else 100.0
+            bytes_per_sec = round(bytes_recv / interval) if interval > 0 else 0
 
-            # 网络吞吐量
-            interval_bytes = bytes_recv - last_bytes_recv if bytes_recv >= last_bytes_recv else 0
-            bytes_per_sec = round(interval_bytes / interval) if interval > 0 else 0
-
-            last_total = total
-            last_time = now
-            last_bytes_recv = bytes_recv
+            state["last_total"] = total
+            state["last_time"] = now
 
             update = ProgressUpdate(
-                task_id=command.task_id,
+                task_id=task_id,
                 agent_id=self.agent_id,
                 timestamp=time.time(),
                 elapsed=elapsed,
-                active_threads=command.jmeter_args.get("threads", 0),
+                active_threads=max(0, int(threads or 0)),
                 throughput=current_tps,
                 avg_response_time=avg_rt,
                 error_rate=error_rate,
@@ -195,59 +201,371 @@ class JMeterAgent:
                 bytes_sent=bytes_per_sec,
                 avg_latency=raw.get("avg_latency", 0),
                 avg_connect_time=raw.get("avg_connect_time", 0),
+                segment_id=segment_id,
             )
             self.redis.publish(REDIS_CHANNEL_PROGRESS, update.to_json())
 
-        start_time = time.time()
-        result = self.runner.execute(
-            script_path=script_path,
-            result_dir=result_dir,
-            jmeter_args=command.jmeter_args,
-            on_progress=on_progress,
-            timeout=command.timeout,
-            distributed=command.distributed,
-            remote_hosts=command.remote_hosts,
-            csv_file=command.csv_file,
-            csv_variable_names=command.csv_variable_names,
-            csv_delimiter=command.csv_delimiter,
-            csv_recycle=command.csv_recycle,
-            csv_stop_on_eof=command.csv_stop_on_eof,
-        )
+        return on_progress
 
-        if self._stopping_task_id == command.task_id:
-            status = TaskStatus.STOPPED
-            self._stopping_task_id = None
-        else:
-            status = TaskStatus.COMPLETED if result["status"] == "completed" else TaskStatus.FAILED
+    def _send_final_progress(self, task_id: str, segment_id: str, summary: dict, start_time: float):
+        total = int((summary or {}).get("total_samples", 0) or 0)
+        errors = int((summary or {}).get("error_count", 0) or 0)
+        error_rate = (summary or {}).get("error_rate")
+        if error_rate in (None, ""):
+            error_rate = fmt_pct(errors / total * 100) if total > 0 else 0
+        success_rate = (summary or {}).get("success_rate")
+        if success_rate in (None, ""):
+            success_rate = fmt_pct((total - errors) / total * 100) if total > 0 else 100.0
 
-        task_result = TaskResult(
-            task_id=command.task_id,
+        update = ProgressUpdate(
+            task_id=task_id,
             agent_id=self.agent_id,
-            status=status,
-            start_time=start_time,
-            end_time=time.time(),
-            report_path=result.get("report_path"),
-            error_message=result.get("error"),
-            summary=result.get("summary", {}),
+            timestamp=time.time(),
+            elapsed=int(time.time() - start_time) if start_time else 0,
+            active_threads=0,
+            throughput=0,
+            avg_response_time=float((summary or {}).get("avg_response_time", 0) or 0),
+            error_rate=float(error_rate or 0),
+            success_rate=float(success_rate or 100.0),
+            total_samples=total,
+            bytes_received=int((summary or {}).get("total_bytes_received", 0) or 0),
+            bytes_sent=int((summary or {}).get("total_bytes_sent", 0) or 0),
+            avg_latency=float((summary or {}).get("avg_latency", 0) or 0),
+            avg_connect_time=float((summary or {}).get("avg_connect_time", 0) or 0),
+            segment_id=segment_id,
+        )
+        self.redis.publish(REDIS_CHANNEL_PROGRESS, update.to_json())
+
+    def _run_execute(self, command: TaskCommand):
+        """执行基础任务，并在结束前等待动态压力段归并到同一个逻辑任务。"""
+        start_time = time.time()
+        result = {"status": "failed", "summary": {}, "error": None}
+        try:
+            log_task_event(self.task_logger, command.task_id, "开始执行",
+                           {"agent": self.agent_id, "script": command.script_path})
+
+            script_path = self._prepare_script(command)
+            result_dir = os.path.join(REPORTS_DIR, command.task_id, self.agent_id)
+            os.makedirs(result_dir, exist_ok=True)
+
+            base_threads = self._safe_int((command.jmeter_args or {}).get("threads"), 0)
+            result = self.runner.execute(
+                script_path=script_path,
+                result_dir=result_dir,
+                jmeter_args=command.jmeter_args,
+                on_progress=self._make_progress_callback(command.task_id, "base", base_threads, start_time),
+                timeout=command.timeout,
+                distributed=command.distributed,
+                remote_hosts=command.remote_hosts,
+                csv_file=command.csv_file,
+                csv_variable_names=command.csv_variable_names,
+                csv_delimiter=command.csv_delimiter,
+                csv_recycle=command.csv_recycle,
+                csv_stop_on_eof=command.csv_stop_on_eof,
+            )
+
+            self._send_final_progress(command.task_id, "base", result.get("summary", {}), start_time)
+            with self._task_lock:
+                self._base_task_completed = True
+
+            self._wait_for_adjust_segments(command.task_id)
+
+            if self._stopping_task_id == command.task_id:
+                status = TaskStatus.STOPPED
+            else:
+                status = TaskStatus.COMPLETED if result.get("status") == "completed" else TaskStatus.FAILED
+
+            summary = self._aggregate_segment_summaries(result.get("summary", {}))
+            task_result = TaskResult(
+                task_id=command.task_id,
+                agent_id=self.agent_id,
+                status=status,
+                start_time=start_time,
+                end_time=time.time(),
+                report_path=result.get("report_path"),
+                error_message=result.get("error"),
+                summary=summary,
+            )
+
+            self._send_result(task_result)
+
+            log_task_event(self.task_logger, command.task_id, "执行完成",
+                           {"agent": self.agent_id, "status": task_result.status,
+                            "samples": task_result.summary.get("total_samples", 0)})
+        except Exception as e:
+            log_error(self.logger, e, f"任务执行 {command.task_id}")
+            self._send_result(TaskResult(
+                task_id=command.task_id,
+                agent_id=self.agent_id,
+                status=TaskStatus.FAILED,
+                start_time=start_time,
+                end_time=time.time(),
+                error_message=str(e),
+                summary=result.get("summary", {}),
+            ))
+        finally:
+            self._stop_adjust_segments(command.task_id)
+            with self._task_lock:
+                self.current_task = None
+                self._base_task_completed = False
+                self.adjust_runners = {}
+                self._segment_results = {}
+                self._task_thread = None
+                if self._stopping_task_id == command.task_id:
+                    self._stopping_task_id = None
+                self.info.current_task_id = None
+                self.info.status = "online"
+                self._update_info()
+
+    def _handle_adjust_load(self, command: TaskCommand):
+        """处理动态调压指令。加压启动增量压力段，减压回收动态压力段。"""
+        args = command.jmeter_args or {}
+        action = str(args.get("action", "increase")).strip().lower()
+        threads = self._safe_int(args.get("threads"), 0)
+        ramp_time = max(0, self._safe_int(args.get("ramp_time"), 1))
+        duration = self._safe_int(args.get("duration"), 60)
+
+        if threads <= 0:
+            self.logger.warning(f"动态调压参数无效: task={command.task_id}, threads={threads}")
+            return
+
+        with self._task_lock:
+            current = self.current_task
+            base_done = self._base_task_completed
+
+        if not current or current.task_id != command.task_id:
+            self.logger.warning(f"当前无可调压任务: {command.task_id}")
+            return
+
+        if action == "increase":
+            if base_done:
+                self.logger.warning(f"基础任务已结束，忽略动态加压: {command.task_id}")
+                return
+            if duration <= 0:
+                self.logger.warning(f"动态加压持续时间无效: task={command.task_id}, duration={duration}")
+                return
+            self._start_adjust_segment(current, command, threads, ramp_time, duration)
+        elif action == "decrease":
+            self._decrease_load(command.task_id, threads)
+        else:
+            self.logger.warning(f"未知动态调压动作: {action}")
+
+    def _start_adjust_segment(
+        self,
+        base_command: TaskCommand,
+        adjust_command: TaskCommand,
+        threads: int,
+        ramp_time: int,
+        duration: int,
+    ):
+        segment_id = (
+            adjust_command.segment_id
+            or (adjust_command.jmeter_args or {}).get("segment_id")
+            or f"dyn-{uuid.uuid4().hex[:8]}"
+        )
+        runner = JMeterRunner(JMETER_HOME)
+        segment_args = dict(base_command.jmeter_args or {})
+        segment_args.update({
+            "threads": str(threads),
+            "ramp_time": str(ramp_time),
+            "duration": str(duration),
+        })
+
+        thread = threading.Thread(
+            target=self._run_adjust_segment,
+            args=(segment_id, runner, base_command, segment_args, threads, duration + ramp_time + 60),
+            daemon=True,
         )
 
-        self._send_result(task_result)
+        with self._task_lock:
+            self.adjust_runners[segment_id] = {
+                "runner": runner,
+                "thread": thread,
+                "threads": threads,
+                "created_at": time.time(),
+            }
 
-        log_task_event(self.task_logger, command.task_id, "执行完成",
-                       {"agent": self.agent_id, "status": task_result.status,
-                        "samples": task_result.summary.get("total_samples", 0)})
+        log_task_event(self.task_logger, base_command.task_id, "动态加压段启动",
+                       {"agent": self.agent_id, "segment": segment_id,
+                        "threads": threads, "ramp_time": ramp_time, "duration": duration})
+        thread.start()
 
-        self.current_task = None
-        self.info.current_task_id = None
-        self.info.status = "online"
-        self._update_info()
+    def _run_adjust_segment(
+        self,
+        segment_id: str,
+        runner: JMeterRunner,
+        base_command: TaskCommand,
+        jmeter_args: dict,
+        threads: int,
+        timeout: int,
+    ):
+        start_time = time.time()
+        result = {"status": "failed", "summary": {}}
+        try:
+            base_script_path = self._prepare_script(base_command)
+            safe_segment_id = "".join(
+                ch if ch.isalnum() or ch in {"-", "_"} else "_"
+                for ch in segment_id
+            )
+            script_path = os.path.join(SCRIPTS_DIR, f"{base_command.task_id}_{safe_segment_id}.jmx")
+            import shutil
+            shutil.copy2(base_script_path, script_path)
+
+            result_dir = os.path.join(
+                REPORTS_DIR,
+                base_command.task_id,
+                self.agent_id,
+                "segments",
+                segment_id,
+            )
+            os.makedirs(result_dir, exist_ok=True)
+
+            result = runner.execute(
+                script_path=script_path,
+                result_dir=result_dir,
+                jmeter_args=jmeter_args,
+                on_progress=self._make_progress_callback(base_command.task_id, segment_id, threads, start_time),
+                timeout=max(timeout, 120),
+                distributed=base_command.distributed,
+                remote_hosts=base_command.remote_hosts,
+                csv_file=base_command.csv_file,
+                csv_variable_names=base_command.csv_variable_names,
+                csv_delimiter=base_command.csv_delimiter,
+                csv_recycle=base_command.csv_recycle,
+                csv_stop_on_eof=base_command.csv_stop_on_eof,
+            )
+            summary = result.get("summary", {}) or {}
+            self._send_final_progress(base_command.task_id, segment_id, summary, start_time)
+            with self._task_lock:
+                self._segment_results[segment_id] = summary
+
+            log_task_event(self.task_logger, base_command.task_id, "动态加压段结束",
+                           {"agent": self.agent_id, "segment": segment_id,
+                            "status": result.get("status"), "samples": summary.get("total_samples", 0)})
+        except Exception as e:
+            log_error(self.logger, e, f"动态加压段 {segment_id}")
+            with self._task_lock:
+                self._segment_results[segment_id] = result.get("summary", {}) or {}
+        finally:
+            with self._task_lock:
+                self.adjust_runners.pop(segment_id, None)
+
+    def _decrease_load(self, task_id: str, threads: int):
+        with self._task_lock:
+            candidates = sorted(
+                self.adjust_runners.items(),
+                key=lambda item: item[1].get("created_at", 0),
+                reverse=True,
+            )
+
+        if not candidates:
+            self.logger.warning(f"没有可回收的动态压力段: {task_id}")
+            return
+
+        remaining = threads
+        stopped = []
+        for segment_id, meta in candidates:
+            if remaining <= 0:
+                break
+            runner = meta.get("runner")
+            segment_threads = int(meta.get("threads", 0) or 0)
+            if runner:
+                runner.stop()
+                stopped.append({"segment": segment_id, "threads": segment_threads})
+                remaining -= max(segment_threads, 1)
+
+        log_task_event(self.task_logger, task_id, "动态减压",
+                       {"agent": self.agent_id, "requested_threads": threads,
+                        "stopped_segments": stopped,
+                        "unreduced_threads": max(0, remaining)})
+
+    def _wait_for_adjust_segments(self, task_id: str):
+        while True:
+            with self._task_lock:
+                segments = list(self.adjust_runners.items())
+            if not segments:
+                return
+            for _, meta in segments:
+                thread = meta.get("thread")
+                if thread and thread.is_alive():
+                    thread.join(timeout=0.5)
+
+    def _stop_adjust_segments(self, task_id: str):
+        with self._task_lock:
+            runners = [(segment_id, meta.get("runner")) for segment_id, meta in self.adjust_runners.items()]
+        for segment_id, runner in runners:
+            if runner:
+                self.logger.info(f"停止动态压力段: task={task_id}, segment={segment_id}")
+                runner.stop()
+
+    def _aggregate_segment_summaries(self, base_summary: dict) -> dict:
+        base_summary = dict(base_summary or {})
+        with self._task_lock:
+            segment_summaries = {
+                segment_id: dict(summary or {})
+                for segment_id, summary in self._segment_results.items()
+            }
+
+        summaries = [base_summary] + [
+            summary for summary in segment_summaries.values()
+            if int(summary.get("total_samples", 0) or 0) > 0
+        ]
+        if len(summaries) <= 1:
+            return base_summary
+
+        total_samples = sum(int(s.get("total_samples", 0) or 0) for s in summaries)
+        error_count = sum(int(s.get("error_count", 0) or 0) for s in summaries)
+        bytes_received = sum(int(s.get("total_bytes_received", 0) or 0) for s in summaries)
+        bytes_sent = sum(int(s.get("total_bytes_sent", 0) or 0) for s in summaries)
+
+        def weighted_avg(key: str) -> float:
+            if total_samples <= 0:
+                return 0.0
+            return round(
+                sum(float(s.get(key, 0) or 0) * int(s.get("total_samples", 0) or 0) for s in summaries)
+                / total_samples,
+                2,
+            )
+
+        combined = dict(base_summary)
+        combined.update({
+            "total_samples": total_samples,
+            "error_count": error_count,
+            "success_count": max(0, total_samples - error_count),
+            "error_rate": fmt_pct(error_count / total_samples * 100) if total_samples > 0 else 0,
+            "success_rate": fmt_pct((total_samples - error_count) / total_samples * 100) if total_samples > 0 else 100.0,
+            "avg_response_time": weighted_avg("avg_response_time"),
+            "avg_latency": weighted_avg("avg_latency"),
+            "avg_connect_time": weighted_avg("avg_connect_time"),
+            "p50": weighted_avg("p50"),
+            "p90": weighted_avg("p90"),
+            "p95": weighted_avg("p95"),
+            "p99": weighted_avg("p99"),
+            "throughput": round(sum(float(s.get("throughput", 0) or 0) for s in summaries), 2),
+            "total_bytes_received": bytes_received,
+            "total_bytes_sent": bytes_sent,
+            "avg_bytes_per_request": round(bytes_received / total_samples) if total_samples > 0 else 0,
+            "dynamic_segments": segment_summaries,
+        })
+
+        min_values = [int(s.get("min_response_time", 0) or 0) for s in summaries if int(s.get("min_response_time", 0) or 0) > 0]
+        max_values = [int(s.get("max_response_time", 0) or 0) for s in summaries]
+        if min_values:
+            combined["min_response_time"] = min(min_values)
+        if max_values:
+            combined["max_response_time"] = max(max_values)
+        return combined
 
     def _handle_stop(self, command: TaskCommand):
         """处理任务停止指令。终止正在执行的 JMeter 进程。"""
-        if self.current_task and self.current_task.task_id == command.task_id:
+        with self._task_lock:
+            should_stop = self.current_task and self.current_task.task_id == command.task_id
+
+        if should_stop:
             log_task_event(self.task_logger, command.task_id, "收到停止指令")
             self._stopping_task_id = command.task_id
             self.runner.stop()
+            self._stop_adjust_segments(command.task_id)
 
     def _prepare_script(self, command: TaskCommand) -> str:
         """准备 JMX 脚本文件。根据指令写入脚本内容或复制外部脚本到执行目录。"""

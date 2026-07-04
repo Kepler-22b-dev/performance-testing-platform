@@ -8,6 +8,7 @@ import sys
 import os
 import time
 import threading
+import csv
 import xml.etree.ElementTree as ET
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -50,32 +51,58 @@ def _load_samples(task_id: str) -> list:
         return []
 
     all_samples = []
-    for agent_dir in os.listdir(task_path):
-        agent_path = os.path.join(task_path, agent_dir)
-        if not os.path.isdir(agent_path):
-            continue
+    for filepath, source in _iter_result_files(task_path):
+        try:
+            with open(filepath, "r", encoding="utf-8", errors="replace") as f:
+                first_line = f.readline().strip()
+            if first_line.startswith("<?xml") or first_line.startswith("<testResults"):
+                samples = _parse_xml_result(filepath)
+            else:
+                samples = _parse_jtl_fast(filepath)
+            for sample in samples:
+                sample.update(source)
+            all_samples.extend(samples)
+        except Exception:
+            pass
 
-        # 检查所有可能的结果文件
-        for filename in os.listdir(agent_path):
-            filepath = os.path.join(agent_path, filename)
-
-            if filename == "result.xml" or filename.endswith(".xml") or filename.endswith(".jtl"):
-                try:
-                    with open(filepath, "r", encoding="utf-8") as f:
-                        first_line = f.readline().strip()
-                    if first_line.startswith("<?xml") or first_line.startswith("<testResults"):
-                        samples = _parse_xml_result(filepath)
-                    else:
-                        samples = _parse_jtl_fast(filepath)
-                    all_samples.extend(samples)
-                except Exception:
-                    pass
-
-        # 加载错误响应数据并合并到对应的样本中
-        _merge_error_response_data(all_samples, task_path)
+    # 加载错误响应数据并合并到对应的样本中，动态调压 segments 目录也会被纳入。
+    _merge_error_response_data(all_samples, task_path)
 
     all_samples.sort(key=lambda x: x["timestamp"])
+    for index, sample in enumerate(all_samples, start=1):
+        sample["index"] = index
     return all_samples
+
+
+def _iter_result_files(task_path: str):
+    """递归扫描任务结果文件，包含动态调压产生的 segments 子目录。"""
+    if not os.path.isdir(task_path):
+        return
+
+    for root, dirs, files in os.walk(task_path):
+        dirs[:] = [d for d in dirs if d not in {"html-report", "__pycache__"}]
+        for filename in files:
+            lower = filename.lower()
+            if not (
+                lower in {"result.xml", "result.jtl"}
+                or lower.endswith(".jtl")
+                or lower.endswith(".xml")
+            ):
+                continue
+            if lower in {"jmeter.log"}:
+                continue
+
+            filepath = os.path.join(root, filename)
+            rel_parts = os.path.relpath(root, task_path).split(os.sep)
+            source = {
+                "source_agent": rel_parts[0] if rel_parts and rel_parts[0] != "." else "",
+                "source_segment": "base",
+            }
+            if "segments" in rel_parts:
+                seg_idx = rel_parts.index("segments")
+                if seg_idx + 1 < len(rel_parts):
+                    source["source_segment"] = rel_parts[seg_idx + 1]
+            yield filepath, source
 
 
 def _merge_error_response_data(samples: list, task_path: str):
@@ -88,16 +115,12 @@ def _merge_error_response_data(samples: list, task_path: str):
         key = (s["timestamp"], s["label"])
         sample_index[key] = s
 
-    # 遍历各 agent 目录
-    for agent_dir in os.listdir(task_path):
-        agent_path = os.path.join(task_path, agent_dir)
-        if not os.path.isdir(agent_path):
+    for root, dirs, files in os.walk(task_path):
+        dirs[:] = [d for d in dirs if d not in {"html-report", "__pycache__"}]
+        if "error_responses.jsonl" not in files:
             continue
 
-        error_file = os.path.join(agent_path, "error_responses.jsonl")
-        if not os.path.exists(error_file):
-            continue
-
+        error_file = os.path.join(root, "error_responses.jsonl")
         try:
             with open(error_file, "r", encoding="utf-8") as f:
                 for line in f:
@@ -218,42 +241,35 @@ def _parse_jtl_fast(jtl_path: str) -> list:
     """快速解析 JMeter CSV/JTL 格式的测试结果文件。"""
     samples = []
     try:
-        with open(jtl_path, "r", encoding="utf-8", errors="replace") as f:
-            header_line = f.readline()
-            if not header_line:
+        with open(jtl_path, "r", encoding="utf-8", errors="replace", newline="") as f:
+            reader = csv.DictReader(f)
+            if not reader.fieldnames:
                 return samples
 
-            header = header_line.strip().split(",")
-            field_map = {name: i for i, name in enumerate(header)}
-
-            for line in f:
-                parts = line.strip().split(",")
-                if len(parts) < 7:
-                    continue
-
+            for row in reader:
                 try:
                     sample = {
                         "index": len(samples) + 1,
-                        "timestamp": int(parts[field_map.get("timeStamp", 0)]),
-                        "elapsed": int(parts[field_map.get("elapsed", 1)]),
-                        "label": parts[field_map.get("label", 2)],
-                        "response_code": parts[field_map.get("responseCode", 3)],
-                        "response_message": _safe_get(parts, field_map, "responseMessage", ""),
-                        "thread_name": _safe_get(parts, field_map, "threadName", ""),
-                        "success": _safe_get(parts, field_map, "success", "true") == "true",
-                        "failure_message": _safe_get(parts, field_map, "failureMessage", ""),
-                        "bytes": _safe_int(parts, field_map, "bytes", 0),
-                        "sent_bytes": _safe_int(parts, field_map, "sentBytes", 0),
-                        "url": _safe_get(parts, field_map, "URL", ""),
-                        "latency": _safe_int(parts, field_map, "Latency", 0),
-                        "connect_time": _safe_int(parts, field_map, "Connect", 0),
-                        "sampler_data": _safe_get(parts, field_map, "samplerData", ""),
-                        "response_data": _safe_get(parts, field_map, "responseData", ""),
-                        "request_headers": _safe_get(parts, field_map, "requestHeaders", ""),
-                        "response_headers": _safe_get(parts, field_map, "responseHeaders", ""),
+                        "timestamp": _safe_row_int(row, "timeStamp", 0),
+                        "elapsed": _safe_row_int(row, "elapsed", 0),
+                        "label": _safe_row_get(row, "label", ""),
+                        "response_code": _safe_row_get(row, "responseCode", ""),
+                        "response_message": _safe_row_get(row, "responseMessage", ""),
+                        "thread_name": _safe_row_get(row, "threadName", ""),
+                        "success": _safe_row_get(row, "success", "true").strip().lower() == "true",
+                        "failure_message": _safe_row_get(row, "failureMessage", ""),
+                        "bytes": _safe_row_int(row, "bytes", 0),
+                        "sent_bytes": _safe_row_int(row, "sentBytes", 0),
+                        "url": _safe_row_get(row, "URL", ""),
+                        "latency": _safe_row_int(row, "Latency", 0),
+                        "connect_time": _safe_row_int(row, "Connect", 0),
+                        "sampler_data": _safe_row_get(row, "samplerData", ""),
+                        "response_data": _safe_row_get(row, "responseData", ""),
+                        "request_headers": _safe_row_get(row, "requestHeaders", ""),
+                        "response_headers": _safe_row_get(row, "responseHeaders", ""),
                     }
                     samples.append(sample)
-                except (ValueError, IndexError):
+                except (ValueError, IndexError, TypeError):
                     continue
     except Exception:
         pass
@@ -261,19 +277,21 @@ def _parse_jtl_fast(jtl_path: str) -> list:
     return samples
 
 
-def _safe_get(parts, field_map, key, default=""):
-    """从 CSV 行中安全提取指定字段值。"""
-    idx = field_map.get(key, -1)
-    if idx >= 0 and idx < len(parts):
-        return parts[idx]
+def _safe_row_get(row: dict, key: str, default=""):
+    value = row.get(key)
+    if value is not None:
+        return value
+    lower_key = key.lower()
+    for row_key, row_value in row.items():
+        if str(row_key).lower() == lower_key:
+            return row_value if row_value is not None else default
     return default
 
 
-def _safe_int(parts, field_map, key, default=0):
-    """从 CSV 行中安全提取指定字段的整数值。"""
-    val = _safe_get(parts, field_map, key, "")
+def _safe_row_int(row: dict, key: str, default=0):
+    val = _safe_row_get(row, key, "")
     try:
-        return int(val) if val.isdigit() else default
+        return int(float(val)) if str(val).strip() else default
     except (ValueError, AttributeError):
         return default
 

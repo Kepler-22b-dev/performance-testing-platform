@@ -1,0 +1,214 @@
+{"seq": 1, "ts": 1783145803.006, "event": "register", "status": 200, "username": "mockuser001", "created": true}
+{"seq": 2, "ts": 1783145803.14, "event": "login", "status": 200, "username": "mockuser001"}
+{"seq": 3, "ts": 1783145803.294, "event": "search_products", "status": 200, "keyword": "mock", "count": 5}
+{"seq": 4, "ts": 1783145803.397, "event": "add_cart", "status": 200, "username": "mockuser001", "product_id": "SKU-1001", "cart_item_id": "CART-mockuser001-1783145803397-4352"}
+{"seq": 5, "ts": 1783145803.521, "event": "register", "status": 200, "username": "mockuser002", "created": true}
+{"seq": 6, "ts": 1783145803.548, "event": "create_order", "status": 201, "username": "mockuser001", "order_id": "ORD-1783145803547-48874", "amount": 10598}
+{"seq": 7, "ts": 1783145803.656, "event": "login", "status": 200, "username": "mockuser002"}
+{"seq": 8, "ts": 1783145803.763, "event": "search_products", "status": 200, "keyword": "phone", "count": 1}
+{"seq": 9, "ts": 1783145803.907, "event": "add_cart", "status": 200, "username": "mockuser002", "product_id": "SKU-1001", "cart_item_id": "CART-mockuser002-1783145803907-4200"}
+{"seq": 10, "ts": 1783145803.95, "event": "register", "status": 200, "username": "mockuser003", "created": true}
+{"seq": 11, "ts": 1783145804.0, "event": "create_order", "status": 201, "username": "mockuser002", "order_id": "ORD-1783145803999-38443", "amount": 5299}
+{"seq": 12, "ts": 1783145804.086, "event": "login", "status": 200, "username": "mockuser003"}
+{"seq": 13, "ts": 1783145804.248, "event": "search_products", "status": 200, "keyword": "laptop", "count": 1}
+{"seq": 14, "ts": 1783145804.347, "event": "add_cart", "status": 200, "username": "mockuser003", "product_id": "SKU-1002", "cart_item_id": "CART-mockuser003-1783145804346-7446"}
+{"seq": 15, "ts": 1783145804.442, "event": "register", "status": 200, "username": "mockuser004", "created": true}
+{"seq": 16, "ts": 1783145804.495, "event": "create_order", "status": 201, "username": "mockuser003", "order_id": "ORD-1783145804494-66368", "amount": 8999}
+{"seq": 17, "ts": 1783145804.601, "event": "login", "status": 200, "username": "mockuser004"}
+{"seq": 18, "ts": 1783145804.759, "event": "search_products", "status": 200, "keyword": "audio", "count": 1}
+{"seq": 19, "ts": 1783145804.797, "event": "register", "status": 200, "username": "mockuser005", "created": true}
+{"seq": 20, "ts": 1783145804.854, "event": "add_cart", "status": 200, "username": "mockuser004", "product_id": "SKU-1003", "cart_item_id": "CART-mockuser004-1783145804853-5172"}
+{"seq": 21, "ts": 1783145804.893, "event": "login", "status": 200, "username": "mockuser005"}
+{"seq": 22, "ts": 1783145804.971, "event": "search_products", "status": 200, "keyword": "home", "count": 1}
+{"seq": 23, "ts": 1783145805.0, "event": "create_order", "status": 201, "username": "mockuser004", "order_id": "ORD-1783145804999-88451", "amount": 2097}
+{"seq": 24, "ts": 1783145805.103, "event": "add_cart", "status": 200, "username": "mockuser005", "product_id": "SKU-1004", "cart_item_id": "CART-mockuser005-1783145805102-1218"}
+{"seq": 25, "ts": 1783145805.255, "event": "create_order", "status": 201, "username": "mockuser005", "order_id": "ORD-1783145805254-49523", "amount": 1299}
+{"seq": 26, "ts": 1783145805.263, "event": "register", "status": 200, "username": "mockuser006", "created": true}
+{"seq": 27, "ts": 1783145805.375, "event": "login", "status": 200, "username": "mockuser006"}
+{"seq": 28, "ts": 1783145805.533, "event": "search_products", "status": 200, "keyword": "sport", "count": 1}
+{"seq": 29, "ts": 1783145805.63, "event": "register", "status": 200, "username": "mockuser007", "created": true}
+{"seq": 30, "ts": 1783145805.652, "event": "add_cart", "status": 200, "username": "mockuser006", "product_id": "SKU-1005", "cart_item_id": "CART-mockuser006-1783145805652-2456"}
+{"seq": 31, "ts": 1783145805.748, "event": "login", "status": 200, "username": "mockuser007"}
+{"seq": 32, "ts": 1783145805.807, "event": "create_order", "status": 201, "username": "mockuser006", "order_id": "ORD-1783145805807-22075", "amount": 998}
+{"seq": 33, "ts": 1783145805.847, "event": "search_products", "status": 200, "keyword": "mock", "count": 5}
+{"seq": 34, "ts": 1783145805.995, "event": "add_cart", "status": 200, "username": "mockuser007", "product_id": "SKU-1001", "cart_item_id": "CART-mockuser007-1783145805994-5370"}
+{"seq": 35, "ts": 1783145806.069, "event": "create_order", "status": 201, "username": "mockuser007", "order_id": "ORD-1783145806068-80587", "amount": 10598}
+{"seq": 36, "ts": 1783145806.126, "event": "register", "status": 200, "username": "mockuser008", "created": true}
+{"seq": 37, "ts": 1783145806.288, "event": "login", "status": 200, "username": "mockuser008"}
+{"seq": 38, "ts": 1783145806.414, "event": "search_products", "status": 200, "keyword": "phone", "count": 1}
+{"seq": 39, "ts": 1783145806.431, "event": "register", "status": 200, "username": "mockuser009", "created": true}
+{"seq": 40, "ts": 1783145806.579, "event": "add_cart", "status": 200, "username": "mockuser008", "product_id": "SKU-1001", "cart_item_id": "CART-mockuser008-1783145806579-2109"}
+{"seq": 41, "ts": 1783145806.586, "event": "login", "status": 200, "username": "mockuser009"}
+{"seq": 42, "ts": 1783145806.709, "event": "search_products", "status": 200, "keyword": "laptop", "count": 1}
+{"seq": 43, "ts": 1783145806.723, "event": "create_order", "status": 201, "username": "mockuser008", "order_id": "ORD-1783145806723-66667", "amount": 5299}
+{"seq": 44, "ts": 1783145806.895, "event": "add_cart", "status": 200, "username": "mockuser009", "product_id": "SKU-1002", "cart_item_id": "CART-mockuser009-1783145806894-8385"}
+{"seq": 45, "ts": 1783145807.007, "event": "create_order", "status": 201, "username": "mockuser009", "order_id": "ORD-1783145807006-11727", "amount": 26997}
+{"seq": 46, "ts": 1783145807.121, "event": "register", "status": 200, "username": "mockuser010", "created": true}
+{"seq": 47, "ts": 1783145807.269, "event": "login", "status": 200, "username": "mockuser010"}
+{"seq": 48, "ts": 1783145807.375, "event": "search_products", "status": 200, "keyword": "audio", "count": 1}
+{"seq": 49, "ts": 1783145807.416, "event": "register", "status": 200, "username": "mockuser011", "created": true}
+{"seq": 50, "ts": 1783145807.475, "event": "add_cart", "status": 200, "username": "mockuser010", "product_id": "SKU-1003", "cart_item_id": "CART-mockuser010-1783145807475-9423"}
+{"seq": 51, "ts": 1783145807.502, "event": "login", "status": 200, "username": "mockuser011"}
+{"seq": 52, "ts": 1783145807.578, "event": "create_order", "status": 201, "username": "mockuser010", "order_id": "ORD-1783145807577-33859", "amount": 2097}
+{"seq": 53, "ts": 1783145807.672, "event": "search_products", "status": 200, "keyword": "home", "count": 1}
+{"seq": 54, "ts": 1783145807.753, "event": "add_cart", "status": 200, "username": "mockuser011", "product_id": "SKU-1004", "cart_item_id": "CART-mockuser011-1783145807752-6070"}
+{"seq": 55, "ts": 1783145807.839, "event": "create_order", "status": 201, "username": "mockuser011", "order_id": "ORD-1783145807839-99540", "amount": 3897}
+{"seq": 56, "ts": 1783145807.961, "event": "register", "status": 200, "username": "mockuser012", "created": true}
+{"seq": 57, "ts": 1783145808.067, "event": "login", "status": 200, "username": "mockuser012"}
+{"seq": 58, "ts": 1783145808.163, "event": "register", "status": 200, "username": "mockuser013", "created": true}
+{"seq": 59, "ts": 1783145808.235, "event": "search_products", "status": 200, "keyword": "sport", "count": 1}
+{"seq": 60, "ts": 1783145808.251, "event": "login", "status": 200, "username": "mockuser013"}
+{"seq": 61, "ts": 1783145808.33, "event": "add_cart", "status": 200, "username": "mockuser012", "product_id": "SKU-1005", "cart_item_id": "CART-mockuser012-1783145808330-1387"}
+{"seq": 62, "ts": 1783145808.336, "event": "search_products", "status": 200, "keyword": "mock", "count": 5}
+{"seq": 63, "ts": 1783145808.415, "event": "create_order", "status": 201, "username": "mockuser012", "order_id": "ORD-1783145808414-57179", "amount": 1497}
+{"seq": 64, "ts": 1783145808.44, "event": "add_cart", "status": 200, "username": "mockuser013", "product_id": "SKU-1001", "cart_item_id": "CART-mockuser013-1783145808440-6198"}
+{"seq": 65, "ts": 1783145808.531, "event": "create_order", "status": 201, "username": "mockuser013", "order_id": "ORD-1783145808531-93541", "amount": 15897}
+{"seq": 66, "ts": 1783145808.743, "event": "register", "status": 200, "username": "mockuser014", "created": true}
+{"seq": 67, "ts": 1783145808.838, "event": "login", "status": 200, "username": "mockuser014"}
+{"seq": 68, "ts": 1783145808.902, "event": "register", "status": 200, "username": "mockuser015", "created": true}
+{"seq": 69, "ts": 1783145808.946, "event": "search_products", "status": 200, "keyword": "phone", "count": 1}
+{"seq": 70, "ts": 1783145809.03, "event": "login", "status": 200, "username": "mockuser015"}
+{"seq": 71, "ts": 1783145809.117, "event": "add_cart", "status": 200, "username": "mockuser014", "product_id": "SKU-1001", "cart_item_id": "CART-mockuser014-1783145809117-9800"}
+{"seq": 72, "ts": 1783145809.141, "event": "search_products", "status": 200, "keyword": "laptop", "count": 1}
+{"seq": 73, "ts": 1783145809.214, "event": "add_cart", "status": 200, "username": "mockuser015", "product_id": "SKU-1002", "cart_item_id": "CART-mockuser015-1783145809214-9544"}
+{"seq": 74, "ts": 1783145809.29, "event": "create_order", "status": 201, "username": "mockuser014", "order_id": "ORD-1783145809290-18806", "amount": 10598}
+{"seq": 75, "ts": 1783145809.299, "event": "create_order", "status": 201, "username": "mockuser015", "order_id": "ORD-1783145809298-63808", "amount": 26997}
+{"seq": 76, "ts": 1783145809.584, "event": "register", "status": 200, "username": "mockuser016", "created": true}
+{"seq": 77, "ts": 1783145809.651, "event": "register", "status": 200, "username": "mockuser017", "created": true}
+{"seq": 78, "ts": 1783145809.701, "event": "login", "status": 200, "username": "mockuser016"}
+{"seq": 79, "ts": 1783145809.747, "event": "login", "status": 200, "username": "mockuser017"}
+{"seq": 80, "ts": 1783145809.83, "event": "search_products", "status": 200, "keyword": "audio", "count": 1}
+{"seq": 81, "ts": 1783145809.871, "event": "search_products", "status": 200, "keyword": "home", "count": 1}
+{"seq": 82, "ts": 1783145809.927, "event": "add_cart", "status": 200, "username": "mockuser016", "product_id": "SKU-1003", "cart_item_id": "CART-mockuser016-1783145809926-9451"}
+{"seq": 83, "ts": 1783145810.009, "event": "add_cart", "status": 200, "username": "mockuser017", "product_id": "SKU-1004", "cart_item_id": "CART-mockuser017-1783145810009-7256"}
+{"seq": 84, "ts": 1783145810.055, "event": "create_order", "status": 201, "username": "mockuser016", "order_id": "ORD-1783145810054-87267", "amount": 699}
+{"seq": 85, "ts": 1783145810.167, "event": "create_order", "status": 201, "username": "mockuser017", "order_id": "ORD-1783145810166-30160", "amount": 3897}
+{"seq": 86, "ts": 1783145810.413, "event": "register", "status": 200, "username": "mockuser018", "created": true}
+{"seq": 87, "ts": 1783145810.474, "event": "register", "status": 200, "username": "mockuser019", "created": true}
+{"seq": 88, "ts": 1783145810.487, "event": "login", "status": 200, "username": "mockuser018"}
+{"seq": 89, "ts": 1783145810.607, "event": "login", "status": 200, "username": "mockuser019"}
+{"seq": 90, "ts": 1783145810.651, "event": "search_products", "status": 200, "keyword": "sport", "count": 1}
+{"seq": 91, "ts": 1783145810.696, "event": "search_products", "status": 200, "keyword": "mock", "count": 5}
+{"seq": 92, "ts": 1783145810.796, "event": "add_cart", "status": 200, "username": "mockuser018", "product_id": "SKU-1005", "cart_item_id": "CART-mockuser018-1783145810795-4084"}
+{"seq": 93, "ts": 1783145810.847, "event": "add_cart", "status": 200, "username": "mockuser019", "product_id": "SKU-1001", "cart_item_id": "CART-mockuser019-1783145810846-7268"}
+{"seq": 1, "ts": 1783145928.574, "event": "register", "status": 200, "username": "mockuser001", "created": true}
+{"seq": 2, "ts": 1783145928.681, "event": "login", "status": 200, "username": "mockuser001"}
+{"seq": 3, "ts": 1783145928.775, "event": "search_products", "status": 200, "keyword": "mock", "count": 5}
+{"seq": 4, "ts": 1783145928.916, "event": "add_cart", "status": 200, "username": "mockuser001", "product_id": "SKU-1001", "cart_item_id": "CART-mockuser001-1783145928916-3124"}
+{"seq": 5, "ts": 1783145929.043, "event": "register", "status": 200, "username": "mockuser002", "created": true}
+{"seq": 6, "ts": 1783145929.072, "event": "create_order", "status": 201, "username": "mockuser001", "order_id": "ORD-1783145929072-52076", "amount": 10598}
+{"seq": 7, "ts": 1783145929.157, "event": "login", "status": 200, "username": "mockuser002"}
+{"seq": 8, "ts": 1783145929.209, "event": "order_detail", "status": 200, "username": "mockuser001", "order_id": "ORD-1783145929072-52076", "order_status": "CREATED"}
+{"seq": 9, "ts": 1783145929.271, "event": "cancel_order", "status": 200, "username": "mockuser001", "order_id": "ORD-1783145929072-52076"}
+{"seq": 10, "ts": 1783145929.298, "event": "search_products", "status": 200, "keyword": "phone", "count": 1}
+{"seq": 11, "ts": 1783145929.41, "event": "register", "status": 200, "username": "mockuser003", "created": true}
+{"seq": 12, "ts": 1783145929.429, "event": "add_cart", "status": 200, "username": "mockuser002", "product_id": "SKU-1001", "cart_item_id": "CART-mockuser002-1783145929428-5163"}
+{"seq": 13, "ts": 1783145929.549, "event": "create_order", "status": 201, "username": "mockuser002", "order_id": "ORD-1783145929549-84678", "amount": 15897}
+{"seq": 14, "ts": 1783145929.581, "event": "login", "status": 200, "username": "mockuser003"}
+{"seq": 15, "ts": 1783145929.65, "event": "order_detail", "status": 200, "username": "mockuser002", "order_id": "ORD-1783145929549-84678", "order_status": "CREATED"}
+{"seq": 16, "ts": 1783145929.751, "event": "search_products", "status": 200, "keyword": "laptop", "count": 1}
+{"seq": 17, "ts": 1783145929.765, "event": "cancel_order", "status": 200, "username": "mockuser002", "order_id": "ORD-1783145929549-84678"}
+{"seq": 18, "ts": 1783145929.844, "event": "register", "status": 200, "username": "mockuser004", "created": true}
+{"seq": 19, "ts": 1783145929.891, "event": "add_cart", "status": 200, "username": "mockuser003", "product_id": "SKU-1002", "cart_item_id": "CART-mockuser003-1783145929891-7997"}
+{"seq": 20, "ts": 1783145930.0, "event": "create_order", "status": 201, "username": "mockuser003", "order_id": "ORD-1783145930000-44484", "amount": 26997}
+{"seq": 21, "ts": 1783145930.008, "event": "login", "status": 200, "username": "mockuser004"}
+{"seq": 22, "ts": 1783145930.08, "event": "search_products", "status": 200, "keyword": "audio", "count": 1}
+{"seq": 23, "ts": 1783145930.098, "event": "order_detail", "status": 200, "username": "mockuser003", "order_id": "ORD-1783145930000-44484", "order_status": "CREATED"}
+{"seq": 24, "ts": 1783145930.22, "event": "add_cart", "status": 200, "username": "mockuser004", "product_id": "SKU-1003", "cart_item_id": "CART-mockuser004-1783145930220-7890"}
+{"seq": 25, "ts": 1783145930.228, "event": "cancel_order", "status": 200, "username": "mockuser003", "order_id": "ORD-1783145930000-44484"}
+{"seq": 26, "ts": 1783145930.298, "event": "create_order", "status": 201, "username": "mockuser004", "order_id": "ORD-1783145930297-51341", "amount": 1398}
+{"seq": 27, "ts": 1783145930.329, "event": "register", "status": 200, "username": "mockuser005", "created": true}
+{"seq": 28, "ts": 1783145930.412, "event": "order_detail", "status": 200, "username": "mockuser004", "order_id": "ORD-1783145930297-51341", "order_status": "CREATED"}
+{"seq": 29, "ts": 1783145930.486, "event": "login", "status": 200, "username": "mockuser005"}
+{"seq": 30, "ts": 1783145930.52, "event": "cancel_order", "status": 200, "username": "mockuser004", "order_id": "ORD-1783145930297-51341"}
+{"seq": 31, "ts": 1783145930.635, "event": "search_products", "status": 200, "keyword": "home", "count": 1}
+{"seq": 32, "ts": 1783145930.695, "event": "register", "status": 200, "username": "mockuser006", "created": true}
+{"seq": 33, "ts": 1783145930.728, "event": "add_cart", "status": 200, "username": "mockuser005", "product_id": "SKU-1004", "cart_item_id": "CART-mockuser005-1783145930727-8550"}
+{"seq": 34, "ts": 1783145930.816, "event": "login", "status": 200, "username": "mockuser006"}
+{"seq": 35, "ts": 1783145930.862, "event": "create_order", "status": 201, "username": "mockuser005", "order_id": "ORD-1783145930861-16261", "amount": 2598}
+{"seq": 36, "ts": 1783145930.974, "event": "search_products", "status": 200, "keyword": "sport", "count": 1}
+{"seq": 37, "ts": 1783145930.985, "event": "order_detail", "status": 200, "username": "mockuser005", "order_id": "ORD-1783145930861-16261", "order_status": "CREATED"}
+{"seq": 38, "ts": 1783145931.097, "event": "cancel_order", "status": 200, "username": "mockuser005", "order_id": "ORD-1783145930861-16261"}
+{"seq": 39, "ts": 1783145931.115, "event": "add_cart", "status": 200, "username": "mockuser006", "product_id": "SKU-1005", "cart_item_id": "CART-mockuser006-1783145931114-4718"}
+{"seq": 40, "ts": 1783145931.258, "event": "register", "status": 200, "username": "mockuser007", "created": true}
+{"seq": 41, "ts": 1783145931.287, "event": "create_order", "status": 201, "username": "mockuser006", "order_id": "ORD-1783145931286-53246", "amount": 1497}
+{"seq": 42, "ts": 1783145931.37, "event": "login", "status": 200, "username": "mockuser007"}
+{"seq": 43, "ts": 1783145931.377, "event": "order_detail", "status": 200, "username": "mockuser006", "order_id": "ORD-1783145931286-53246", "order_status": "CREATED"}
+{"seq": 44, "ts": 1783145931.438, "event": "search_products", "status": 200, "keyword": "mock", "count": 5}
+{"seq": 45, "ts": 1783145931.493, "event": "cancel_order", "status": 200, "username": "mockuser006", "order_id": "ORD-1783145931286-53246"}
+{"seq": 46, "ts": 1783145931.577, "event": "add_cart", "status": 200, "username": "mockuser007", "product_id": "SKU-1001", "cart_item_id": "CART-mockuser007-1783145931576-4044"}
+{"seq": 47, "ts": 1783145931.652, "event": "register", "status": 200, "username": "mockuser008", "created": true}
+{"seq": 48, "ts": 1783145931.724, "event": "create_order", "status": 201, "username": "mockuser007", "order_id": "ORD-1783145931724-98134", "amount": 10598}
+{"seq": 49, "ts": 1783145931.795, "event": "login", "status": 200, "username": "mockuser008"}
+{"seq": 50, "ts": 1783145931.859, "event": "order_detail", "status": 200, "username": "mockuser007", "order_id": "ORD-1783145931724-98134", "order_status": "CREATED"}
+{"seq": 51, "ts": 1783145931.943, "event": "search_products", "status": 200, "keyword": "phone", "count": 1}
+{"seq": 52, "ts": 1783145931.998, "event": "cancel_order", "status": 200, "username": "mockuser007", "order_id": "ORD-1783145931724-98134"}
+{"seq": 53, "ts": 1783145932.022, "event": "add_cart", "status": 200, "username": "mockuser008", "product_id": "SKU-1001", "cart_item_id": "CART-mockuser008-1783145932021-9080"}
+{"seq": 54, "ts": 1783145932.12, "event": "register", "status": 200, "username": "mockuser009", "created": true}
+{"seq": 55, "ts": 1783145932.145, "event": "create_order", "status": 201, "username": "mockuser008", "order_id": "ORD-1783145932145-26897", "amount": 10598}
+{"seq": 56, "ts": 1783145932.216, "event": "login", "status": 200, "username": "mockuser009"}
+{"seq": 57, "ts": 1783145932.295, "event": "order_detail", "status": 200, "username": "mockuser008", "order_id": "ORD-1783145932145-26897", "order_status": "CREATED"}
+{"seq": 58, "ts": 1783145932.353, "event": "search_products", "status": 200, "keyword": "laptop", "count": 1}
+{"seq": 59, "ts": 1783145932.423, "event": "cancel_order", "status": 200, "username": "mockuser008", "order_id": "ORD-1783145932145-26897"}
+{"seq": 60, "ts": 1783145932.441, "event": "add_cart", "status": 200, "username": "mockuser009", "product_id": "SKU-1002", "cart_item_id": "CART-mockuser009-1783145932441-4925"}
+{"seq": 61, "ts": 1783145932.57, "event": "register", "status": 200, "username": "mockuser010", "created": true}
+{"seq": 62, "ts": 1783145932.594, "event": "create_order", "status": 201, "username": "mockuser009", "order_id": "ORD-1783145932593-31627", "amount": 17998}
+{"seq": 63, "ts": 1783145932.693, "event": "login", "status": 200, "username": "mockuser010"}
+{"seq": 64, "ts": 1783145932.78, "event": "order_detail", "status": 200, "username": "mockuser009", "order_id": "ORD-1783145932593-31627", "order_status": "CREATED"}
+{"seq": 65, "ts": 1783145932.805, "event": "search_products", "status": 200, "keyword": "audio", "count": 1}
+{"seq": 66, "ts": 1783145932.901, "event": "cancel_order", "status": 200, "username": "mockuser009", "order_id": "ORD-1783145932593-31627"}
+{"seq": 67, "ts": 1783145932.951, "event": "add_cart", "status": 200, "username": "mockuser010", "product_id": "SKU-1003", "cart_item_id": "CART-mockuser010-1783145932950-7133"}
+{"seq": 68, "ts": 1783145933.022, "event": "register", "status": 200, "username": "mockuser011", "created": true}
+{"seq": 69, "ts": 1783145933.063, "event": "create_order", "status": 201, "username": "mockuser010", "order_id": "ORD-1783145933062-16594", "amount": 699}
+{"seq": 70, "ts": 1783145933.187, "event": "login", "status": 200, "username": "mockuser011"}
+{"seq": 71, "ts": 1783145933.205, "event": "order_detail", "status": 200, "username": "mockuser010", "order_id": "ORD-1783145933062-16594", "order_status": "CREATED"}
+{"seq": 72, "ts": 1783145933.338, "event": "cancel_order", "status": 200, "username": "mockuser010", "order_id": "ORD-1783145933062-16594"}
+{"seq": 73, "ts": 1783145933.369, "event": "search_products", "status": 200, "keyword": "home", "count": 1}
+{"seq": 74, "ts": 1783145933.463, "event": "register", "status": 200, "username": "mockuser012", "created": true}
+{"seq": 75, "ts": 1783145933.484, "event": "add_cart", "status": 200, "username": "mockuser011", "product_id": "SKU-1004", "cart_item_id": "CART-mockuser011-1783145933484-4496"}
+{"seq": 76, "ts": 1783145933.624, "event": "login", "status": 200, "username": "mockuser012"}
+{"seq": 77, "ts": 1783145933.648, "event": "create_order", "status": 201, "username": "mockuser011", "order_id": "ORD-1783145933647-70586", "amount": 3897}
+{"seq": 78, "ts": 1783145933.707, "event": "search_products", "status": 200, "keyword": "sport", "count": 1}
+{"seq": 79, "ts": 1783145933.782, "event": "order_detail", "status": 200, "username": "mockuser011", "order_id": "ORD-1783145933647-70586", "order_status": "CREATED"}
+{"seq": 80, "ts": 1783145933.831, "event": "add_cart", "status": 200, "username": "mockuser012", "product_id": "SKU-1005", "cart_item_id": "CART-mockuser012-1783145933831-8068"}
+{"seq": 81, "ts": 1783145933.946, "event": "cancel_order", "status": 200, "username": "mockuser011", "order_id": "ORD-1783145933647-70586"}
+{"seq": 82, "ts": 1783145933.957, "event": "create_order", "status": 201, "username": "mockuser012", "order_id": "ORD-1783145933957-86602", "amount": 1497}
+{"seq": 83, "ts": 1783145934.044, "event": "order_detail", "status": 200, "username": "mockuser012", "order_id": "ORD-1783145933957-86602", "order_status": "CREATED"}
+{"seq": 84, "ts": 1783145934.124, "event": "register", "status": 200, "username": "mockuser013", "created": true}
+{"seq": 85, "ts": 1783145934.197, "event": "cancel_order", "status": 200, "username": "mockuser012", "order_id": "ORD-1783145933957-86602"}
+{"seq": 86, "ts": 1783145934.276, "event": "login", "status": 200, "username": "mockuser013"}
+{"seq": 87, "ts": 1783145934.301, "event": "register", "status": 200, "username": "mockuser014", "created": true}
+{"seq": 88, "ts": 1783145934.352, "event": "search_products", "status": 200, "keyword": "mock", "count": 5}
+{"seq": 89, "ts": 1783145934.461, "event": "add_cart", "status": 200, "username": "mockuser013", "product_id": "SKU-1001", "cart_item_id": "CART-mockuser013-1783145934460-4375"}
+{"seq": 90, "ts": 1783145934.488, "event": "login", "status": 200, "username": "mockuser014"}
+{"seq": 91, "ts": 1783145934.618, "event": "search_products", "status": 200, "keyword": "phone", "count": 1}
+{"seq": 92, "ts": 1783145934.631, "event": "create_order", "status": 201, "username": "mockuser013", "order_id": "ORD-1783145934631-61086", "amount": 15897}
+{"seq": 93, "ts": 1783145934.71, "event": "add_cart", "status": 200, "username": "mockuser014", "product_id": "SKU-1001", "cart_item_id": "CART-mockuser014-1783145934710-1696"}
+{"seq": 94, "ts": 1783145934.746, "event": "order_detail", "status": 200, "username": "mockuser013", "order_id": "ORD-1783145934631-61086", "order_status": "CREATED"}
+{"seq": 95, "ts": 1783145934.819, "event": "cancel_order", "status": 200, "username": "mockuser013", "order_id": "ORD-1783145934631-61086"}
+{"seq": 96, "ts": 1783145934.835, "event": "create_order", "status": 201, "username": "mockuser014", "order_id": "ORD-1783145934835-61427", "amount": 10598}
+{"seq": 97, "ts": 1783145934.95, "event": "register", "status": 200, "username": "mockuser015", "created": true}
+{"seq": 98, "ts": 1783145934.981, "event": "order_detail", "status": 200, "username": "mockuser014", "order_id": "ORD-1783145934835-61427", "order_status": "CREATED"}
+{"seq": 99, "ts": 1783145935.1, "event": "login", "status": 200, "username": "mockuser015"}
+{"seq": 100, "ts": 1783145935.153, "event": "cancel_order", "status": 200, "username": "mockuser014", "order_id": "ORD-1783145934835-61427"}
+{"seq": 101, "ts": 1783145935.238, "event": "register", "status": 200, "username": "mockuser016", "created": true}
+{"seq": 102, "ts": 1783145935.254, "event": "search_products", "status": 200, "keyword": "laptop", "count": 1}
+{"seq": 103, "ts": 1783145935.345, "event": "login", "status": 200, "username": "mockuser016"}
+{"seq": 104, "ts": 1783145935.361, "event": "add_cart", "status": 200, "username": "mockuser015", "product_id": "SKU-1002", "cart_item_id": "CART-mockuser015-1783145935360-4257"}
+{"seq": 105, "ts": 1783145935.436, "event": "search_products", "status": 200, "keyword": "audio", "count": 1}
+{"seq": 106, "ts": 1783145935.496, "event": "create_order", "status": 201, "username": "mockuser015", "order_id": "ORD-1783145935496-79519", "amount": 26997}
+{"seq": 107, "ts": 1783145935.538, "event": "add_cart", "status": 200, "username": "mockuser016", "product_id": "SKU-1003", "cart_item_id": "CART-mockuser016-1783145935537-7509"}
+{"seq": 108, "ts": 1783145935.609, "event": "order_detail", "status": 200, "username": "mockuser015", "order_id": "ORD-1783145935496-79519", "order_status": "CREATED"}
+{"seq": 109, "ts": 1783145935.674, "event": "create_order", "status": 201, "username": "mockuser016", "order_id": "ORD-1783145935674-28271", "amount": 699}
+{"seq": 110, "ts": 1783145935.725, "event": "cancel_order", "status": 200, "username": "mockuser015", "order_id": "ORD-1783145935496-79519"}
+{"seq": 111, "ts": 1783145935.788, "event": "order_detail", "status": 200, "username": "mockuser016", "order_id": "ORD-1783145935674-28271", "order_status": "CREATED"}
+{"seq": 112, "ts": 1783145935.808, "event": "register", "status": 200, "username": "mockuser017", "created": true}
+{"seq": 113, "ts": 1783145935.892, "event": "cancel_order", "status": 200, "username": "mockuser016", "order_id": "ORD-1783145935674-28271"}
+{"seq": 114, "ts": 1783145935.956, "event": "login", "status": 200, "username": "mockuser017"}
+{"seq": 115, "ts": 1783145935.997, "event": "register", "status": 200, "username": "mockuser018", "created": true}
+{"seq": 116, "ts": 1783145936.113, "event": "login", "status": 200, "username": "mockuser018"}
+{"seq": 117, "ts": 1783145936.12, "event": "search_products", "status": 200, "keyword": "home", "count": 1}
+{"seq": 118, "ts": 1783145936.238, "event": "add_cart", "status": 200, "username": "mockuser017", "product_id": "SKU-1004", "cart_item_id": "CART-mockuser017-1783145936237-5522"}
+{"seq": 119, "ts": 1783145936.254, "event": "search_products", "status": 200, "keyword": "sport", "count": 1}
+{"seq": 120, "ts": 1783145936.353, "event": "create_order", "status": 201, "username": "mockuser017", "order_id": "ORD-1783145936353-69974", "amount": 2598}
+{"seq": 121, "ts": 1783145936.383, "event": "add_cart", "status": 200, "username": "mockuser018", "product_id": "SKU-1005", "cart_item_id": "CART-mockuser018-1783145936383-3695"}

@@ -15,7 +15,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 from manager.core.variables import (
     get_all_vars, add_var, update_var, delete_var,
     get_all_csvs, upload_csv, get_csv, get_csv_data,
-    delete_csv, get_csv_preview,
+    delete_csv, get_csv_preview, get_csvs_page,
 )
 
 router = APIRouter(prefix="/api/data", tags=["data"])
@@ -73,10 +73,12 @@ def delete_var_endpoint(var_id: str):
 # ===== CSV =====
 
 @router.get("/csv")
-def list_csvs():
+def list_csvs(offset: int = 0, limit: int = 100):
     """获取所有已上传 CSV 文件的列表。"""
-    csvs_list = get_all_csvs()
-    return {"total": len(csvs_list), "csvs": csvs_list}
+    offset = max(0, int(offset or 0))
+    limit = max(1, min(500, int(limit or 100)))
+    total, csvs_list = get_csvs_page(offset=offset, limit=limit)
+    return {"total": total, "offset": offset, "limit": limit, "csvs": csvs_list}
 
 
 @router.post("/csv/upload")

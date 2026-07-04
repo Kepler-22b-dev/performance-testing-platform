@@ -15,6 +15,7 @@ from common.database import get_sync_db
 from manager.core.db_sync import (
     db_get_all_vars, db_create_var, db_update_var, db_delete_var,
     db_get_all_csvs, db_get_csv, db_create_csv, db_delete_csv,
+    db_get_csvs_page,
 )
 
 CSV_DIR = os.path.join(
@@ -153,6 +154,15 @@ def get_all_csvs() -> list:
     try:
         csvs = db_get_all_csvs(db)
         return [c for c in csvs if os.path.exists(c.get("filepath", ""))]
+    finally:
+        db.close()
+
+
+def get_csvs_page(offset: int = 0, limit: int = 100) -> tuple[int, list]:
+    db = get_sync_db()
+    try:
+        total, csvs = db_get_csvs_page(db, offset=offset, limit=limit)
+        return total, [c for c in csvs if os.path.exists(c.get("filepath", ""))]
     finally:
         db.close()
 

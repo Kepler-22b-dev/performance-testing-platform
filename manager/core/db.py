@@ -38,6 +38,20 @@ async def db_get_all_scripts(db: AsyncSession) -> list:
     return [_to_dict(r) for r in result.all()]
 
 
+async def db_get_scripts_page(db: AsyncSession, offset: int = 0, limit: int = 100,
+                              include_content: bool = False) -> tuple[int, list]:
+    total_result = await db.execute(select(func.count()).select_from(Script))
+    total = total_result.scalar_one() or 0
+    result = await db.execute(
+        select(Script).order_by(Script.modified_at.desc()).offset(offset).limit(limit)
+    )
+    rows = [_to_dict(r) for r in result.scalars().all()]
+    if not include_content:
+        for row in rows:
+            row.pop("content", None)
+    return total, rows
+
+
 async def db_get_script(db: AsyncSession, script_id: str) -> Optional[dict]:
     result = await db.execute(select(Script).where(Script.script_id == script_id))
     row = result.scalar_one_or_none()
@@ -134,6 +148,37 @@ async def db_get_all_tasks(db: AsyncSession) -> list:
     return list(tasks_map.values())
 
 
+async def db_get_tasks_page(db: AsyncSession, offset: int = 0, limit: int = 100,
+                            status: str = None) -> tuple[int, list]:
+    base = select(Task)
+    count_query = select(func.count()).select_from(Task)
+    if status:
+        base = base.where(Task.status == status)
+        count_query = count_query.where(Task.status == status)
+
+    total_result = await db.execute(count_query)
+    total = total_result.scalar_one() or 0
+    task_result = await db.execute(
+        base.order_by(Task.created_at.desc()).offset(offset).limit(limit)
+    )
+    tasks = [_to_dict(row) for row in task_result.scalars().all()]
+    task_ids = [t["task_id"] for t in tasks]
+    for task in tasks:
+        task["results"] = {}
+
+    if task_ids:
+        result = await db.execute(
+            select(TaskResult).where(TaskResult.task_id.in_(task_ids))
+        )
+        task_map = {t["task_id"]: t for t in tasks}
+        for result_row in result.scalars().all():
+            result_dict = _to_dict(result_row)
+            task = task_map.get(result_dict["task_id"])
+            if task is not None:
+                task["results"][result_dict["agent_id"]] = result_dict
+    return total, tasks
+
+
 async def db_update_task(db: AsyncSession, task_id: str, **kwargs) -> bool:
     result = await db.execute(
         update(Task).where(Task.task_id == task_id).values(**kwargs)
@@ -216,6 +261,15 @@ async def db_delete_var(db: AsyncSession, var_id: str) -> bool:
 async def db_get_all_csvs(db: AsyncSession) -> list:
     result = await db.execute(select(CsvFile).order_by(CsvFile.created_at.desc()))
     return [_to_dict(r) for r in result.all()]
+
+
+async def db_get_csvs_page(db: AsyncSession, offset: int = 0, limit: int = 100) -> tuple[int, list]:
+    total_result = await db.execute(select(func.count()).select_from(CsvFile))
+    total = total_result.scalar_one() or 0
+    result = await db.execute(
+        select(CsvFile).order_by(CsvFile.created_at.desc()).offset(offset).limit(limit)
+    )
+    return total, [_to_dict(r) for r in result.scalars().all()]
 
 
 async def db_get_csv(db: AsyncSession, csv_id: str) -> Optional[dict]:

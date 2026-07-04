@@ -75,7 +75,64 @@ def test_capture_error_log_controls_error_capture(tmp_path):
     )
     cmd = popen.call_args.args[0]
     assert inject.call_args.kwargs["error_data_path"].endswith("error_responses.jsonl")
-    assert "-Jjmeter.save.saveservice.samplerData=true" in cmd
+    assert inject.call_args.kwargs["error_sample_limit"] == 100
+    assert inject.call_args.kwargs["error_max_body_chars"] == 8192
+    assert "-Jjmeter.save.saveservice.samplerData=true" not in cmd
+
+
+def test_jmeter_defaults_to_csv_jtl_result(tmp_path):
+    script_path = tmp_path / "test.jmx"
+    script_path.write_text("<jmeterTestPlan></jmeterTestPlan>", encoding="utf-8")
+    runner = JMeterRunner("/opt/jmeter")
+
+    _, _, report, popen = _run_with_patches(
+        runner,
+        script_path,
+        tmp_path / "result",
+        {"threads": "1", "duration": "1", "capture_error_log": "false"},
+    )
+
+    cmd = popen.call_args.args[0]
+    assert "-Jjmeter.save.saveservice.output_format=csv" in cmd
+    assert str(tmp_path / "result" / "result.jtl") in cmd
+    assert report.call_args.args[0].endswith("result.jtl")
+
+
+def test_jmeter_xml_result_format_is_debug_option(tmp_path):
+    script_path = tmp_path / "test.jmx"
+    script_path.write_text("<jmeterTestPlan></jmeterTestPlan>", encoding="utf-8")
+    runner = JMeterRunner("/opt/jmeter")
+
+    _, _, report, popen = _run_with_patches(
+        runner,
+        script_path,
+        tmp_path / "result",
+        {"threads": "1", "duration": "1", "result_format": "xml", "capture_error_log": "false"},
+    )
+
+    cmd = popen.call_args.args[0]
+    assert "-Jjmeter.save.saveservice.output_format=xml" in cmd
+    assert str(tmp_path / "result" / "result.xml") in cmd
+    assert report.call_args.args[0].endswith("result.xml")
+
+
+def test_parse_csv_jtl_handles_quoted_commas(tmp_path):
+    jtl_path = tmp_path / "result.jtl"
+    jtl_path.write_text(
+        "timeStamp,elapsed,label,responseCode,responseMessage,threadName,success,bytes,sentBytes,URL,Latency,Connect\n"
+        "1700000000000,100,\"api, list\",200,\"OK, cached\",tg,true,120,30,http://example.test,80,5\n"
+        "1700000001000,200,\"api, list\",500,\"ERR, backend\",tg,false,180,40,http://example.test,150,8\n",
+        encoding="utf-8",
+    )
+    runner = JMeterRunner("/opt/jmeter")
+
+    summary = runner._parse_final_result(str(jtl_path))
+
+    assert summary["total_samples"] == 2
+    assert summary["error_count"] == 1
+    assert summary["total_bytes_received"] == 300
+    assert summary["total_bytes_sent"] == 70
+    assert summary["response_code_dist"] == {"200": 1, "500": 1}
 
 
 def test_report_generation_uses_reportgenerator_properties(tmp_path):
