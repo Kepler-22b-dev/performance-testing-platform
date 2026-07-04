@@ -269,7 +269,7 @@ sudo apt update && sudo apt install -y python3 python3-pip default-jre-headless 
 sudo systemctl start redis
 
 # 2. 项目部署
-git clone https://github.com/Kepler-22b-dev/performance-testing-platform.git
+git clone https://github.com/your-org/performance-testing-platform.git
 cd performance-testing-platform
 
 # 3. JMeter 安装
@@ -293,7 +293,7 @@ bash deploy.sh start
 sudo apt update && sudo apt install -y python3 python3-pip default-jre-headless
 
 # 2. 项目部署
-git clone https://github.com/Kepler-22b-dev/performance-testing-platform.git
+git clone https://github.com/your-org/performance-testing-platform.git
 cd performance-testing-platform
 
 # 3. JMeter 安装

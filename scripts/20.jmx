@@ -45,7 +45,7 @@
           <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="用户定义的变量" enabled="true">
             <collectionProp name="Arguments.arguments"/>
           </elementProp>
-          <stringProp name="HTTPSampler.domain">sss-stage.tastientech.com</stringProp>
+          <stringProp name="HTTPSampler.domain">api-stage.example.internal</stringProp>
           <stringProp name="HTTPSampler.port">443</stringProp>
           <stringProp name="HTTPSampler.protocol">https</stringProp>
           <stringProp name="HTTPSampler.contentEncoding"></stringProp>
@@ -67,7 +67,7 @@
             </elementProp>
             <elementProp name="" elementType="Header">
               <stringProp name="Header.name">Referer</stringProp>
-              <stringProp name="Header.value">https://servicewechat.com/wx7f81d3be683b15f0/devtools/page-frame.html</stringProp>
+              <stringProp name="Header.value">https://example.com/page-frame.html</stringProp>
             </elementProp>
             <elementProp name="" elementType="Header">
               <stringProp name="Header.name">user-token</stringProp>

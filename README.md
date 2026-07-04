@@ -199,7 +199,7 @@ Performance Testing Platform/
 
 ```bash
 # 1. 克隆项目
-git clone https://github.com/Kepler-22b-dev/performance-testing-platform.git
+git clone https://github.com/your-org/performance-testing-platform.git
 cd performance-testing-platform
 
 # 2. 下载 JMeter

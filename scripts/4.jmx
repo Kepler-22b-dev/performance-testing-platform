@@ -49,7 +49,7 @@
         </CSVDataSet>
         <hashTree/>
         <ConfigTestElement guiclass="HttpDefaultsGui" testclass="ConfigTestElement" testname="HTTP请求默认值">
-          <stringProp name="HTTPSampler.domain">sss-stage-callback.tastientech.com</stringProp>
+          <stringProp name="HTTPSampler.domain">api-stage.example.internal</stringProp>
           <stringProp name="HTTPSampler.port">443</stringProp>
           <stringProp name="HTTPSampler.protocol">https</stringProp>
           <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables">
@@ -299,7 +299,7 @@ vars.put(&quot;sign&quot;, sign);</stringProp>
               </elementProp>
               <elementProp name="recipient_phone" elementType="HTTPArgument">
                 <boolProp name="HTTPArgument.always_encode">true</boolProp>
-                <stringProp name="Argument.value">13123313102</stringProp>
+                <stringProp name="Argument.value">10000000000</stringProp>
                 <stringProp name="Argument.metadata">=</stringProp>
                 <boolProp name="HTTPArgument.use_equals">true</boolProp>
                 <stringProp name="Argument.name">recipient_phone</stringProp>
@@ -753,7 +753,7 @@ vars.put(&quot;sign&quot;, sign);</stringProp>
               </elementProp>
               <elementProp name="recipient_phone" elementType="HTTPArgument">
                 <boolProp name="HTTPArgument.always_encode">false</boolProp>
-                <stringProp name="Argument.value">13123313102</stringProp>
+                <stringProp name="Argument.value">10000000000</stringProp>
                 <stringProp name="Argument.metadata">=</stringProp>
                 <boolProp name="HTTPArgument.use_equals">true</boolProp>
                 <stringProp name="Argument.name">recipient_phone</stringProp>
@@ -1282,7 +1282,7 @@ vars.put(&quot;sign&quot;, sign);</stringProp>
               </elementProp>
               <elementProp name="recipient_phone" elementType="HTTPArgument">
                 <boolProp name="HTTPArgument.always_encode">false</boolProp>
-                <stringProp name="Argument.value">13123313102</stringProp>
+                <stringProp name="Argument.value">10000000000</stringProp>
                 <stringProp name="Argument.metadata">=</stringProp>
                 <boolProp name="HTTPArgument.use_equals">true</boolProp>
                 <stringProp name="Argument.name">recipient_phone</stringProp>

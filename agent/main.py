@@ -303,12 +303,22 @@ class JMeterAgent:
 
     def _get_local_ip(self) -> str:
         """获取本机局域网 IP 地址。"""
+        discovery_target = os.getenv("IP_DISCOVERY_TARGET")
         try:
-            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-                s.connect(("8.8.8.8", 80))
-                return s.getsockname()[0]
+            if discovery_target:
+                discovery_port = int(os.getenv("IP_DISCOVERY_PORT", "80"))
+                with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+                    s.connect((discovery_target, discovery_port))
+                    return s.getsockname()[0]
+
+            for info in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET):
+                candidate = info[4][0]
+                if candidate and not candidate.startswith("127."):
+                    return candidate
         except Exception:
-            return "127.0.0.1"
+            pass
+
+        return "127.0.0.1"
 
     def _shutdown(self, signum, frame):
         """信号处理函数。捕获 SIGINT/SIGTERM 信号，优雅关闭 Agent。"""

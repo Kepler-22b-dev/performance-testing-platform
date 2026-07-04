@@ -71,7 +71,7 @@ class TestCreateTaskValidation:
                 task_id="task-old",
                 status=TaskStatus.RUNNING,
                 target_agents=["agent-old"],
-                remote_hosts="10.0.0.2:1100,10.0.0.3:1100",
+                remote_hosts="agent-a.example.internal:1100,agent-b.example.internal:1100",
             )
         ]
         with patch("manager.core.scheduler.db_get_running_tasks", return_value=running_tasks), \
@@ -83,11 +83,11 @@ class TestCreateTaskValidation:
                     target_agents=["agent-new"],
                     jmeter_args={},
                     distributed=True,
-                    remote_hosts="10.0.0.2:1100",
+                    remote_hosts="agent-a.example.internal:1100",
                 )
                 assert False, "Should have raised RuntimeError"
             except RuntimeError as e:
-                assert "10.0.0.2:1100" in str(e)
+                assert "agent-a.example.internal:1100" in str(e)
 
     def test_single_agent_guard_can_be_disabled(self):
         s = _build_scheduler()

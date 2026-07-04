@@ -185,7 +185,7 @@ performance-testing-platform/
 ### 步骤 1：获取代码
 
 ```bash
-git clone https://github.com/Kepler-22b-dev/performance-testing-platform.git
+git clone https://github.com/your-org/performance-testing-platform.git
 cd performance-testing-platform
 ```
 
@@ -260,20 +260,20 @@ bash deploy.sh clean    # 清理数据
 
 ### 4.1 部署规划
 
-假设使用 4 台机器：
+假设使用 4 台机器，请把下表中的占位符替换成实际内网地址：
 
 | 机器 | IP | 角色 | 配置 |
 |------|-----|------|------|
-| 机器 A | 192.168.1.100 | 管理节点 | 4核8G |
-| 机器 B | 192.168.1.101 | 施压节点 1 | 4核8G |
-| 机器 C | 192.168.1.102 | 施压节点 2 | 4核8G |
-| 机器 D | 192.168.1.103 | 施压节点 3 | 4核8G |
+| 机器 A | `<管理节点IP>` | 管理节点 | 4核8G |
+| 机器 B | `<施压节点1IP>` | 施压节点 1 | 4核8G |
+| 机器 C | `<施压节点2IP>` | 施压节点 2 | 4核8G |
+| 机器 D | `<施压节点3IP>` | 施压节点 3 | 4核8G |
 
 ### 4.2 管理节点部署（机器 A）
 
 ```bash
 # 1. 获取代码
-git clone https://github.com/Kepler-22b-dev/performance-testing-platform.git
+git clone https://github.com/your-org/performance-testing-platform.git
 cd performance-testing-platform
 
 # 2. 安装 JMeter
@@ -321,7 +321,7 @@ curl http://localhost:8000/api/health
 
 ```bash
 # 1. 获取代码
-git clone https://github.com/Kepler-22b-dev/performance-testing-platform.git
+git clone https://github.com/your-org/performance-testing-platform.git
 cd performance-testing-platform
 
 # 2. 安装 JMeter
@@ -335,10 +335,11 @@ pip install -r agent/requirements.txt
 
 # 4. 配置 Redis 连接
 # 方法 1: 环境变量
-export REDIS_HOST=192.168.1.100
+export MANAGER_NODE_IP="<管理节点IP>"
+export REDIS_HOST="${MANAGER_NODE_IP}"
 
 # 方法 2: 写入 .bashrc（永久生效）
-echo 'export REDIS_HOST=192.168.1.100' >> ~/.bashrc
+echo "export REDIS_HOST=${MANAGER_NODE_IP}" >> ~/.bashrc
 source ~/.bashrc
 
 # 5. 启动 Agent
@@ -381,15 +382,15 @@ sudo systemctl stop firewalld
 
 ### 4.5 Web UI 注册节点
 
-1. 浏览器打开 `http://192.168.1.100:8000`
+1. 浏览器打开 `http://<管理节点IP>:8000`
 2. 点击顶部导航「施压节点」
 3. 在「添加远程节点」区域：
 
 | 节点名称 | IP 地址 | 端口 |
 |----------|---------|------|
-| 施压机1 | 192.168.1.101 | 1100 |
-| 施压机2 | 192.168.1.102 | 1100 |
-| 施压机3 | 192.168.1.103 | 1100 |
+| 施压机1 | `<施压节点1IP>` | 1100 |
+| 施压机2 | `<施压节点2IP>` | 1100 |
+| 施压机3 | `<施压节点3IP>` | 1100 |
 
 4. 依次点击「添加」
 5. 点击「全部验证」
@@ -415,7 +416,8 @@ python cli.py run \
 
 **方式 3：API 调用**
 ```bash
-curl -X POST http://192.168.1.100:8000/api/tasks/quick-run \
+MANAGER_BASE_URL="http://<管理节点IP>:8000"
+curl -X POST "${MANAGER_BASE_URL}/api/tasks/quick-run" \
   -H "Content-Type: application/json" \
   -d '{
     "script_id": "8",
@@ -587,7 +589,7 @@ WorkingDirectory=/opt/performance-testing-platform
 ExecStart=/usr/bin/python3 -m agent.main
 Restart=always
 RestartSec=5
-Environment=REDIS_HOST=192.168.1.100
+Environment=REDIS_HOST=<管理节点IP>
 StandardOutput=journal
 StandardError=journal
 
