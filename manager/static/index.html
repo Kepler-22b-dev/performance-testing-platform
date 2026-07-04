@@ -87,6 +87,8 @@
         .tool-log-list { display: grid; gap: 6px; }
         .tool-log-item { width: 100%; border: 1px solid #e5e7eb; border-radius: 6px; background: #fff; padding: 9px 10px; cursor: pointer; text-align: left; color: #333; }
         .tool-log-item:hover { border-color: #cbd5e1; background: #f8fafc; }
+        .tool-log-item[disabled] { cursor: not-allowed; opacity: 0.62; background: #f8fafc; }
+        .tool-log-item[disabled]:hover { border-color: #e5e7eb; }
         .tool-log-item.active { border-color: #1a1a1a; box-shadow: inset 3px 0 0 #1a1a1a; }
         .tool-log-item .name { font-size: 12px; font-weight: 600; line-height: 1.4; overflow-wrap: anywhere; }
         .tool-log-item .desc { margin-top: 3px; font-size: 11px; color: #777; line-height: 1.35; overflow-wrap: anywhere; }
@@ -2044,7 +2046,9 @@
 
             container.innerHTML = toolLogState.platformLogs.map(log => {
                 const active = toolLogState.current?.scope === 'platform' && toolLogState.current.key === log.key ? ' active' : '';
-                return `<button class="tool-log-item${active}" onclick="readToolPlatformLog('${log.key}')">
+                const disabled = log.exists ? '' : ' disabled';
+                const click = log.exists ? ` onclick="readToolPlatformLog('${log.key}')"` : '';
+                return `<button class="tool-log-item${active}"${disabled}${click}>
                     <div class="name">${escapeHtml(log.filename)}</div>
                     <div class="desc">${escapeHtml(log.description || '')}</div>
                     <div class="meta">${log.exists ? `${formatBytes(log.size)} / ${formatLogTime(log.modified_at)}` : '文件未生成'}</div>
@@ -2115,7 +2119,9 @@
                         toolLogState.current.taskId === taskId &&
                         toolLogState.current.agentId === agent.agent_id &&
                         toolLogState.current.key === log.key ? ' active' : '';
-                    return `<button class="tool-log-item${active}" onclick="readToolTaskLog('${taskId}', '${agent.agent_id}', '${log.key}')">
+                    const disabled = log.exists ? '' : ' disabled';
+                    const click = log.exists ? ` onclick="readToolTaskLog('${taskId}', '${agent.agent_id}', '${log.key}')"` : '';
+                    return `<button class="tool-log-item${active}"${disabled}${click}>
                         <div class="name">${escapeHtml(log.filename)}</div>
                         <div class="desc">${escapeHtml(log.description || '')}</div>
                         <div class="meta">${log.exists ? `${formatBytes(log.size)} / ${formatLogTime(log.modified_at)}` : '文件未生成'}</div>
