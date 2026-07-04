@@ -50,6 +50,48 @@ class JMeterRunner:
             return None
         return heap_mb if heap_mb > 0 else None
 
+    def _parse_int_range(self, value, default: int, min_value: int, max_value: int) -> int:
+        try:
+            parsed = int(value)
+        except (TypeError, ValueError):
+            parsed = default
+        return max(min_value, min(max_value, parsed))
+
+    def _find_child_hash_tree(self, root, target):
+        """Return the hashTree that belongs to a JMeter tree element."""
+        for hash_tree in root.iter("hashTree"):
+            children = list(hash_tree)
+            for index, child in enumerate(children[:-1]):
+                if child is target and children[index + 1].tag == "hashTree":
+                    return children[index + 1]
+        return None
+
+    def _get_image_resource_config(self, scenario: dict = None) -> Optional[dict]:
+        if not isinstance(scenario, dict):
+            return None
+
+        resource_load = scenario.get("resource_load")
+        if not isinstance(resource_load, dict):
+            resource_load = {}
+
+        enabled = self._as_bool(resource_load.get("enabled"), False) or scenario.get("type") == "image-load"
+        if not enabled:
+            return None
+
+        return {
+            "max_images_per_response": self._parse_int_range(
+                resource_load.get("max_images_per_response"), 6, 1, 50
+            ),
+            "timeout_ms": self._parse_int_range(resource_load.get("timeout_ms"), 5000, 500, 60000),
+            "max_body_chars": self._parse_int_range(
+                resource_load.get("max_body_chars"), 2_000_000, 1000, 10_000_000
+            ),
+            "only_successful_parent": self._as_bool(
+                resource_load.get("only_successful_parent"), True
+            ),
+            "label_prefix": str(resource_load.get("label_prefix") or "IMG").strip()[:40] or "IMG",
+        }
+
     def inject_csv_config(
         self,
         script_path: str,
@@ -128,6 +170,8 @@ class JMeterRunner:
             tree = ET.parse(script_path)
             root = tree.getroot()
 
+            image_resource_config = self._get_image_resource_config(scenario)
+
             # 遍历所有 ThreadGroup 元素并修改配置
             for thread_group in root.iter("ThreadGroup"):
                 num_threads = thread_group.find("intProp[@name='ThreadGroup.num_threads']")
@@ -160,6 +204,9 @@ class JMeterRunner:
                 if error_data_path:
                     self._inject_error_response_capture(root, thread_group, error_data_path)
 
+                if image_resource_config:
+                    self._inject_image_resource_loader(root, thread_group, image_resource_config)
+
             modified_path = script_path.replace(".jmx", "_exec.jmx")
             tree.write(modified_path, encoding="UTF-8", xml_declaration=True)
             return modified_path
@@ -169,12 +216,7 @@ class JMeterRunner:
 
     def _inject_error_response_capture(self, root, thread_group, error_data_path: str):
         """在 ThreadGroup 的 hashTree 中注入 JSR223 PostProcessor，仅在请求失败时捕获响应体。"""
-        # 找到 ThreadGroup 所在的 hashTree
-        target_hash_tree = None
-        for ht in root.iter("hashTree"):
-            if thread_group in list(ht):
-                target_hash_tree = ht
-                break
+        target_hash_tree = self._find_child_hash_tree(root, thread_group)
 
         if target_hash_tree is None:
             return
@@ -214,6 +256,115 @@ class JMeterRunner:
         ET.SubElement(jsr223, "stringProp", name="scriptLanguage").text = "groovy"
 
         # 添加对应的空 hashTree
+        ET.SubElement(target_hash_tree, "hashTree")
+
+    def _inject_image_resource_loader(self, root, thread_group, config: dict):
+        """注入图片资源加载器，从接口响应中提取图片 URL 并同步下载。"""
+        target_hash_tree = self._find_child_hash_tree(root, thread_group)
+        if target_hash_tree is None:
+            return
+
+        jsr223 = ET.SubElement(target_hash_tree, "JSR223PostProcessor")
+        jsr223.set("guiclass", "TestBeanGUI")
+        jsr223.set("testclass", "JSR223PostProcessor")
+        jsr223.set("testname", "Image Resource Loader")
+        jsr223.set("enabled", "true")
+
+        ET.SubElement(jsr223, "stringProp", name="cacheKey").text = "true"
+        ET.SubElement(jsr223, "stringProp", name="filename").text = ""
+        ET.SubElement(jsr223, "stringProp", name="parameters").text = ""
+        ET.SubElement(jsr223, "boolProp", name="executeOnEveryIteration").text = "false"
+
+        label_prefix = json.dumps(config["label_prefix"], ensure_ascii=False)
+        only_successful = "true" if config["only_successful_parent"] else "false"
+        script_lines = [
+            "import org.apache.jmeter.samplers.SampleResult",
+            "import java.net.HttpURLConnection",
+            "import java.net.URL",
+            "",
+            f"final int maxImages = {config['max_images_per_response']}",
+            f"final int timeoutMs = {config['timeout_ms']}",
+            f"final int maxBodyChars = {config['max_body_chars']}",
+            f"final boolean onlySuccessfulParent = {only_successful}",
+            f"final String labelPrefix = {label_prefix}",
+            "",
+            "if (onlySuccessfulParent && !prev.isSuccessful()) {",
+            "    return",
+            "}",
+            "",
+            "def body = prev.getResponseDataAsString()",
+            "if (!body) {",
+            "    return",
+            "}",
+            "if (body.length() > maxBodyChars) {",
+            "    body = body.substring(0, maxBodyChars)",
+            "}",
+            "body = body.replace('\\\\/', '/')",
+            "def baseUrl = prev.getURL()",
+            "def imagePattern = java.util.regex.Pattern.compile('(?i)(https?://[^\\\\s\"<>)}\\\\]]+\\\\.(?:png|jpe?g|gif|webp|bmp|svg)(?:\\\\?[^\\\\s\"<>)}\\\\]]*)?|/[^\\\\s\"<>)}\\\\]]+\\\\.(?:png|jpe?g|gif|webp|bmp|svg)(?:\\\\?[^\\\\s\"<>)}\\\\]]*)?)')",
+            "def matcher = imagePattern.matcher(body)",
+            "def urls = new LinkedHashSet<String>()",
+            "while (matcher.find() && urls.size() < maxImages) {",
+            "    def raw = matcher.group(1).replace('&amp;', '&')",
+            "    if (raw.startsWith('/') && baseUrl == null) {",
+            "        continue",
+            "    }",
+            "    urls.add(raw.startsWith('/') ? new URL(baseUrl, raw).toString() : raw)",
+            "}",
+            "",
+            "int imageIndex = 0",
+            "urls.each { rawUrl ->",
+            "    imageIndex++",
+            "    def imageUrl = new URL(rawUrl)",
+            "    def sample = new SampleResult()",
+            "    sample.setSampleLabel(labelPrefix + ' ' + imageIndex + ' - ' + prev.getSampleLabel())",
+            "    sample.setURL(imageUrl)",
+            "    sample.setDataType(SampleResult.BINARY)",
+            "    long bytes = 0",
+            "    def conn = null",
+            "    def input = null",
+            "    sample.sampleStart()",
+            "    try {",
+            "        conn = imageUrl.openConnection()",
+            "        conn.setConnectTimeout(timeoutMs)",
+            "        conn.setReadTimeout(timeoutMs)",
+            "        conn.setUseCaches(false)",
+            "        conn.setRequestProperty('User-Agent', 'Mozilla/5.0 JMeter image resource loader')",
+            "        conn.setRequestProperty('Accept', 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8')",
+            "        if (baseUrl != null) {",
+            "            conn.setRequestProperty('Referer', baseUrl.toString())",
+            "        }",
+            "        int code = 200",
+            "        if (conn instanceof HttpURLConnection) {",
+            "            code = conn.getResponseCode()",
+            "        }",
+            "        input = (conn instanceof HttpURLConnection && code >= 400) ? conn.getErrorStream() : conn.getInputStream()",
+            "        byte[] buffer = new byte[8192]",
+            "        int read = 0",
+            "        while (input != null && (read = input.read(buffer)) != -1) {",
+            "            bytes += read",
+            "        }",
+            "        sample.setBytes(bytes)",
+            "        sample.setResponseCode(String.valueOf(code))",
+            "        sample.setResponseMessage(code >= 200 && code < 400 ? 'OK' : 'Image load failed')",
+            "        sample.setSuccessful(code >= 200 && code < 400)",
+            "    } catch (Exception ex) {",
+            "        sample.setBytes(bytes)",
+            "        sample.setResponseCode('599')",
+            "        sample.setResponseMessage(ex.getClass().getSimpleName() + ': ' + ex.getMessage())",
+            "        sample.setSuccessful(false)",
+            "    } finally {",
+            "        try { if (input != null) input.close() } catch (ignored) {}",
+            "        if (conn instanceof HttpURLConnection) {",
+            "            conn.disconnect()",
+            "        }",
+            "        sample.sampleEnd()",
+            "        prev.addSubResult(sample)",
+            "    }",
+            "}",
+        ]
+        ET.SubElement(jsr223, "stringProp", name="script").text = "\n".join(script_lines)
+        ET.SubElement(jsr223, "stringProp", name="scriptLanguage").text = "groovy"
         ET.SubElement(target_hash_tree, "hashTree")
 
     def execute(
@@ -280,6 +431,7 @@ class JMeterRunner:
                 scenario = json.loads(jmeter_args["scenario"])
             except Exception:
                 pass
+        image_resource_config = self._get_image_resource_config(scenario)
 
         if jmeter_args.get("threads") or jmeter_args.get("duration") or jmeter_args.get("ramp_time"):
             error_data_path = os.path.join(result_dir, "error_responses.jsonl") if capture_error_log else None
@@ -315,6 +467,9 @@ class JMeterRunner:
             "-Jjmeter.save.saveservice.latency=true",
             "-Jjmeter.save.saveservice.timestamp=true",
         ]
+
+        if image_resource_config:
+            cmd.append("-Jjmeter.save.saveservice.subresults=true")
 
         if capture_error_log:
             cmd.extend([

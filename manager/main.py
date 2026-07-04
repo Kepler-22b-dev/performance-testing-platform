@@ -45,6 +45,7 @@ from manager.api.scheduler_api import router as scheduler_router
 from manager.api.alerts import router as alerts_router
 from manager.api.environments import router as environments_router
 from manager.api.jtl_compare import router as jtl_router
+from manager.api.tool_logs import router as tool_logs_router
 
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -194,6 +195,7 @@ app.include_router(scheduler_router)
 app.include_router(alerts_router)
 app.include_router(environments_router)
 app.include_router(jtl_router)
+app.include_router(tool_logs_router)
 
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")

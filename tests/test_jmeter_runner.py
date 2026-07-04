@@ -1,4 +1,6 @@
+import json
 from unittest.mock import patch
+import xml.etree.ElementTree as ET
 
 from agent.jmeter_runner import JMeterRunner
 
@@ -95,3 +97,80 @@ def test_report_generation_uses_reportgenerator_properties(tmp_path):
     cmd = run.call_args.args[0]
     assert "-Jjmeter.reportgenerator.overall_granularity=30000" in cmd
     assert all("httpclient4.retrycount" not in part for part in cmd)
+
+
+def test_image_resource_loader_is_injected_for_image_scenario(tmp_path):
+    script_path = tmp_path / "image-test.jmx"
+    script_path.write_text(
+        """<?xml version="1.0" encoding="UTF-8"?>
+<jmeterTestPlan version="1.2" properties="5.0" jmeter="5.6.3">
+  <hashTree>
+    <TestPlan guiclass="TestPlanGui" testclass="TestPlan" testname="Test Plan">
+      <elementProp name="TestPlan.user_defined_variables" elementType="Arguments"/>
+    </TestPlan>
+    <hashTree>
+      <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="Thread Group">
+        <intProp name="ThreadGroup.num_threads">1</intProp>
+        <intProp name="ThreadGroup.ramp_time">1</intProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController">
+          <intProp name="LoopController.loops">1</intProp>
+        </elementProp>
+      </ThreadGroup>
+      <hashTree>
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="API">
+          <stringProp name="HTTPSampler.domain">example.com</stringProp>
+          <stringProp name="HTTPSampler.path">/api</stringProp>
+        </HTTPSamplerProxy>
+        <hashTree/>
+      </hashTree>
+    </hashTree>
+  </hashTree>
+</jmeterTestPlan>
+""",
+        encoding="utf-8",
+    )
+    runner = JMeterRunner("/opt/jmeter")
+
+    modified = runner._inject_thread_config(
+        str(script_path),
+        threads=5,
+        ramp_time=2,
+        duration=30,
+        scenario={
+            "type": "image-load",
+            "resource_load": {
+                "enabled": True,
+                "max_images_per_response": 3,
+                "timeout_ms": 3000,
+            },
+        },
+    )
+
+    ET.parse(modified)
+    text = open(modified, encoding="utf-8").read()
+    assert "Image Resource Loader" in text
+    assert "final int maxImages = 3" in text
+    assert "prev.addSubResult(sample)" in text
+
+
+def test_image_resource_loader_enables_subresults_output(tmp_path):
+    script_path = tmp_path / "test.jmx"
+    script_path.write_text("<jmeterTestPlan></jmeterTestPlan>", encoding="utf-8")
+    runner = JMeterRunner("/opt/jmeter")
+
+    _, _, _, popen = _run_with_patches(
+        runner,
+        script_path,
+        tmp_path / "result",
+        {
+            "threads": "1",
+            "duration": "1",
+            "scenario": json.dumps({
+                "type": "image-load",
+                "resource_load": {"enabled": True},
+            }),
+        },
+    )
+
+    cmd = popen.call_args.args[0]
+    assert "-Jjmeter.save.saveservice.subresults=true" in cmd

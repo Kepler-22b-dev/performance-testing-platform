@@ -80,6 +80,22 @@
         .log-box .log-warn { color: #dcdcaa; }
         .log-box .log-error { color: #f44747; }
         .log-loading { text-align: center; padding: 16px; color: #888; font-size: 12px; }
+        .tool-log-layout { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 12px; align-items: start; }
+        .tool-log-sidebar { border: 1px solid #e0e0e0; border-radius: 6px; background: #fafafa; padding: 10px; min-width: 0; }
+        .tool-log-section-title { font-size: 11px; color: #888; font-weight: 600; margin: 4px 0 8px; }
+        .tool-log-section-title.with-gap { margin-top: 16px; }
+        .tool-log-list { display: grid; gap: 6px; }
+        .tool-log-item { width: 100%; border: 1px solid #e5e7eb; border-radius: 6px; background: #fff; padding: 9px 10px; cursor: pointer; text-align: left; color: #333; }
+        .tool-log-item:hover { border-color: #cbd5e1; background: #f8fafc; }
+        .tool-log-item.active { border-color: #1a1a1a; box-shadow: inset 3px 0 0 #1a1a1a; }
+        .tool-log-item .name { font-size: 12px; font-weight: 600; line-height: 1.4; overflow-wrap: anywhere; }
+        .tool-log-item .desc { margin-top: 3px; font-size: 11px; color: #777; line-height: 1.35; overflow-wrap: anywhere; }
+        .tool-log-item .meta { margin-top: 5px; font-size: 11px; color: #999; line-height: 1.35; }
+        .tool-log-select { width: 100%; height: 32px; padding: 5px 8px; border: 1px solid #d0d0d0; border-radius: 4px; background: #fff; font-size: 12px; color: #333; margin-bottom: 8px; }
+        .tool-log-viewer { min-width: 0; }
+        .tool-log-meta { min-height: 32px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 8px 10px; border: 1px solid #e0e0e0; border-bottom: none; border-radius: 6px 6px 0 0; background: #fff; font-size: 12px; color: #666; }
+        .tool-log-meta strong { color: #1a1a1a; }
+        .tool-log-box { min-height: 520px; max-height: 68vh; border-radius: 0 0 6px 6px; }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
         .form-group { margin-bottom: 16px; }
         .form-group label { display: block; font-size: 13px; color: #555; margin-bottom: 6px; font-weight: 500; }
@@ -243,6 +259,7 @@
             .arch-tier-label { border-right: 0; border-bottom: 1px solid #e5e7eb; padding: 0 0 8px; }
             .arch-nodes.cols-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
             .arch-nodes.cols-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .tool-log-layout { grid-template-columns: 1fr; }
         }
         @media (max-width: 700px) {
             .header { align-items: flex-start; flex-direction: column; padding: 8px 20px; gap: 8px; }
@@ -293,6 +310,7 @@
             <button onclick="showPage('trend')">性能趋势</button>
             <button onclick="showPage('alerts')">告警规则</button>
             <button onclick="showPage('envs')">环境管理</button>
+            <button onclick="showPage('tool-logs')">工具日志</button>
             <button onclick="showPage('scripts')">脚本管理</button>
             <a href="/docs" target="_blank" style="background:transparent;border:1px solid #d0d0d0;color:#555;padding:6px 12px;border-radius:4px;text-decoration:none;font-size:13px;cursor:pointer">API 文档</a>
         </div>
@@ -638,6 +656,47 @@
             </div>
         </div>
 
+        <!-- 工具日志 -->
+        <div id="page-tool-logs" class="hidden">
+            <div class="task-list">
+                <div class="page-header">
+                    <div class="page-title-group">
+                        <h2 style="font-size:16px;font-weight:600;">工具日志</h2>
+                        <span class="progress-text">平台运行日志、JMeter 执行日志、错误响应日志集中排查</span>
+                    </div>
+                    <div class="toolbar-actions">
+                        <select id="tool-log-lines" class="compact-select" onchange="refreshToolLog()">
+                            <option value="200">最近 200 行</option>
+                            <option value="500" selected>最近 500 行</option>
+                            <option value="1000">最近 1000 行</option>
+                            <option value="3000">最近 3000 行</option>
+                        </select>
+                        <button class="filter-btn" onclick="refreshToolLog()">刷新</button>
+                    </div>
+                </div>
+                <div class="tool-log-layout">
+                    <div class="tool-log-sidebar">
+                        <div class="tool-log-section-title">平台日志</div>
+                        <div id="tool-platform-logs" class="tool-log-list">
+                            <div class="empty-tip" style="padding:12px;">加载中...</div>
+                        </div>
+
+                        <div class="tool-log-section-title with-gap">任务日志</div>
+                        <select id="tool-task-select" class="tool-log-select" onchange="loadToolTaskLogs(this.value)">
+                            <option value="">请选择任务</option>
+                        </select>
+                        <div id="tool-task-logs" class="tool-log-list">
+                            <div class="empty-tip" style="padding:12px;">选择任务后查看 JMeter 日志</div>
+                        </div>
+                    </div>
+                    <div class="tool-log-viewer">
+                        <div id="tool-log-meta" class="tool-log-meta">请选择左侧日志</div>
+                        <div id="tool-log-content" class="log-box tool-log-box"><span class="log-loading">请选择日志</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- 创建任务 -->
         <div id="page-create" class="hidden create-page">
             <div class="task-list create-guide-panel">
@@ -687,6 +746,7 @@
                             <option value="spike-recovery">尖刺恢复 - 800并发/5分钟</option>
                             <option value="ramp-hold-cool">加压-保持-冷却 - 200并发/10分钟</option>
                             <option value="double-peak">双峰测试 - 300并发/10分钟</option>
+                            <option value="image-load">图片资源加载 - 50并发/5分钟</option>
                         </select>
                     </div>
                     <div class="form-group" style="margin-bottom:0;">
@@ -1638,6 +1698,7 @@
                     (page === 'trend' && b.textContent === '性能趋势') ||
                     (page === 'alerts' && b.textContent === '告警规则') ||
                     (page === 'envs' && b.textContent === '环境管理') ||
+                    (page === 'tool-logs' && b.textContent === '工具日志') ||
                     (page === 'scripts' && b.textContent === '脚本管理')) {
                     b.classList.add('active');
                 }
@@ -1659,6 +1720,7 @@
             if (page === 'trend') loadTrend();
             if (page === 'alerts') loadAlerts();
             if (page === 'envs') loadEnvs();
+            if (page === 'tool-logs') loadToolLogsPage();
             if (page === 'scripts') loadScripts();
         }
 
@@ -1744,6 +1806,7 @@
                 const agents = resolveNodesDisplay(t.target_agents).join(', ');
                 const created = t.created_at ? new Date(t.created_at * 1000).toLocaleString() : '-';
                 let actions = `<a class="clickable" onclick="viewTask('${t.task_id}')">查看图表</a>`;
+                actions += ` <button class="filter-btn btn-sm" style="margin-left:8px" onclick="openToolLogsForTask('${t.task_id}')">工具日志</button>`;
                 if (t.status === 'running') {
                     actions += ` <button class="filter-btn btn-sm" style="margin-left:8px;background:#f0f0f0" onclick="showAdjustModal('${t.task_id}')">调整参数</button>`;
                     actions += ` <button class="btn-danger btn-sm" style="margin-left:8px" onclick="stopTask('${t.task_id}')">停止</button>`;
@@ -1826,21 +1889,305 @@
                 const res = await fetch(`${API}/api/results/tasks/${taskId}/logs/${agentId}`);
                 if (!res.ok) { box.innerHTML = '<span class="log-loading">暂无日志</span>'; return; }
                 const data = await res.json();
-                const lines = data.content.split('\n');
-                box.innerHTML = lines.map(line => {
-                    if (line.includes(' ERROR ') || line.includes('Exception') || line.includes('Caused by')) {
-                        return `<span class="log-error">${escapeHtml(line)}</span>`;
-                    } else if (line.includes(' WARN ')) {
-                        return `<span class="log-warn">${escapeHtml(line)}</span>`;
-                    } else if (line.includes(' INFO ')) {
-                        return `<span class="log-info">${escapeHtml(line)}</span>`;
-                    }
-                    return escapeHtml(line);
-                }).join('\n');
+                box.innerHTML = renderLogContent(data.content || '');
                 box.scrollTop = box.scrollHeight;
             } catch (e) {
                 box.innerHTML = '<span class="log-loading">加载失败</span>';
             }
+        }
+
+        function renderLogContent(content) {
+            const text = String(content || '');
+            if (!text.trim()) return '<span class="log-loading">日志为空</span>';
+            return text.split('\n').map(line => {
+                if (line.includes(' ERROR ') || line.includes('Exception') || line.includes('Caused by') || line.includes('Traceback')) {
+                    return `<span class="log-error">${escapeHtml(line)}</span>`;
+                } else if (line.includes(' WARN ') || line.includes('WARNING')) {
+                    return `<span class="log-warn">${escapeHtml(line)}</span>`;
+                } else if (line.includes(' INFO ')) {
+                    return `<span class="log-info">${escapeHtml(line)}</span>`;
+                }
+                return escapeHtml(line);
+            }).join('\n');
+        }
+
+        // ===== 工具日志 =====
+        let toolLogState = {
+            platformLogs: [],
+            tasks: [],
+            taskAgents: [],
+            current: null,
+            pendingTaskId: null,
+        };
+
+        async function fetchToolLogTasks() {
+            const [tasksRes, resultsRes] = await Promise.allSettled([
+                fetch(`${API}/api/tasks/`),
+                fetch(`${API}/api/results/tasks`),
+            ]);
+
+            let memoryTasks = [];
+            if (tasksRes.status === 'fulfilled' && tasksRes.value.ok) {
+                const data = await tasksRes.value.json();
+                memoryTasks = data.tasks || [];
+            }
+
+            let resultTasks = [];
+            if (resultsRes.status === 'fulfilled' && resultsRes.value.ok) {
+                const data = await resultsRes.value.json();
+                resultTasks = (data.tasks || []).map(t => ({
+                    task_id: t.task_id,
+                    status: 'completed',
+                    created_at: t.created_at,
+                    modified_at: t.modified_at,
+                    source: 'result',
+                }));
+            }
+
+            const taskMap = new Map();
+            memoryTasks.forEach(t => taskMap.set(t.task_id, t));
+            resultTasks.forEach(t => {
+                if (!taskMap.has(t.task_id)) taskMap.set(t.task_id, t);
+            });
+            return Array.from(taskMap.values())
+                .sort((a, b) => ((b.modified_at || b.end_time || b.created_at) || 0) - ((a.modified_at || a.end_time || a.created_at) || 0));
+        }
+
+        async function loadToolLogsPage() {
+            const content = document.getElementById('tool-log-content');
+            if (content) content.innerHTML = '<span class="log-loading">加载中...</span>';
+
+            await Promise.all([loadToolPlatformLogs(), loadToolTaskOptions()]);
+
+            if (toolLogState.pendingTaskId) {
+                const taskId = toolLogState.pendingTaskId;
+                toolLogState.pendingTaskId = null;
+                await selectToolTask(taskId);
+                return;
+            }
+
+            if (toolLogState.current) {
+                if (toolLogState.current.scope === 'task') {
+                    await selectToolTask(toolLogState.current.taskId);
+                } else {
+                    refreshToolLog();
+                }
+                return;
+            }
+
+            const firstLog = toolLogState.platformLogs.find(log => log.exists);
+            if (firstLog) {
+                readToolPlatformLog(firstLog.key);
+            } else {
+                setToolLogEmpty('暂无平台日志文件');
+            }
+        }
+
+        async function loadToolPlatformLogs() {
+            const container = document.getElementById('tool-platform-logs');
+            if (!container) return;
+            try {
+                const res = await fetch(`${API}/api/tool-logs/platform`);
+                if (!res.ok) throw new Error('load platform logs failed');
+                const data = await res.json();
+                toolLogState.platformLogs = data.logs || [];
+                renderToolPlatformLogs();
+            } catch (e) {
+                container.innerHTML = '<div class="empty-tip" style="padding:12px;">平台日志加载失败</div>';
+            }
+        }
+
+        async function loadToolTaskOptions() {
+            const select = document.getElementById('tool-task-select');
+            if (!select) return;
+            const currentValue = toolLogState.pendingTaskId || select.value;
+            try {
+                toolLogState.tasks = await fetchToolLogTasks();
+                select.innerHTML = '<option value="">请选择任务</option>' + toolLogState.tasks.map(t => {
+                    const name = (scriptMap[t.script_id] || t.script_id || '').replace(/^-$|^undefined$/, '');
+                    const status = t.status ? ` / ${t.status}` : '';
+                    const created = t.created_at ? ` / ${new Date(t.created_at * 1000).toLocaleString()}` : '';
+                    const label = `${t.task_id.substring(0, 8)}${name ? ' / ' + name : ''}${status}${created}`;
+                    return `<option value="${escapeHtml(t.task_id)}">${escapeHtml(label)}</option>`;
+                }).join('');
+                if (currentValue && toolLogState.tasks.some(t => t.task_id === currentValue)) {
+                    select.value = currentValue;
+                }
+            } catch (e) {
+                select.innerHTML = '<option value="">任务列表加载失败</option>';
+            }
+        }
+
+        function renderToolPlatformLogs() {
+            const container = document.getElementById('tool-platform-logs');
+            if (!container) return;
+            if (!toolLogState.platformLogs.length) {
+                container.innerHTML = '<div class="empty-tip" style="padding:12px;">暂无平台日志配置</div>';
+                return;
+            }
+
+            container.innerHTML = toolLogState.platformLogs.map(log => {
+                const active = toolLogState.current?.scope === 'platform' && toolLogState.current.key === log.key ? ' active' : '';
+                return `<button class="tool-log-item${active}" onclick="readToolPlatformLog('${log.key}')">
+                    <div class="name">${escapeHtml(log.filename)}</div>
+                    <div class="desc">${escapeHtml(log.description || '')}</div>
+                    <div class="meta">${log.exists ? `${formatBytes(log.size)} / ${formatLogTime(log.modified_at)}` : '文件未生成'}</div>
+                </button>`;
+            }).join('');
+        }
+
+        async function selectToolTask(taskId) {
+            const select = document.getElementById('tool-task-select');
+            if (select) select.value = taskId || '';
+            await loadToolTaskLogs(taskId);
+        }
+
+        async function loadToolTaskLogs(taskId) {
+            const container = document.getElementById('tool-task-logs');
+            if (!container) return;
+
+            if (!taskId) {
+                toolLogState.taskAgents = [];
+                container.innerHTML = '<div class="empty-tip" style="padding:12px;">选择任务后查看 JMeter 日志</div>';
+                return;
+            }
+
+            container.innerHTML = '<div class="empty-tip" style="padding:12px;">加载中...</div>';
+            try {
+                const res = await fetch(`${API}/api/tool-logs/tasks/${encodeURIComponent(taskId)}`);
+                if (!res.ok) throw new Error('load task logs failed');
+                const data = await res.json();
+                toolLogState.taskAgents = data.agents || [];
+                renderToolTaskLogs(taskId);
+
+                const current = toolLogState.current;
+                if (current?.scope === 'task' && current.taskId === taskId) {
+                    const currentAgent = toolLogState.taskAgents.find(agent => agent.agent_id === current.agentId);
+                    const currentLog = currentAgent ? (currentAgent.logs || []).find(log => log.key === current.key && log.exists) : null;
+                    if (currentAgent && currentLog) {
+                        readToolTaskLog(taskId, current.agentId, current.key);
+                        return;
+                    }
+                }
+
+                const firstAgent = toolLogState.taskAgents.find(agent => (agent.logs || []).some(log => log.exists));
+                const firstLog = firstAgent ? firstAgent.logs.find(log => log.exists) : null;
+                if (firstAgent && firstLog) {
+                    readToolTaskLog(taskId, firstAgent.agent_id, firstLog.key);
+                } else {
+                    setToolLogEmpty('该任务暂无工具日志文件');
+                }
+            } catch (e) {
+                container.innerHTML = '<div class="empty-tip" style="padding:12px;">任务日志加载失败</div>';
+                setToolLogEmpty('任务日志加载失败');
+            }
+        }
+
+        function renderToolTaskLogs(taskId) {
+            const container = document.getElementById('tool-task-logs');
+            if (!container) return;
+            if (!toolLogState.taskAgents.length) {
+                container.innerHTML = '<div class="empty-tip" style="padding:12px;">该任务暂无日志目录</div>';
+                return;
+            }
+
+            container.innerHTML = toolLogState.taskAgents.map(agent => {
+                const logs = agent.logs || [];
+                return `<div class="tool-log-section-title">${escapeHtml(resolveNodeDisplay(agent.agent_id))}</div>` + logs.map(log => {
+                    const active = toolLogState.current?.scope === 'task' &&
+                        toolLogState.current.taskId === taskId &&
+                        toolLogState.current.agentId === agent.agent_id &&
+                        toolLogState.current.key === log.key ? ' active' : '';
+                    return `<button class="tool-log-item${active}" onclick="readToolTaskLog('${taskId}', '${agent.agent_id}', '${log.key}')">
+                        <div class="name">${escapeHtml(log.filename)}</div>
+                        <div class="desc">${escapeHtml(log.description || '')}</div>
+                        <div class="meta">${log.exists ? `${formatBytes(log.size)} / ${formatLogTime(log.modified_at)}` : '文件未生成'}</div>
+                    </button>`;
+                }).join('');
+            }).join('');
+        }
+
+        async function readToolPlatformLog(logKey) {
+            toolLogState.current = { scope: 'platform', key: logKey };
+            renderToolPlatformLogs();
+            await readToolLogContent(`${API}/api/tool-logs/platform/${encodeURIComponent(logKey)}`, '平台日志');
+        }
+
+        async function readToolTaskLog(taskId, agentId, logKey) {
+            toolLogState.current = { scope: 'task', taskId, agentId, key: logKey };
+            renderToolTaskLogs(taskId);
+            const url = `${API}/api/tool-logs/tasks/${encodeURIComponent(taskId)}/${encodeURIComponent(agentId)}/${encodeURIComponent(logKey)}`;
+            await readToolLogContent(url, `${taskId.substring(0, 8)} / ${resolveNodeDisplay(agentId)}`);
+        }
+
+        async function readToolLogContent(baseUrl, fallbackTitle) {
+            const lines = document.getElementById('tool-log-lines')?.value || '500';
+            const content = document.getElementById('tool-log-content');
+            const meta = document.getElementById('tool-log-meta');
+            if (!content || !meta) return;
+
+            meta.innerHTML = `<strong>${escapeHtml(fallbackTitle)}</strong><span>加载中...</span>`;
+            content.innerHTML = '<span class="log-loading">加载中...</span>';
+
+            try {
+                const res = await fetch(`${baseUrl}?lines=${encodeURIComponent(lines)}`);
+                if (!res.ok) {
+                    const errorText = res.status === 404 ? '日志不存在或尚未生成' : '日志读取失败';
+                    meta.innerHTML = `<strong>${escapeHtml(fallbackTitle)}</strong><span>${errorText}</span>`;
+                    content.innerHTML = `<span class="log-loading">${errorText}</span>`;
+                    return;
+                }
+                const data = await res.json();
+                meta.innerHTML = [
+                    `<strong>${escapeHtml(data.description || data.filename || fallbackTitle)}</strong>`,
+                    `<span>${escapeHtml(data.filename || '')}</span>`,
+                    `<span>${formatBytes(data.size || 0)}</span>`,
+                    `<span>${formatLogTime(data.modified_at)}</span>`,
+                    `<span>最近 ${escapeHtml(String(data.lines || lines))} 行</span>`,
+                ].join('');
+                content.innerHTML = renderLogContent(data.content || '');
+                content.scrollTop = content.scrollHeight;
+            } catch (e) {
+                meta.innerHTML = `<strong>${escapeHtml(fallbackTitle)}</strong><span>日志读取失败</span>`;
+                content.innerHTML = '<span class="log-loading">日志读取失败</span>';
+            }
+        }
+
+        function refreshToolLog() {
+            const current = toolLogState.current;
+            if (!current) {
+                loadToolLogsPage();
+                return;
+            }
+            if (current.scope === 'platform') {
+                readToolPlatformLog(current.key);
+            } else if (current.scope === 'task') {
+                readToolTaskLog(current.taskId, current.agentId, current.key);
+            }
+        }
+
+        function openToolLogsForTask(taskId) {
+            toolLogState.pendingTaskId = taskId;
+            showPage('tool-logs');
+        }
+
+        function setToolLogEmpty(message) {
+            const meta = document.getElementById('tool-log-meta');
+            const content = document.getElementById('tool-log-content');
+            if (meta) meta.textContent = message;
+            if (content) content.innerHTML = `<span class="log-loading">${escapeHtml(message)}</span>`;
+        }
+
+        function formatBytes(size) {
+            const num = Number(size || 0);
+            if (num >= 1024 * 1024) return (num / 1024 / 1024).toFixed(1) + ' MB';
+            if (num >= 1024) return (num / 1024).toFixed(1) + ' KB';
+            return num + ' B';
+        }
+
+        function formatLogTime(timestamp) {
+            if (!timestamp) return '未生成';
+            return new Date(timestamp * 1000).toLocaleString();
         }
 
         function toggleExpand(taskId) {
@@ -2374,6 +2721,7 @@
             'spike-recovery': { threads: 800, ramp: 3, duration: 300, desc: '尖刺恢复：瞬间冲击后系统恢复能力。', advanced: false },
             'ramp-hold-cool': { threads: 200, ramp: 60, duration: 600, desc: '加压-保持-冷却：模拟真实业务波峰。', advanced: false },
             'double-peak': { threads: 300, ramp: 30, duration: 600, desc: '双峰测试：模拟两个连续的业务高峰。', advanced: false },
+            'image-load': { threads: 50, ramp: 20, duration: 300, desc: '图片资源加载：接口响应中提取图片 URL 并额外下载图片资源，默认每个响应最多加载 6 张，适合校准图片/CDN/对象存储流量。', advanced: false },
         };
 
         let customSteps = [];
@@ -2477,7 +2825,7 @@
             const data = [];
             const interval = Math.max(1, Math.floor(duration / 200));
 
-            if (scenario === 'smoke' || scenario === 'load' || scenario === 'peak' || scenario === 'endurance') {
+            if (scenario === 'smoke' || scenario === 'load' || scenario === 'peak' || scenario === 'endurance' || scenario === 'image-load') {
                 for (let t = 0; t <= duration; t += interval) {
                     let threads = t < rampTime ? Math.round((t / rampTime) * maxThreads) : maxThreads;
                     data.push({ time: t, threads: threads });
@@ -2868,6 +3216,17 @@
                 config.steps = getCreateNumber('create-steps', 5);
                 config.step_duration = getCreateNumber('create-step-duration', 30);
             }
+            if (scenario === 'image-load') {
+                config.resource_load = {
+                    enabled: true,
+                    mode: 'image',
+                    max_images_per_response: 6,
+                    timeout_ms: 5000,
+                    max_body_chars: 2000000,
+                    only_successful_parent: true,
+                    label_prefix: 'IMG',
+                };
+            }
             if (scenario === 'custom' && customSteps.length > 0) {
                 config.custom_steps = customSteps.map(s => ({
                     threads: parseInt(s.threads, 10) || 1,
@@ -2900,11 +3259,22 @@
             return mb + 'MB';
         }
 
-        function estimateCreateHeapMb(threads, captureErrorLog) {
-            const perThreadMb = captureErrorLog ? 12 : 8;
+        function scenarioLoadsImages(scenario) {
+            return scenario && (scenario.type === 'image-load' || scenario.resource_load?.enabled === true);
+        }
+
+        function getScenarioResourceText(scenario) {
+            if (!scenarioLoadsImages(scenario)) return '';
+            const maxImages = scenario.resource_load?.max_images_per_response || 6;
+            return `加载图片资源，最多 ${maxImages} 张/响应`;
+        }
+
+        function estimateCreateHeapMb(threads, captureErrorLog, loadImages) {
+            const perThreadMb = loadImages ? (captureErrorLog ? 18 : 14) : (captureErrorLog ? 12 : 8);
             let estimate = 512 + (Math.max(1, threads) * perThreadMb);
             if (threads >= 300) estimate *= 1.2;
             if (threads >= 800) estimate *= 1.25;
+            if (loadImages) estimate *= 1.25;
             estimate = Math.max(1024, estimate);
             return Math.min(65536, Math.ceil(estimate / 256) * 256);
         }
@@ -2915,7 +3285,7 @@
             if (!auto || !heapInput || !auto.checked) return;
             const scenario = getCreateScenarioConfig();
             const captureErrorLog = document.getElementById('create-error-log')?.checked !== false;
-            heapInput.value = estimateCreateHeapMb(scenario.threads, captureErrorLog);
+            heapInput.value = estimateCreateHeapMb(scenario.threads, captureErrorLog, scenarioLoadsImages(scenario));
         }
 
         function onCreateHeapInput() {
@@ -2928,15 +3298,17 @@
             const help = document.getElementById('create-jvm-help');
             if (!help) return;
             const threads = Math.max(1, parseInt(scenario.threads, 10) || 1);
-            const perThreadMb = runtime.captureErrorLog ? 12 : 8;
-            const recommended = estimateCreateHeapMb(threads, runtime.captureErrorLog);
+            const loadImages = scenarioLoadsImages(scenario);
+            const perThreadMb = loadImages ? (runtime.captureErrorLog ? 18 : 14) : (runtime.captureErrorLog ? 12 : 8);
+            const recommended = estimateCreateHeapMb(threads, runtime.captureErrorLog, loadImages);
             const current = parseInt(runtime.jvmHeapMb, 10) || 0;
             const status = current < recommended
                 ? `当前填写 ${formatHeapMb(current)}，建议提高到 ${formatHeapMb(recommended)} 左右再跑。`
                 : `当前填写 ${formatHeapMb(current)}，已覆盖当前并发的起步建议。`;
             const autoText = runtime.autoHeap ? '已开启按场景自动推荐。' : '已手动设置，勾选“按压测场景自动推荐”可恢复自动赋值。';
+            const resourceText = loadImages ? '当前场景会额外下载图片资源，JVM 和网络压力都会更高。' : '';
             help.innerHTML =
-                `<strong>建议 ${formatHeapMb(recommended)} 起步。</strong>${escapeHtml(autoText + status)}` +
+                `<strong>建议 ${formatHeapMb(recommended)} 起步。</strong>${escapeHtml(autoText + status + resourceText)}` +
                 `<span class="formula">粗略公式：512MB + 并发数 × ${perThreadMb}MB。普通 HTTP 可按 8MB/线程估算；开启错误日志、大响应体或复杂断言按 12MB/线程起算，再上调 30%-50%。最终不要超过压力机可用内存的 60%-70%。</span>`;
         }
 
@@ -3075,9 +3447,10 @@
             const errorLogText = runtime.captureErrorLog ? '开启' : '关闭';
             const exclusiveText = runtime.enforceSingleAgentTask ? '独占' : '全局并发';
             const jmeterOptionsText = getCreateJMeterOptionsText();
+            const resourceText = getScenarioResourceText(scenario);
 
             const focusItems = [
-                { label: '核心负载', value: String(scenario.threads), caption: `${scenarioName} / ${durationText}`, primary: true },
+                { label: '核心负载', value: String(scenario.threads), caption: `${scenarioName} / ${durationText}${resourceText ? ' / ' + resourceText : ''}`, primary: true },
                 { label: '执行模式', value: modeText, caption: nodeText },
                 { label: 'JVM', value: heapText, caption: `${runtime.autoHeap ? '自动推荐 / ' : ''}错误日志${errorLogText}` },
                 { label: '压力机', value: exclusiveText, caption: runtime.enforceSingleAgentTask ? '同节点只跑一个任务' : '仅按全局并发限制' },
@@ -3118,6 +3491,7 @@
                 { label: 'JMeter', value: jmeterOptionsText, wide: jmeterOptionsText.length > 16 },
                 { label: '错误日志', value: errorLogText },
                 { label: '压力机', value: runtime.enforceSingleAgentTask ? '同节点独占' : '关闭独占校验' },
+                ...(resourceText ? [{ label: '资源', value: resourceText, wide: true }] : []),
                 { label: 'CSV', value: csvText, wide: csvText !== '不使用 CSV' },
                 { label: '模式', value: modeText },
             ];
