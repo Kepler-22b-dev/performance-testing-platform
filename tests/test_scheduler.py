@@ -1,7 +1,7 @@
 import time
 from unittest.mock import patch, MagicMock
 
-from common.protocol import CommandType, ProgressUpdate, TaskCommand, TaskStatus
+from common.protocol import CommandType, ProgressUpdate, TaskCommand, TaskResult, TaskStatus
 from manager.core.scheduler import TaskScheduler
 from tests.conftest import make_running_task, make_task, make_completed_result
 
@@ -270,6 +270,74 @@ class TestTaskCommandTargeting:
         payloads = [call.args[1] for call in s.redis.publish.call_args_list]
         commands = [TaskCommand.from_json(payload) for payload in payloads]
         assert [c.target_agent_id for c in commands] == ["agent-001", "agent-002"]
+
+
+class TestHandleResultFinalization:
+    def test_partial_multi_agent_result_does_not_finish_task(self):
+        s = _build_scheduler()
+        task_id = "task-multi"
+        first_result = make_completed_result("agent-001")
+        task_before = make_task(
+            task_id=task_id,
+            status=TaskStatus.RUNNING,
+            target_agents=["agent-001", "agent-002"],
+            results={},
+        )
+        partial_task = make_task(
+            task_id=task_id,
+            status=TaskStatus.RUNNING,
+            target_agents=["agent-001", "agent-002"],
+            results={"agent-001": first_result},
+        )
+
+        with patch("manager.core.scheduler.get_sync_db", return_value=MagicMock()), \
+             patch("manager.core.scheduler.db_get_task", side_effect=[task_before, partial_task]), \
+             patch("manager.core.scheduler.db_add_task_result"), \
+             patch("manager.core.scheduler.db_update_task") as mock_update:
+            s.handle_result(TaskResult(
+                task_id=task_id,
+                agent_id="agent-001",
+                status=TaskStatus.COMPLETED,
+                start_time=first_result["start_time"],
+                end_time=first_result["end_time"],
+                summary=first_result["summary"],
+            ))
+
+        mock_update.assert_not_called()
+
+    def test_multi_agent_result_finishes_after_all_targets_report(self):
+        s = _build_scheduler()
+        task_id = "task-multi"
+        first_result = make_completed_result("agent-001")
+        second_result = make_completed_result("agent-002")
+        task_before = make_task(
+            task_id=task_id,
+            status=TaskStatus.RUNNING,
+            target_agents=["agent-001", "agent-002"],
+            results={"agent-001": first_result},
+        )
+        completed_task = make_task(
+            task_id=task_id,
+            status=TaskStatus.RUNNING,
+            target_agents=["agent-001", "agent-002"],
+            results={"agent-001": first_result, "agent-002": second_result},
+        )
+
+        with patch("manager.core.scheduler.get_sync_db", return_value=MagicMock()), \
+             patch("manager.core.scheduler.db_get_task", side_effect=[task_before, completed_task]), \
+             patch("manager.core.scheduler.db_add_task_result"), \
+             patch("manager.core.scheduler.db_update_task") as mock_update:
+            s.handle_result(TaskResult(
+                task_id=task_id,
+                agent_id="agent-002",
+                status=TaskStatus.COMPLETED,
+                start_time=second_result["start_time"],
+                end_time=second_result["end_time"],
+                summary=second_result["summary"],
+            ))
+
+        mock_update.assert_called_once()
+        assert mock_update.call_args.kwargs["status"] == TaskStatus.COMPLETED
 
 
 class TestProgressAggregation:

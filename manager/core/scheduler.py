@@ -504,15 +504,34 @@ class TaskScheduler:
             if not task:
                 return
 
-            all_done = all(
-                r["status"] in (TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.STOPPED)
-                for r in task.get("results", {}).values()
+            task_results = task.get("results", {}) or {}
+            expected_agents = {
+                str(agent_id)
+                for agent_id in (task.get("target_agents") or [])
+                if agent_id
+            }
+            terminal_statuses = (TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.STOPPED)
+
+            if expected_agents:
+                all_expected_reported = expected_agents.issubset(set(task_results.keys()))
+                results_to_check = [
+                    task_results[agent_id]
+                    for agent_id in expected_agents
+                    if agent_id in task_results
+                ]
+            else:
+                all_expected_reported = bool(task_results)
+                results_to_check = list(task_results.values())
+
+            all_done = all_expected_reported and all(
+                r["status"] in terminal_statuses
+                for r in results_to_check
             )
 
             if all_done:
                 has_failed = any(
                     r["status"] in (TaskStatus.FAILED, TaskStatus.STOPPED)
-                    for r in task.get("results", {}).values()
+                    for r in task_results.values()
                 )
                 new_status = TaskStatus.FAILED if has_failed else TaskStatus.COMPLETED
                 db_update_task(db, result.task_id,

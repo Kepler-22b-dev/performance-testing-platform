@@ -9,6 +9,8 @@ import time
 import csv
 import json
 import xml.etree.ElementTree as ET
+import random
+from collections import deque
 from typing import Optional, Callable
 
 import sys
@@ -58,6 +60,85 @@ class JMeterRunner:
         except (TypeError, ValueError):
             parsed = default
         return max(min_value, min(max_value, parsed))
+
+    def _final_result_sample_limit(self) -> int:
+        """Limit retained response times for final percentile calculation."""
+        try:
+            limit = int(os.getenv("JMETER_RESULT_SAMPLE_LIMIT", "500000"))
+        except (TypeError, ValueError):
+            limit = 500000
+        return max(10000, limit)
+
+    def _record_percentile_sample(
+        self,
+        samples: list[int],
+        elapsed: int,
+        total: int,
+        rng: random.Random,
+        limit: int,
+    ):
+        if len(samples) < limit:
+            samples.append(elapsed)
+            return
+
+        index = rng.randrange(total)
+        if index < limit:
+            samples[index] = elapsed
+
+    def _apply_stream_summary(
+        self,
+        summary: dict,
+        total: int,
+        error_count: int,
+        elapsed_sum: int,
+        min_elapsed: Optional[int],
+        max_elapsed: int,
+        percentile_times: list[int],
+        min_ts: Optional[int],
+        max_ts: Optional[int],
+        ts_count: int,
+        bytes_received: int,
+        bytes_sent: int,
+        latency_sum: int,
+        latency_count: int,
+        connect_sum: int,
+        connect_count: int,
+        response_codes: dict,
+        sample_limit: int,
+    ) -> dict:
+        if total <= 0:
+            return summary
+
+        percentile_times.sort()
+        duration = (
+            (max_ts - min_ts) / 1000
+            if min_ts is not None and max_ts is not None and ts_count > 1 and max_ts > min_ts
+            else 1
+        )
+
+        summary["total_samples"] = total
+        summary["error_count"] = error_count
+        summary["success_count"] = total - error_count
+        summary["error_rate"] = fmt_pct(error_count / total * 100)
+        summary["success_rate"] = fmt_pct((total - error_count) / total * 100)
+        summary["avg_response_time"] = round(elapsed_sum / total, 2)
+        summary["min_response_time"] = min_elapsed if min_elapsed is not None else 0
+        summary["max_response_time"] = max_elapsed
+        summary["p50"] = percentile(percentile_times, 50)
+        summary["p90"] = percentile(percentile_times, 90)
+        summary["p95"] = percentile(percentile_times, 95)
+        summary["p99"] = percentile(percentile_times, 99)
+        summary["throughput"] = round(total / duration, 2) if duration > 0 else 0
+        summary["total_bytes_received"] = bytes_received
+        summary["total_bytes_sent"] = bytes_sent
+        summary["avg_bytes_per_request"] = round(bytes_received / total)
+        summary["avg_latency"] = round(latency_sum / latency_count, 2) if latency_count else 0
+        summary["avg_connect_time"] = round(connect_sum / connect_count, 2) if connect_count else 0
+        summary["response_code_dist"] = response_codes
+        summary["percentiles_approximate"] = total > len(percentile_times)
+        summary["percentile_sample_size"] = len(percentile_times)
+        summary["percentile_sample_limit"] = sample_limit
+        return summary
 
     def _find_child_hash_tree(self, root, target):
         """Return the hashTree that belongs to a JMeter tree element."""
@@ -587,12 +668,7 @@ class JMeterRunner:
             summary = self._parse_final_result(jtl_path)
 
             if exit_code != 0:
-                # JMeter 有时在测试成功时也返回非零 exit code（macOS 常见）
-                # 如果 JTL 有有效数据，视为成功
-                if summary.get("total_samples", 0) > 0:
-                    print(f"JMeter exit code {exit_code} but {summary['total_samples']} samples found, treating as success")
-                else:
-                    return {"status": "failed", "error": f"JMeter exit code {exit_code}", "summary": summary}
+                return {"status": "failed", "error": f"JMeter exit code {exit_code}", "summary": summary}
 
             # 生成 HTML 报告
             self._generate_report(jtl_path, report_path, jmeter_args)
@@ -691,8 +767,8 @@ class JMeterRunner:
 
                 new_count = 0
                 new_errors = 0
-                new_times = []
-                new_ts = []
+                new_times = deque(maxlen=500)
+                new_ts = deque(maxlen=500)
                 total_bytes = 0
                 total_latency = 0
                 total_connect = 0
@@ -779,12 +855,12 @@ class JMeterRunner:
                 self._jtl_line_count += new_count
                 self._jtl_error_count += new_errors
                 if new_times:
-                    self._jtl_recent_times = new_times[-500:]
+                    self._jtl_recent_times = list(new_times)
 
                 result["total_samples"] = self._jtl_line_count
                 result["error_count"] = self._jtl_error_count
                 result["elapsed_times"] = self._jtl_recent_times
-                result["timestamps"] = new_ts
+                result["timestamps"] = list(new_ts)
                 result["bytes_received"] = total_bytes
                 result["avg_latency"] = round(total_latency / latency_count, 2) if latency_count > 0 else 0
                 result["avg_connect_time"] = round(total_connect / connect_count, 2) if connect_count > 0 else 0
@@ -874,13 +950,23 @@ class JMeterRunner:
         """解析 XML 格式的最终结果（流式，支持大文件）"""
         import xml.etree.ElementTree as ET
 
-        elapsed_times = []
-        latency_times = []
-        connect_times = []
+        sample_limit = self._final_result_sample_limit()
+        rng = random.Random(0)
+        percentile_times = []
+        total = 0
+        elapsed_sum = 0
+        min_elapsed = None
+        max_elapsed = 0
+        latency_sum = 0
+        latency_count = 0
+        connect_sum = 0
+        connect_count = 0
         bytes_received = 0
         error_count = 0
         response_codes = {}
-        timestamps = []
+        min_ts = None
+        max_ts = None
+        ts_count = 0
 
         try:
             for event, elem in ET.iterparse(xml_path, events=("end",)):
@@ -894,11 +980,21 @@ class JMeterRunner:
                     ct = int(attrs.get("ct", 0))
                     rc = attrs.get("rc", "")
 
-                    elapsed_times.append(elapsed)
-                    timestamps.append(ts)
+                    total += 1
+                    elapsed_sum += elapsed
+                    min_elapsed = elapsed if min_elapsed is None else min(min_elapsed, elapsed)
+                    max_elapsed = max(max_elapsed, elapsed)
+                    self._record_percentile_sample(percentile_times, elapsed, total, rng, sample_limit)
+
+                    if ts:
+                        min_ts = ts if min_ts is None else min(min_ts, ts)
+                        max_ts = ts if max_ts is None else max(max_ts, ts)
+                        ts_count += 1
                     bytes_received += by
-                    latency_times.append(lt)
-                    connect_times.append(ct)
+                    latency_sum += lt
+                    latency_count += 1
+                    connect_sum += ct
+                    connect_count += 1
 
                     if not success:
                         error_count += 1
@@ -909,42 +1005,47 @@ class JMeterRunner:
         except Exception:
             pass
 
-        if elapsed_times:
-            elapsed_times.sort()
-            duration = (max(timestamps) - min(timestamps)) / 1000 if timestamps and len(timestamps) > 1 else 1
-            total = len(elapsed_times)
-
-            summary["total_samples"] = total
-            summary["error_count"] = error_count
-            summary["success_count"] = total - error_count
-            summary["error_rate"] = fmt_pct(error_count / total * 100) if total > 0 else 0
-            summary["success_rate"] = fmt_pct((total - error_count) / total * 100) if total > 0 else 100.0
-            summary["avg_response_time"] = round(sum(elapsed_times) / len(elapsed_times), 2)
-            summary["min_response_time"] = min(elapsed_times)
-            summary["max_response_time"] = max(elapsed_times)
-            summary["p50"] = percentile(elapsed_times, 50)
-            summary["p90"] = percentile(elapsed_times, 90)
-            summary["p95"] = percentile(elapsed_times, 95)
-            summary["p99"] = percentile(elapsed_times, 99)
-            summary["throughput"] = round(total / duration, 2) if duration > 0 else 0
-            summary["total_bytes_received"] = bytes_received
-            summary["avg_bytes_per_request"] = round(bytes_received / total) if total > 0 else 0
-            summary["avg_latency"] = round(sum(latency_times) / len(latency_times), 2) if latency_times else 0
-            summary["avg_connect_time"] = round(sum(connect_times) / len(connect_times), 2) if connect_times else 0
-            summary["response_code_dist"] = response_codes
-
-        return summary
+        return self._apply_stream_summary(
+            summary,
+            total=total,
+            error_count=error_count,
+            elapsed_sum=elapsed_sum,
+            min_elapsed=min_elapsed,
+            max_elapsed=max_elapsed,
+            percentile_times=percentile_times,
+            min_ts=min_ts,
+            max_ts=max_ts,
+            ts_count=ts_count,
+            bytes_received=bytes_received,
+            bytes_sent=0,
+            latency_sum=latency_sum,
+            latency_count=latency_count,
+            connect_sum=connect_sum,
+            connect_count=connect_count,
+            response_codes=response_codes,
+            sample_limit=sample_limit,
+        )
 
     def _parse_csv_final(self, f, summary, header_line=None):
         """解析 CSV 格式的最终结果"""
-        elapsed_times = []
-        latency_times = []
-        connect_times = []
+        sample_limit = self._final_result_sample_limit()
+        rng = random.Random(0)
+        percentile_times = []
+        total = 0
+        elapsed_sum = 0
+        min_elapsed = None
+        max_elapsed = 0
+        latency_sum = 0
+        latency_count = 0
+        connect_sum = 0
+        connect_count = 0
         bytes_received = 0
         bytes_sent = 0
         error_count = 0
         response_codes = {}
-        timestamps = []
+        min_ts = None
+        max_ts = None
+        ts_count = 0
 
         if header_line is None:
             header_line = f.readline().strip()
@@ -961,12 +1062,22 @@ class JMeterRunner:
                 lt = self._csv_int(row, "Latency")
                 ct = self._csv_int(row, "Connect")
 
-                elapsed_times.append(elapsed)
-                timestamps.append(ts)
+                total += 1
+                elapsed_sum += elapsed
+                min_elapsed = elapsed if min_elapsed is None else min(min_elapsed, elapsed)
+                max_elapsed = max(max_elapsed, elapsed)
+                self._record_percentile_sample(percentile_times, elapsed, total, rng, sample_limit)
+
+                if ts:
+                    min_ts = ts if min_ts is None else min(min_ts, ts)
+                    max_ts = ts if max_ts is None else max(max_ts, ts)
+                    ts_count += 1
                 bytes_received += by
                 bytes_sent += sby
-                latency_times.append(lt)
-                connect_times.append(ct)
+                latency_sum += lt
+                latency_count += 1
+                connect_sum += ct
+                connect_count += 1
 
                 if not success:
                     error_count += 1
@@ -976,32 +1087,26 @@ class JMeterRunner:
             except Exception:
                 pass
 
-        if elapsed_times:
-            elapsed_times.sort()
-            duration = (max(timestamps) - min(timestamps)) / 1000 if timestamps and len(timestamps) > 1 else 1
-            total = len(elapsed_times)
-
-            summary["total_samples"] = total
-            summary["error_count"] = error_count
-            summary["success_count"] = total - error_count
-            summary["error_rate"] = fmt_pct(error_count / total * 100) if total > 0 else 0
-            summary["success_rate"] = fmt_pct((total - error_count) / total * 100) if total > 0 else 100.0
-            summary["avg_response_time"] = round(sum(elapsed_times) / len(elapsed_times), 2)
-            summary["min_response_time"] = min(elapsed_times)
-            summary["max_response_time"] = max(elapsed_times)
-            summary["p50"] = percentile(elapsed_times, 50)
-            summary["p90"] = percentile(elapsed_times, 90)
-            summary["p95"] = percentile(elapsed_times, 95)
-            summary["p99"] = percentile(elapsed_times, 99)
-            summary["throughput"] = round(total / duration, 2) if duration > 0 else 0
-            summary["total_bytes_received"] = bytes_received
-            summary["total_bytes_sent"] = bytes_sent
-            summary["avg_bytes_per_request"] = round(bytes_received / total) if total > 0 else 0
-            summary["avg_latency"] = round(sum(latency_times) / len(latency_times), 2) if latency_times else 0
-            summary["avg_connect_time"] = round(sum(connect_times) / len(connect_times), 2) if connect_times else 0
-            summary["response_code_dist"] = response_codes
-
-        return summary
+        return self._apply_stream_summary(
+            summary,
+            total=total,
+            error_count=error_count,
+            elapsed_sum=elapsed_sum,
+            min_elapsed=min_elapsed,
+            max_elapsed=max_elapsed,
+            percentile_times=percentile_times,
+            min_ts=min_ts,
+            max_ts=max_ts,
+            ts_count=ts_count,
+            bytes_received=bytes_received,
+            bytes_sent=bytes_sent,
+            latency_sum=latency_sum,
+            latency_count=latency_count,
+            connect_sum=connect_sum,
+            connect_count=connect_count,
+            response_codes=response_codes,
+            sample_limit=sample_limit,
+        )
 
     def _generate_report(self, jtl_path: str, report_path: str, jmeter_args: dict = None):
         """使用 JMeter 生成 HTML Dashboard 报告"""
@@ -1014,14 +1119,24 @@ class JMeterRunner:
                 "-g", jtl_path,
                 "-o", report_path,
             ])
-            result = subprocess.run(
-                cmd,
-                timeout=60,
-                capture_output=True,
-                text=True,
-            )
+
+            env = os.environ.copy()
+            heap_mb = self._parse_heap_mb((jmeter_args or {}).get("jvm_heap_mb"))
+            if heap_mb:
+                env["HEAP"] = f"-Xms{heap_mb}m -Xmx{heap_mb}m"
+
+            os.makedirs(os.path.dirname(report_path), exist_ok=True)
+            report_log_path = os.path.join(os.path.dirname(report_path), "jmeter-report.log")
+            with open(report_log_path, "w", encoding="utf-8") as report_log:
+                result = subprocess.run(
+                    cmd,
+                    timeout=60,
+                    stdout=report_log,
+                    stderr=report_log,
+                    env=env,
+                )
             if result.returncode != 0:
-                print(f"JMeter report generation failed: {result.stderr}")
+                print(f"JMeter report generation failed, see log: {report_log_path}")
         except Exception as e:
             print(f"JMeter report generation error: {e}")
 

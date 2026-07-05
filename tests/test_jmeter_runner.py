@@ -1,4 +1,5 @@
 import json
+import os
 from unittest.mock import patch
 import xml.etree.ElementTree as ET
 
@@ -10,6 +11,13 @@ class FakeProcess:
 
     def poll(self):
         return 0
+
+
+class FailedProcess:
+    returncode = 1
+
+    def poll(self):
+        return 1
 
 
 def _run_with_patches(runner, script_path, result_dir, args):
@@ -116,6 +124,30 @@ def test_jmeter_xml_result_format_is_debug_option(tmp_path):
     assert report.call_args.args[0].endswith("result.xml")
 
 
+def test_nonzero_jmeter_exit_with_samples_is_failed(tmp_path):
+    script_path = tmp_path / "test.jmx"
+    script_path.write_text("<jmeterTestPlan></jmeterTestPlan>", encoding="utf-8")
+    runner = JMeterRunner("/opt/jmeter")
+    summary = {"total_samples": 12, "error_count": 0}
+
+    with patch.object(runner, "_inject_thread_config", return_value=str(script_path)), \
+         patch.object(runner, "_parse_final_result", return_value=summary), \
+         patch.object(runner, "_generate_report") as report, \
+         patch("agent.jmeter_runner.subprocess.Popen", return_value=FailedProcess()), \
+         patch("agent.jmeter_runner.time.sleep"):
+        result = runner.execute(
+            script_path=str(script_path),
+            result_dir=str(tmp_path / "result"),
+            jmeter_args={"threads": "1", "duration": "1"},
+            timeout=10,
+        )
+
+    assert result["status"] == "failed"
+    assert result["error"] == "JMeter exit code 1"
+    assert result["summary"] == summary
+    report.assert_not_called()
+
+
 def test_parse_csv_jtl_handles_quoted_commas(tmp_path):
     jtl_path = tmp_path / "result.jtl"
     jtl_path.write_text(
@@ -135,6 +167,50 @@ def test_parse_csv_jtl_handles_quoted_commas(tmp_path):
     assert summary["response_code_dist"] == {"200": 1, "500": 1}
 
 
+def test_final_result_parser_caps_percentile_samples(tmp_path):
+    jtl_path = tmp_path / "large.jtl"
+    rows = [
+        "timeStamp,elapsed,label,responseCode,responseMessage,threadName,success,bytes,sentBytes,URL,Latency,Connect\n"
+    ]
+    elapsed_sum = 0
+    for index in range(10005):
+        elapsed = index % 2000 + 1
+        elapsed_sum += elapsed
+        rows.append(
+            f"{1700000000000 + index},{elapsed},api,200,OK,tg,true,10,2,http://example.test,{elapsed},1\n"
+        )
+    jtl_path.write_text("".join(rows), encoding="utf-8")
+    runner = JMeterRunner("/opt/jmeter")
+
+    with patch.dict(os.environ, {"JMETER_RESULT_SAMPLE_LIMIT": "10000"}):
+        summary = runner._parse_final_result(str(jtl_path))
+
+    assert summary["total_samples"] == 10005
+    assert summary["avg_response_time"] == round(elapsed_sum / 10005, 2)
+    assert summary["percentiles_approximate"] is True
+    assert summary["percentile_sample_size"] == 10000
+
+
+def test_parse_progress_caps_recent_elapsed_times(tmp_path):
+    jtl_path = tmp_path / "result.jtl"
+    rows = [
+        "timeStamp,elapsed,label,responseCode,responseMessage,threadName,success,bytes,sentBytes,URL,Latency,Connect\n"
+    ]
+    for index in range(1000):
+        rows.append(
+            f"{1700000000000 + index},{index + 1},api,200,OK,tg,true,10,2,http://example.test,1,1\n"
+        )
+    jtl_path.write_text("".join(rows), encoding="utf-8")
+    runner = JMeterRunner("/opt/jmeter")
+
+    progress = runner._parse_progress(str(jtl_path))
+
+    assert progress["total_samples"] == 1000
+    assert len(progress["elapsed_times"]) == 500
+    assert progress["elapsed_times"][0] == 501
+    assert progress["elapsed_times"][-1] == 1000
+
+
 def test_report_generation_uses_reportgenerator_properties(tmp_path):
     runner = JMeterRunner("/opt/jmeter")
     jtl_path = tmp_path / "result.xml"
@@ -148,12 +224,15 @@ def test_report_generation_uses_reportgenerator_properties(tmp_path):
             {
                 "jmeter.reportgenerator.overall_granularity": "30000",
                 "httpclient4.retrycount": "0",
+                "jvm_heap_mb": "2048",
             },
         )
 
     cmd = run.call_args.args[0]
     assert "-Jjmeter.reportgenerator.overall_granularity=30000" in cmd
     assert all("httpclient4.retrycount" not in part for part in cmd)
+    assert run.call_args.kwargs["env"]["HEAP"] == "-Xms2048m -Xmx2048m"
+    assert "capture_output" not in run.call_args.kwargs
 
 
 def test_image_resource_loader_is_injected_for_image_scenario(tmp_path):
