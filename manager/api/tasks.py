@@ -400,7 +400,10 @@ def quick_run(req: QuickRunRequest):
             csv_stop_on_eof=req.csv_stop_on_eof,
             enforce_single_agent_task=req.enforce_single_agent_task,
         )
-        _scheduler.start_task(task_id)
+        if not _scheduler.start_task(task_id):
+            task = _scheduler.get_task(task_id)
+            detail = (task or {}).get("error_message") or "无法启动任务"
+            raise HTTPException(status_code=400, detail=detail)
         return {"task_id": task_id, "message": "任务已创建并启动"}
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))

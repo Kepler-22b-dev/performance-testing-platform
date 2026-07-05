@@ -198,12 +198,59 @@ class TaskScheduler:
 
         return conflicts
 
+    def _find_unavailable_target_agents(self, target_agents: list[str]) -> list[str]:
+        if not self._node_manager:
+            return []
+
+        unavailable = []
+        for agent_id in target_agents or []:
+            try:
+                agent = self._node_manager.get_agent(agent_id)
+            except Exception:
+                agent = None
+            if not agent:
+                unavailable.append(f"{agent_id} 未在线")
+            elif getattr(agent, "status", None) != "online":
+                unavailable.append(f"{agent_id} 状态为 {getattr(agent, 'status', 'unknown')}")
+        return unavailable
+
+    def _resolve_rerun_target_agents(self, target_agents: list[str]) -> list[str]:
+        unavailable = self._find_unavailable_target_agents(target_agents)
+        if not unavailable or not self._node_manager:
+            return target_agents
+
+        try:
+            available_agents = self._node_manager.get_available_agents()
+        except Exception:
+            available_agents = []
+        if available_agents:
+            return [available_agents[0].agent_id]
+        return target_agents
+
+    def _fail_task_start(self, task_id: str, error_message: str):
+        db = get_sync_db()
+        try:
+            db_update_task(db, task_id,
+                status=TaskStatus.FAILED, end_time=time.time(),
+                error_message=error_message,
+            )
+        finally:
+            db.close()
+
     def start_task(self, task_id: str) -> bool:
         task = self.get_task(task_id)
         if not task:
             return False
 
         if task["status"] not in (TaskStatus.PENDING,):
+            return False
+
+        unavailable_agents = self._find_unavailable_target_agents(task.get("target_agents") or [])
+        if unavailable_agents:
+            self._fail_task_start(
+                task_id,
+                "目标 Agent 不可用：" + "；".join(unavailable_agents),
+            )
             return False
 
         self._progress.pop(task_id, None)
@@ -293,13 +340,14 @@ class TaskScheduler:
 
         new_task_id = self.create_task(
             script_id=old_task["script_id"],
-            target_agents=old_task["target_agents"],
+            target_agents=self._resolve_rerun_target_agents(old_task["target_agents"]),
             jmeter_args=old_task["jmeter_args"],
             timeout=old_task.get("timeout", TASK_TIMEOUT),
             distributed=old_task.get("distributed", False),
             remote_hosts=old_task.get("remote_hosts"),
         )
-        self.start_task(new_task_id)
+        if not self.start_task(new_task_id):
+            return None
         return new_task_id
 
     def stop_and_rerun(self, task_id: str, overrides: dict = None) -> Optional[str]:
@@ -329,6 +377,8 @@ class TaskScheduler:
             timeout = overrides["timeout"]
 
         target_agents = overrides.get("target_agents", task["target_agents"]) if overrides else task["target_agents"]
+        if not overrides or "target_agents" not in overrides:
+            target_agents = self._resolve_rerun_target_agents(target_agents)
 
         new_task_id = self.create_task(
             script_id=task["script_id"],
@@ -344,7 +394,8 @@ class TaskScheduler:
             csv_stop_on_eof=task.get("csv_stop_on_eof", False),
             enforce_single_agent_task=False,
         )
-        self.start_task(new_task_id)
+        if not self.start_task(new_task_id):
+            return None
         return new_task_id
 
     def adjust_load(

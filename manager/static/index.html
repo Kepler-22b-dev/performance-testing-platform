@@ -1738,6 +1738,20 @@
         };
         const paginationSizeOptions = [5, 10, 20, 50, 100];
 
+        function showModalElement(id, display = 'flex') {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.classList.remove('hidden');
+            el.style.display = display;
+        }
+
+        function hideModalElement(id) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.style.display = 'none';
+            el.classList.add('hidden');
+        }
+
         function ensurePagination(key, defaultSize) {
             if (!paginationState[key]) {
                 paginationState[key] = {
@@ -3197,7 +3211,7 @@
                 document.getElementById('dyn-ramp').value = Math.max(1, parseInt(args.ramp_time || '5') || 5);
                 document.getElementById('dyn-duration').value = Math.max(10, parseInt(args.duration || '60') || 60);
                 updateDynamicAdjustHint();
-                document.getElementById('dynamic-adjust-modal').style.display = 'flex';
+                showModalElement('dynamic-adjust-modal');
             } catch (e) {
                 alert('获取任务参数失败');
             }
@@ -3218,7 +3232,7 @@
         }
 
         function closeDynamicAdjustModal() {
-            document.getElementById('dynamic-adjust-modal').style.display = 'none';
+            hideModalElement('dynamic-adjust-modal');
             _dynamicAdjustTaskId = null;
         }
 
@@ -3270,14 +3284,14 @@
                 document.getElementById('adj-ramp').value = args.ramp_time || 1;
                 document.getElementById('adj-duration').value = args.duration || 60;
                 document.getElementById('adj-timeout').value = task.timeout || 3600;
-                document.getElementById('adjust-modal').style.display = 'flex';
+                showModalElement('adjust-modal');
             } catch (e) {
                 alert('获取任务参数失败');
             }
         }
 
         function closeAdjustModal() {
-            document.getElementById('adjust-modal').style.display = 'none';
+            hideModalElement('adjust-modal');
             _adjustTaskId = null;
         }
 
@@ -3473,6 +3487,8 @@
             window._liveDesignCurve = null;
             window._liveRefreshInterval = 1000;
             window._lastRenderTime = 0;
+            window._liveLastProgressSignature = null;
+            window._liveLastProgressArrivedAt = 0;
             ['_liveCombinedChart','_liveTpsChart','_liveRtChart','_liveThreadsChart','_liveErrChart'].forEach(k => {
                 if (window[k]) { window[k].dispose(); window[k] = null; }
             });
@@ -3594,6 +3610,32 @@
             if (status) status.textContent = text || '';
         }
 
+        function markLiveProgressSeen(p) {
+            if (!p) return false;
+            var signature = [
+                p.timestamp || '',
+                p.elapsed || 0,
+                p.total_samples || 0,
+                p.active_threads || 0,
+                p.segment_id || ''
+            ].join('|');
+            if (signature !== window._liveLastProgressSignature) {
+                window._liveLastProgressSignature = signature;
+                window._liveLastProgressArrivedAt = Date.now();
+                return true;
+            }
+            return false;
+        }
+
+        function updateLiveStaleStatus() {
+            var lastAt = Number(window._liveLastProgressArrivedAt || 0);
+            if (!lastAt) return;
+            var staleSeconds = Math.floor((Date.now() - lastAt) / 1000);
+            if (staleSeconds >= 15) {
+                setLiveStatus('已 ' + staleSeconds + 's 未收到新进度，等待 Agent 继续上报');
+            }
+        }
+
         function initLiveCharts() {
             if (!window.echarts) return;
             var combinedEl = document.getElementById('live-chart-combined');
@@ -3684,7 +3726,7 @@
             return { data: ld, elapsed: elapsed };
         }
 
-        function updateLiveHeader(p) {
+        function updateLiveHeader(p, progressChanged) {
             var successRate = p.success_rate != null ? p.success_rate : (100 - (p.error_rate || 0));
             var bytesRecv = p.bytes_received || 0;
 
@@ -3697,7 +3739,11 @@
             document.getElementById('live-threads-val').textContent = p.active_threads || 0;
             document.getElementById('live-samples-val').textContent = p.total_samples || 0;
             document.getElementById('live-bytes-val').textContent = formatBytes(bytesRecv);
-            setLiveStatus('实时数据已更新');
+            if (progressChanged) {
+                setLiveStatus('实时数据已更新');
+            } else {
+                updateLiveStaleStatus();
+            }
         }
 
         function seedLiveHistory(history) {
@@ -3711,7 +3757,8 @@
             window._liveData = { timestamps: [], tps: [], rt: [], errorRate: [], threads: [], elapsed: [] };
             rows.forEach(appendLivePoint);
             const last = rows[rows.length - 1];
-            updateLiveHeader(last);
+            markLiveProgressSeen(last);
+            updateLiveHeader(last, true);
             renderLiveCharts(window._liveData, Number(last.elapsed || 0));
         }
 
@@ -3719,7 +3766,8 @@
             var el = document.getElementById('live-monitor');
             if (!el.querySelector('#live-chart-combined')) return;
 
-            updateLiveHeader(p);
+            var progressChanged = markLiveProgressSeen(p);
+            updateLiveHeader(p, progressChanged);
             var point = appendLivePoint(p);
             setTimeout(function() { renderLiveCharts(point.data, point.elapsed); }, 50);
         }
@@ -6642,11 +6690,11 @@
 
         // ===== 新建脚本 =====
         function createNewScript() {
-            document.getElementById('new-script-modal').style.display = 'flex';
+            showModalElement('new-script-modal');
         }
 
         function closeNewScriptModal() {
-            document.getElementById('new-script-modal').style.display = 'none';
+            hideModalElement('new-script-modal');
         }
 
         async function confirmNewScript() {
@@ -6933,8 +6981,8 @@
             }).join('');
         }
 
-        function showCreateAlert() { document.getElementById('alert-create-modal').style.display = 'flex'; }
-        function closeCreateAlert() { document.getElementById('alert-create-modal').style.display = 'none'; }
+        function showCreateAlert() { showModalElement('alert-create-modal'); }
+        function closeCreateAlert() { hideModalElement('alert-create-modal'); }
 
         async function submitAlert() {
             const name = document.getElementById('alert-name').value.trim();
@@ -7013,8 +7061,8 @@
             }).join('');
         }
 
-        function showCreateEnv() { document.getElementById('env-create-modal').style.display = 'flex'; }
-        function closeCreateEnv() { document.getElementById('env-create-modal').style.display = 'none'; }
+        function showCreateEnv() { showModalElement('env-create-modal'); }
+        function closeCreateEnv() { hideModalElement('env-create-modal'); }
 
         async function submitEnv() {
             const name = document.getElementById('env-name').value.trim();
@@ -7133,10 +7181,10 @@
         }
 
         function showCreateTemplate() {
-            document.getElementById('template-create-modal').style.display = 'flex';
+            showModalElement('template-create-modal');
         }
         function closeCreateTemplate() {
-            document.getElementById('template-create-modal').style.display = 'none';
+            hideModalElement('template-create-modal');
         }
         async function submitTemplate() {
             const name = document.getElementById('tpl-name').value.trim();
@@ -7215,7 +7263,7 @@
         }
 
         async function showCreateSchedule() {
-            document.getElementById('schedule-create-modal').style.display = 'flex';
+            showModalElement('schedule-create-modal');
             try {
                 const res = await fetch(`${API}/api/scripts/?limit=500`);
                 const data = await res.json();
@@ -7224,7 +7272,7 @@
                 ).join('') || '<option>暂无脚本</option>';
             } catch (e) {}
         }
-        function closeCreateSchedule() { document.getElementById('schedule-create-modal').style.display = 'none'; }
+        function closeCreateSchedule() { hideModalElement('schedule-create-modal'); }
         async function submitSchedule() {
             const name = document.getElementById('sch-name').value.trim();
             const scriptId = document.getElementById('sch-script').value;
@@ -7311,8 +7359,8 @@
                 body: JSON.stringify({ enabled }),
             });
         }
-        function showAddWebhook() { document.getElementById('webhook-add-modal').style.display = 'flex'; }
-        function closeAddWebhook() { document.getElementById('webhook-add-modal').style.display = 'none'; }
+        function showAddWebhook() { showModalElement('webhook-add-modal'); }
+        function closeAddWebhook() { hideModalElement('webhook-add-modal'); }
         async function submitWebhook() {
             const url = document.getElementById('webhook-url').value.trim();
             if (!url) { alert('请输入 URL'); return; }

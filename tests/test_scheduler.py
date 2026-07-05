@@ -1,4 +1,5 @@
 import time
+from types import SimpleNamespace
 from unittest.mock import patch, MagicMock
 
 from common.protocol import CommandType, ProgressUpdate, TaskCommand, TaskResult, TaskStatus
@@ -10,6 +11,20 @@ def _build_scheduler():
     with patch("manager.core.scheduler.redis.Redis"):
         s = TaskScheduler()
     return s
+
+
+class FakeNodeManager:
+    def __init__(self, agents=None):
+        self.agents = {
+            agent.agent_id: agent
+            for agent in (agents or [])
+        }
+
+    def get_agent(self, agent_id):
+        return self.agents.get(agent_id)
+
+    def get_available_agents(self):
+        return [agent for agent in self.agents.values() if agent.status == "online"]
 
 
 class TestCreateTaskValidation:
@@ -208,6 +223,49 @@ class TestStartTaskScriptCheck:
             assert result is False
             mock_update.assert_called_once()
             assert "脚本文件不存在" in mock_update.call_args[1]["error_message"]
+
+    def test_unavailable_target_agent_marks_failed(self):
+        node_manager = FakeNodeManager([
+            SimpleNamespace(agent_id="agent-current", status="online"),
+        ])
+        with patch("manager.core.scheduler.redis.Redis"):
+            s = TaskScheduler(node_manager=node_manager)
+        task = make_task(
+            status=TaskStatus.PENDING,
+            target_agents=["agent-stale"],
+        )
+        mock_db = MagicMock()
+
+        with patch("manager.core.scheduler.get_sync_db", return_value=mock_db), \
+             patch("manager.core.scheduler.db_get_task", return_value=task), \
+             patch("manager.core.scheduler.db_update_task") as mock_update:
+            result = s.start_task(task["task_id"])
+
+        assert result is False
+        mock_update.assert_called_once()
+        assert mock_update.call_args.kwargs["status"] == TaskStatus.FAILED
+        assert "agent-stale 未在线" in mock_update.call_args.kwargs["error_message"]
+        s.redis.publish.assert_not_called()
+
+    def test_rerun_uses_available_agent_when_original_target_is_stale(self):
+        node_manager = FakeNodeManager([
+            SimpleNamespace(agent_id="agent-current", status="online"),
+        ])
+        with patch("manager.core.scheduler.redis.Redis"):
+            s = TaskScheduler(node_manager=node_manager)
+        old_task = make_task(
+            status=TaskStatus.COMPLETED,
+            target_agents=["agent-stale"],
+        )
+
+        with patch.object(s, "get_task", return_value=old_task), \
+             patch.object(s, "create_task", return_value="task-new") as mock_create, \
+             patch.object(s, "start_task", return_value=True) as mock_start:
+            result = s.rerun_task(old_task["task_id"])
+
+        assert result == "task-new"
+        assert mock_create.call_args.kwargs["target_agents"] == ["agent-current"]
+        mock_start.assert_called_once_with("task-new")
 
 
 class TestTaskCommandTargeting:

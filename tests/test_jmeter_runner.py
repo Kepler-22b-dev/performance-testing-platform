@@ -20,6 +20,17 @@ class FailedProcess:
         return 1
 
 
+class RunningThenCompletedProcess:
+    returncode = 0
+
+    def __init__(self):
+        self.poll_count = 0
+
+    def poll(self):
+        self.poll_count += 1
+        return None if self.poll_count == 1 else 0
+
+
 def _run_with_patches(runner, script_path, result_dir, args):
     with patch.object(runner, "_inject_thread_config", return_value=str(script_path)) as inject, \
          patch.object(runner, "_parse_final_result", return_value={"total_samples": 0}) as parse, \
@@ -54,6 +65,7 @@ def test_jmeter_heap_uses_heap_env_and_skips_internal_args(tmp_path):
     cmd = popen.call_args.args[0]
     env = popen.call_args.kwargs["env"]
     assert env["HEAP"] == "-Xms2048m -Xmx2048m"
+    assert popen.call_args.kwargs["start_new_session"] is True
     assert all("jvm_heap_mb" not in part for part in cmd)
     assert all("capture_error_log" not in part for part in cmd)
 
@@ -146,6 +158,41 @@ def test_nonzero_jmeter_exit_with_samples_is_failed(tmp_path):
     assert result["error"] == "JMeter exit code 1"
     assert result["summary"] == summary
     report.assert_not_called()
+
+
+def test_progress_callback_failure_does_not_fail_jmeter_run(tmp_path):
+    script_path = tmp_path / "test.jmx"
+    script_path.write_text("<jmeterTestPlan></jmeterTestPlan>", encoding="utf-8")
+    runner = JMeterRunner("/opt/jmeter")
+    summary = {"total_samples": 12, "error_count": 0}
+    clock = {"now": 1000.0}
+
+    def fake_time():
+        clock["now"] += 1.1
+        return clock["now"]
+
+    def on_progress(_progress):
+        raise RuntimeError("redis publish failed")
+
+    with patch.object(runner, "_inject_thread_config", return_value=str(script_path)), \
+         patch.object(runner, "_parse_progress", return_value={"total_samples": 1}), \
+         patch.object(runner, "_parse_final_result", return_value=summary), \
+         patch.object(runner, "_generate_report") as report, \
+         patch("agent.jmeter_runner.subprocess.Popen", return_value=RunningThenCompletedProcess()), \
+         patch("agent.jmeter_runner.time.time", side_effect=fake_time), \
+         patch("agent.jmeter_runner.time.sleep"):
+        result = runner.execute(
+            script_path=str(script_path),
+            result_dir=str(tmp_path / "result"),
+            jmeter_args={"threads": "1", "duration": "1"},
+            on_progress=on_progress,
+            timeout=10,
+        )
+
+    assert result["status"] == "completed"
+    assert result["summary"] == summary
+    assert runner._progress_callback_error_count == 1
+    report.assert_called_once()
 
 
 def test_parse_csv_jtl_handles_quoted_commas(tmp_path):
@@ -287,6 +334,53 @@ def test_image_resource_loader_is_injected_for_image_scenario(tmp_path):
     assert "Image Resource Loader" in text
     assert "final int maxImages = 3" in text
     assert "prev.addSubResult(sample)" in text
+
+
+def test_error_response_capture_uses_sample_label_api(tmp_path):
+    script_path = tmp_path / "error-capture-test.jmx"
+    script_path.write_text(
+        """<?xml version="1.0" encoding="UTF-8"?>
+<jmeterTestPlan version="1.2" properties="5.0" jmeter="5.6.3">
+  <hashTree>
+    <TestPlan guiclass="TestPlanGui" testclass="TestPlan" testname="Test Plan">
+      <elementProp name="TestPlan.user_defined_variables" elementType="Arguments"/>
+    </TestPlan>
+    <hashTree>
+      <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="Thread Group">
+        <intProp name="ThreadGroup.num_threads">1</intProp>
+        <intProp name="ThreadGroup.ramp_time">1</intProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController">
+          <intProp name="LoopController.loops">1</intProp>
+        </elementProp>
+      </ThreadGroup>
+      <hashTree>
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="API">
+          <stringProp name="HTTPSampler.domain">example.com</stringProp>
+          <stringProp name="HTTPSampler.path">/api</stringProp>
+        </HTTPSamplerProxy>
+        <hashTree/>
+      </hashTree>
+    </hashTree>
+  </hashTree>
+</jmeterTestPlan>
+""",
+        encoding="utf-8",
+    )
+    runner = JMeterRunner("/opt/jmeter")
+
+    modified = runner._inject_thread_config(
+        str(script_path),
+        threads=5,
+        ramp_time=2,
+        duration=30,
+        error_data_path=str(tmp_path / "error_responses.jsonl"),
+    )
+
+    ET.parse(modified)
+    text = open(modified, encoding="utf-8").read()
+    assert "Error Response Capture" in text
+    assert "prev.getSampleLabel()" in text
+    assert "prev.getLabel()" not in text
 
 
 def test_image_resource_loader_enables_subresults_output(tmp_path):

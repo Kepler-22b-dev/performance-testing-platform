@@ -8,6 +8,7 @@ import signal
 import time
 import csv
 import json
+import logging
 import xml.etree.ElementTree as ET
 import random
 from collections import deque
@@ -35,6 +36,9 @@ class JMeterRunner:
         self._jtl_recent_times = []
         self._jtl_is_xml = False
         self._jtl_csv_fields = []
+        self._progress_callback_error_count = 0
+        self._last_progress_callback_error = None
+        self.logger = logging.getLogger("agent")
 
     def _as_bool(self, value, default: bool = False) -> bool:
         if value is None:
@@ -366,7 +370,7 @@ class JMeterRunner:
             "        }",
             "        def data = [",
             "            ts: prev.getStartTime(),",
-            "            label: prev.getLabel(),",
+            "            label: prev.getSampleLabel(),",
             "            responseCode: prev.getResponseCode(),",
             "            responseMessage: prev.getResponseMessage(),",
             "            responseData: responseData,",
@@ -533,6 +537,8 @@ class JMeterRunner:
         self._jtl_recent_times = []
         self._jtl_is_xml = False
         self._jtl_csv_fields = []
+        self._progress_callback_error_count = 0
+        self._last_progress_callback_error = None
 
         # 注入 CSV 配置
         if csv_file:
@@ -633,6 +639,7 @@ class JMeterRunner:
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 env=env,
+                start_new_session=True,
             )
 
             start_time = time.time()
@@ -651,8 +658,21 @@ class JMeterRunner:
 
                 # 每秒上报一次进度
                 if on_progress and time.time() - last_progress_time >= 1.0:
-                    progress = self._parse_progress(jtl_path)
-                    on_progress(progress)
+                    try:
+                        progress = self._parse_progress(jtl_path)
+                        on_progress(progress)
+                    except Exception as progress_error:
+                        self._progress_callback_error_count += 1
+                        self._last_progress_callback_error = str(progress_error)
+                        if (
+                            self._progress_callback_error_count <= 3
+                            or self._progress_callback_error_count % 30 == 0
+                        ):
+                            self.logger.warning(
+                                "JMeter progress callback failed, test process will keep running: %s",
+                                progress_error,
+                                exc_info=True,
+                            )
                     last_progress_time = time.time()
 
                 time.sleep(0.5)
@@ -711,30 +731,55 @@ class JMeterRunner:
 
     def stop(self):
         """停止 JMeter 进程(包括子进程)"""
-        if self._process and self._process.poll() is None:
-            try:
-                self._process.send_signal(signal.SIGINT)
-                self._process.wait(timeout=10)
-            except subprocess.TimeoutExpired:
-                self._process.kill()
-                self._process.wait()
-            except ProcessLookupError:
-                pass
+        process = self._process
+        if not process:
+            return
 
-            import psutil
-            try:
-                parent = psutil.Process(self._process.pid)
-                children = parent.children(recursive=True)
-                for child in children:
+        try:
+            if process.poll() is None:
+                children = []
+                try:
+                    import psutil
                     try:
-                        child.kill()
-                    except psutil.NoSuchProcess:
-                        pass
-            except (psutil.NoSuchProcess, OSError):
-                pass
+                        children = psutil.Process(process.pid).children(recursive=True)
+                    except (psutil.NoSuchProcess, OSError):
+                        children = []
+                except ImportError:
+                    psutil = None
 
-            finally:
-                self._process = None
+                try:
+                    self._send_process_signal(process, signal.SIGINT)
+                    process.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    self._send_process_signal(process, signal.SIGKILL)
+                    try:
+                        process.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                        process.wait()
+                except ProcessLookupError:
+                    pass
+
+                if psutil:
+                    for child in children:
+                        try:
+                            if child.is_running():
+                                child.kill()
+                        except psutil.NoSuchProcess:
+                            pass
+        finally:
+            self._process = None
+
+    def _send_process_signal(self, process: subprocess.Popen, sig: signal.Signals):
+        """向 JMeter 独立进程组发信号，无法定位进程组时退回到父进程。"""
+        try:
+            pgid = os.getpgid(process.pid)
+            if pgid != os.getpgrp():
+                os.killpg(pgid, sig)
+                return
+        except (AttributeError, ProcessLookupError, PermissionError, OSError):
+            pass
+        process.send_signal(sig)
 
     def _parse_progress(self, jtl_path: str) -> dict:
         result = {
