@@ -7,6 +7,9 @@
 import sys
 import os
 import json
+import csv
+import time
+from dataclasses import asdict
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
@@ -14,10 +17,14 @@ from typing import Optional
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 from common.protocol import TaskStatus
+from common.config import REPORTS_DIR
+from common.utils import fmt_pct
 
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
 
 _scheduler = None
+_jtl_progress_cache = {}
+_jtl_progress_cache_ttl = 1.0
 
 
 def set_scheduler(scheduler):
@@ -28,6 +35,161 @@ def set_scheduler(scheduler):
     """
     global _scheduler
     _scheduler = scheduler
+
+
+def _row_value(row: dict, key: str, default=""):
+    value = row.get(key)
+    if value is not None:
+        return value
+    lower_key = key.lower()
+    for row_key, row_value in row.items():
+        if str(row_key).lower() == lower_key:
+            return row_value if row_value is not None else default
+    return default
+
+
+def _safe_int(value, default: int = 0) -> int:
+    try:
+        if value in (None, ""):
+            return default
+        return int(float(value))
+    except (TypeError, ValueError):
+        return default
+
+
+def _iter_task_jtl_files(task_id: str):
+    task_path = os.path.join(REPORTS_DIR, task_id)
+    if not os.path.isdir(task_path):
+        return
+
+    for root, dirs, files in os.walk(task_path):
+        dirs[:] = [d for d in dirs if d not in {"html-report", "__pycache__"}]
+        for filename in files:
+            if filename.lower() == "result.jtl":
+                yield os.path.join(root, filename)
+
+
+def _recover_progress_history_from_jtl(task_id: str, task: dict | None = None) -> list[dict]:
+    """从 JTL 回填实时曲线，兜底处理 Manager 重启或 Redis 进度丢失。"""
+    now = time.time()
+    cached = _jtl_progress_cache.get(task_id)
+    if cached and now - cached["time"] < _jtl_progress_cache_ttl:
+        return cached["history"]
+
+    jtl_files = list(_iter_task_jtl_files(task_id) or [])
+    if not jtl_files:
+        _jtl_progress_cache[task_id] = {"time": now, "history": []}
+        return []
+
+    start_ms = 0
+    if task and task.get("start_time"):
+        start_ms = int(float(task["start_time"]) * 1000)
+
+    buckets = {}
+    earliest_ts = None
+
+    for source_index, jtl_path in enumerate(jtl_files):
+        try:
+            with open(jtl_path, "r", encoding="utf-8", errors="replace", newline="") as f:
+                reader = csv.DictReader(f)
+                if not reader.fieldnames:
+                    continue
+                for row in reader:
+                    ts = _safe_int(_row_value(row, "timeStamp"), 0)
+                    if ts <= 0:
+                        continue
+                    if earliest_ts is None or ts < earliest_ts:
+                        earliest_ts = ts
+
+                    origin_ms = start_ms or earliest_ts or ts
+                    elapsed = max(0, int((ts - origin_ms) / 1000))
+                    bucket = buckets.setdefault(elapsed, {
+                        "timestamp": ts,
+                        "count": 0,
+                        "errors": 0,
+                        "elapsed_sum": 0,
+                        "latency_sum": 0,
+                        "connect_sum": 0,
+                        "bytes_received": 0,
+                        "bytes_sent": 0,
+                        "threads_by_source": {},
+                    })
+                    bucket["timestamp"] = max(bucket["timestamp"], ts)
+                    bucket["count"] += 1
+                    success = str(_row_value(row, "success", "true")).strip().lower() == "true"
+                    if not success:
+                        bucket["errors"] += 1
+                    bucket["elapsed_sum"] += _safe_int(_row_value(row, "elapsed"), 0)
+                    bucket["latency_sum"] += _safe_int(_row_value(row, "Latency"), 0)
+                    bucket["connect_sum"] += _safe_int(_row_value(row, "Connect"), 0)
+                    bucket["bytes_received"] += _safe_int(_row_value(row, "bytes"), 0)
+                    bucket["bytes_sent"] += _safe_int(_row_value(row, "sentBytes"), 0)
+                    active_threads = max(
+                        _safe_int(_row_value(row, "allThreads"), 0),
+                        _safe_int(_row_value(row, "grpThreads"), 0),
+                    )
+                    if active_threads > 0:
+                        source_threads = bucket["threads_by_source"]
+                        source_threads[source_index] = max(source_threads.get(source_index, 0), active_threads)
+        except Exception:
+            continue
+
+    if not buckets:
+        _jtl_progress_cache[task_id] = {"time": now, "history": []}
+        return []
+
+    history = []
+    total = 0
+    errors = 0
+    elapsed_sum = 0
+    latency_sum = 0
+    connect_sum = 0
+    bytes_received = 0
+    bytes_sent = 0
+
+    for elapsed in sorted(buckets.keys()):
+        bucket = buckets[elapsed]
+        count = bucket["count"]
+        total += count
+        errors += bucket["errors"]
+        elapsed_sum += bucket["elapsed_sum"]
+        latency_sum += bucket["latency_sum"]
+        connect_sum += bucket["connect_sum"]
+        bytes_received += bucket["bytes_received"]
+        bytes_sent += bucket["bytes_sent"]
+
+        history.append({
+            "timestamp": bucket["timestamp"] / 1000,
+            "elapsed": elapsed,
+            "throughput": round(count, 2),
+            "avg_response_time": round(elapsed_sum / total, 2) if total else 0,
+            "error_rate": fmt_pct(errors / total * 100) if total else 0,
+            "success_rate": fmt_pct((total - errors) / total * 100) if total else 100.0,
+            "active_threads": sum(bucket["threads_by_source"].values()),
+            "total_samples": total,
+            "bytes_received": bytes_received,
+            "bytes_sent": bytes_sent,
+            "avg_latency": round(latency_sum / total, 2) if total else 0,
+            "avg_connect_time": round(connect_sum / total, 2) if total else 0,
+            "segment_id": "jtl-recovered",
+        })
+
+    history = history[-3600:]
+    _jtl_progress_cache[task_id] = {"time": now, "history": history}
+    return history
+
+
+def _recover_progress_from_jtl(task_id: str, task: dict | None = None) -> dict | None:
+    history = _recover_progress_history_from_jtl(task_id, task)
+    if not history:
+        return None
+    progress = dict(history[-1])
+    progress["task_id"] = task_id
+    progress["agent_id"] = "jtl-recovered"
+    if task and task.get("status") != TaskStatus.RUNNING:
+        progress["active_threads"] = 0
+        progress["throughput"] = 0
+    return progress
 
 
 class TaskCreateRequest(BaseModel):
@@ -255,17 +417,23 @@ def get_task(task_id: str):
 @router.get("/{task_id}/progress")
 def get_progress(task_id: str):
     """获取指定任务的执行进度。"""
+    task = _scheduler.get_task(task_id)
     progress = _scheduler.get_progress(task_id)
-    if not progress:
+    if progress:
+        return {"task_id": task_id, "data": asdict(progress)}
+
+    recovered = _recover_progress_from_jtl(task_id, task)
+    if not recovered:
         return {"task_id": task_id, "data": None}
-    from dataclasses import asdict
-    return {"task_id": task_id, "data": asdict(progress)}
+    return {"task_id": task_id, "data": recovered}
 
 
 @router.get("/{task_id}/progress/history")
 def get_progress_history(task_id: str):
     """获取指定任务的进度历史数据。"""
     history = _scheduler.get_progress_history(task_id)
+    if not history:
+        history = _recover_progress_history_from_jtl(task_id, _scheduler.get_task(task_id))
     return {"task_id": task_id, "data": history}
 
 

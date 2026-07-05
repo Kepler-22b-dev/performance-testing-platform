@@ -3585,14 +3585,21 @@
 
                 setReportDetailMode('running', task);
                 const pRes = await fetch(`${API}/api/tasks/${taskId}/progress`);
+                if (!pRes.ok) throw new Error('progress api ' + pRes.status);
                 const pData = await pRes.json();
                 if (pData.data) {
-                    renderLiveMonitor(pData.data);
+                    try {
+                        renderLiveMonitor(pData.data);
+                    } catch (renderError) {
+                        console.error('renderLiveMonitor error:', renderError);
+                        setLiveStatus('实时数据已收到，图表渲染失败，等待下次刷新');
+                    }
                 } else {
                     const elapsed = task.start_time ? Math.max(0, Math.round(Date.now() / 1000 - task.start_time)) : 0;
                     setLiveStatus(`已运行 ${elapsed}s，等待 Agent 上报首批采样数据`);
                 }
             } catch (e) {
+                console.error('pollLiveProgress error:', e);
                 setLiveStatus('实时数据刷新失败，等待下次轮询');
             }
         }
@@ -3686,6 +3693,11 @@
             return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
         }
 
+        function toLiveNumber(value, fallback) {
+            var num = Number(value);
+            return Number.isFinite(num) ? num : (fallback || 0);
+        }
+
         function ensureLiveData() {
             if (!window._liveData) {
                 window._liveData = { timestamps: [], tps: [], rt: [], errorRate: [], threads: [], elapsed: [] };
@@ -3700,10 +3712,10 @@
             var point = {
                 label: formatElapsed(elapsed),
                 elapsed: elapsed,
-                tps: Number(p.throughput || 0),
-                rt: Number(p.avg_response_time || 0),
-                errorRate: Number(p.error_rate || 0),
-                threads: Number(p.active_threads || 0),
+                tps: toLiveNumber(p.throughput),
+                rt: toLiveNumber(p.avg_response_time),
+                errorRate: toLiveNumber(p.error_rate),
+                threads: toLiveNumber(p.active_threads),
             };
             var lastIndex = ld.elapsed.length - 1;
             if (lastIndex >= 0 && ld.elapsed[lastIndex] === point.elapsed) {
@@ -3727,17 +3739,18 @@
         }
 
         function updateLiveHeader(p, progressChanged) {
-            var successRate = p.success_rate != null ? p.success_rate : (100 - (p.error_rate || 0));
-            var bytesRecv = p.bytes_received || 0;
+            var errorRate = toLiveNumber(p.error_rate);
+            var successRate = p.success_rate != null ? toLiveNumber(p.success_rate, 100) : (100 - errorRate);
+            var bytesRecv = toLiveNumber(p.bytes_received);
 
-            document.getElementById('live-elapsed').textContent = p.elapsed + 's';
-            document.getElementById('live-tps-val').textContent = (p.throughput || 0).toFixed(1);
-            document.getElementById('live-rt-val').textContent = (p.avg_response_time || 0).toFixed(1) + 'ms';
+            document.getElementById('live-elapsed').textContent = toLiveNumber(p.elapsed) + 's';
+            document.getElementById('live-tps-val').textContent = toLiveNumber(p.throughput).toFixed(1);
+            document.getElementById('live-rt-val').textContent = toLiveNumber(p.avg_response_time).toFixed(1) + 'ms';
             var srEl = document.getElementById('live-sr-val');
             srEl.textContent = successRate.toFixed(1) + '%';
             srEl.style.color = successRate >= 99 ? '#16a34a' : successRate >= 95 ? '#d97706' : '#dc2626';
-            document.getElementById('live-threads-val').textContent = p.active_threads || 0;
-            document.getElementById('live-samples-val').textContent = p.total_samples || 0;
+            document.getElementById('live-threads-val').textContent = toLiveNumber(p.active_threads);
+            document.getElementById('live-samples-val').textContent = toLiveNumber(p.total_samples);
             document.getElementById('live-bytes-val').textContent = formatBytes(bytesRecv);
             if (progressChanged) {
                 setLiveStatus('实时数据已更新');
