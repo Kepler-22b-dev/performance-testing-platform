@@ -272,6 +272,40 @@ def _build_traffic_metrics(samples: list) -> dict:
     }
 
 
+def _sample_thread_count(sample: dict) -> int:
+    """从 JMeter 样本中提取当前活跃线程数。"""
+    for key in ("all_threads", "grp_threads", "active_threads"):
+        try:
+            value = int(float(sample.get(key) or 0))
+        except (TypeError, ValueError):
+            value = 0
+        if value > 0:
+            return value
+    return 0
+
+
+def _sample_thread_scope(sample: dict) -> str:
+    """构建线程数聚合范围，避免动态调压段和远程压力机互相覆盖。"""
+    agent = str(sample.get("source_agent") or "")
+    segment = str(sample.get("source_segment") or "base")
+    thread_name = str(sample.get("thread_name") or "")
+    remote_engine = ""
+    marker = "-Thread Group"
+    marker_index = thread_name.find(marker)
+    if marker_index > 0:
+        remote_engine = thread_name[:marker_index]
+    return f"{agent}:{segment}:{remote_engine}"
+
+
+def _record_thread_count(bucket: dict, sample: dict):
+    thread_count = _sample_thread_count(sample)
+    if thread_count <= 0:
+        return
+    scope = _sample_thread_scope(sample)
+    scopes = bucket.setdefault("thread_scopes", {})
+    scopes[scope] = max(scopes.get(scope, 0), thread_count)
+
+
 def _build_time_series(samples: list) -> dict:
     """将样本数据按秒聚合，构建 TPS、平均响应时间和错误率的时序数据。"""
     if not samples:
@@ -300,10 +334,12 @@ def _build_time_series(samples: list) -> dict:
                 "bytes_received": 0,
                 "bytes_sent": 0,
                 "network_bytes": 0,
+                "thread_scopes": {},
             }
         buckets[bucket_key]["count"] += 1
         buckets[bucket_key]["total_elapsed"] += s["elapsed"]
         buckets[bucket_key]["elapsed_times"].append(s["elapsed"])
+        _record_thread_count(buckets[bucket_key], s)
         received = int(s.get("bytes") or 0)
         sent = int(s.get("sent_bytes") or 0)
         buckets[bucket_key]["bytes_received"] += received
@@ -328,7 +364,7 @@ def _build_time_series(samples: list) -> dict:
         tps.append(b["count"])
         avg_rt.append(round(b["total_elapsed"] / b["count"], 2) if b["count"] > 0 else 0)
         error_rate.append(fmt_pct(b["errors"] / b["count"] * 100) if b["count"] > 0 else 0)
-        active_threads.append(0)
+        active_threads.append(sum(b.get("thread_scopes", {}).values()))
         bytes_received.append(b["bytes_received"])
         bytes_sent.append(b["bytes_sent"])
         network_bytes.append(b["network_bytes"])
@@ -343,6 +379,87 @@ def _build_time_series(samples: list) -> dict:
         "bytes_sent": bytes_sent,
         "network_bytes": network_bytes,
     }
+
+
+def _build_segment_stats(samples: list) -> list[dict]:
+    """按基础段和动态调压段汇总，用于报告页标记压力变化。"""
+    segments = {}
+    for s in samples:
+        segment_id = str(s.get("source_segment") or "base")
+        if segment_id not in segments:
+            segments[segment_id] = {
+                "segment_id": segment_id,
+                "sample_count": 0,
+                "error_count": 0,
+                "elapsed_times": [],
+                "start_time": None,
+                "end_time": None,
+                "per_second": {},
+                "thread_buckets": {},
+                "network_bytes": 0,
+            }
+
+        data = segments[segment_id]
+        timestamp = int(s.get("timestamp") or 0)
+        bucket_key = (timestamp // 1000) * 1000
+        data["sample_count"] += 1
+        data["per_second"][bucket_key] = data["per_second"].get(bucket_key, 0) + 1
+        data["elapsed_times"].append(int(s.get("elapsed") or 0))
+        data["network_bytes"] += int(s.get("bytes") or 0) + int(s.get("sent_bytes") or 0)
+        if not s.get("success", True):
+            data["error_count"] += 1
+        if data["start_time"] is None or timestamp < data["start_time"]:
+            data["start_time"] = timestamp
+        if data["end_time"] is None or timestamp > data["end_time"]:
+            data["end_time"] = timestamp
+
+        thread_count = _sample_thread_count(s)
+        if thread_count > 0:
+            scope = _sample_thread_scope(s)
+            scopes = data["thread_buckets"].setdefault(bucket_key, {})
+            scopes[scope] = max(scopes.get(scope, 0), thread_count)
+
+    ordered = sorted(
+        segments.values(),
+        key=lambda item: (
+            item["start_time"] if item["start_time"] is not None else 0,
+            item["segment_id"] != "base",
+            item["segment_id"],
+        ),
+    )
+    result = []
+    dynamic_index = 0
+    for data in ordered:
+        count = data["sample_count"]
+        elapsed_times = sorted(data["elapsed_times"])
+        start_time = data["start_time"] or 0
+        end_time = data["end_time"] or start_time
+        duration = max((end_time - start_time) / 1000, 1) if count > 0 else 0
+        max_threads = max(
+            (sum(scopes.values()) for scopes in data["thread_buckets"].values()),
+            default=0,
+        )
+        is_dynamic = data["segment_id"] != "base"
+        if is_dynamic:
+            dynamic_index += 1
+        result.append({
+            "segment_id": data["segment_id"],
+            "type": "dynamic" if is_dynamic else "base",
+            "label": f"动态调压段 {dynamic_index}" if is_dynamic else "基础压测段",
+            "start_time": start_time,
+            "end_time": end_time,
+            "duration": round(duration, 1),
+            "sample_count": count,
+            "error_count": data["error_count"],
+            "success_rate": fmt_pct((count - data["error_count"]) / count * 100) if count > 0 else 100.0,
+            "error_rate": fmt_pct(data["error_count"] / count * 100) if count > 0 else 0,
+            "avg_response_time": round(sum(elapsed_times) / len(elapsed_times), 2) if elapsed_times else 0,
+            "p99": percentile(elapsed_times, 99) if elapsed_times else 0,
+            "max_tps": max(data["per_second"].values(), default=0),
+            "max_threads": max_threads,
+            "network_bytes": data["network_bytes"],
+        })
+    return result
 
 
 def _build_label_time_series(samples: list, label: str) -> dict:
@@ -481,12 +598,14 @@ def get_task_summary(task_id: str):
     time_series = _build_time_series(all_samples)
     distribution = _build_response_time_distribution(all_samples)
     label_stats = _build_label_stats(all_samples)
+    segment_stats = _build_segment_stats(all_samples)
 
     return {
         "task_id": resolved_task_id,
         "display_task_id": _get_display_task_id(resolved_task_id),
         "summary": merged_summary,
         "time_series": time_series,
+        "segment_stats": segment_stats,
         "distribution": distribution,
         "label_stats": label_stats,
     }
@@ -583,6 +702,7 @@ def get_full_report(task_id: str):
     time_series = _build_time_series(all_samples)
     distribution = _build_response_time_distribution(all_samples)
     label_stats = _build_label_stats(all_samples)
+    segment_stats = _build_segment_stats(all_samples)
     errors = [s for s in all_samples if not s["success"]]
     labels = list(set(s["label"] for s in all_samples))
 
@@ -590,6 +710,7 @@ def get_full_report(task_id: str):
         "task_id": resolved_task_id,
         "summary": merged_summary,
         "time_series": time_series,
+        "segment_stats": segment_stats,
         "distribution": distribution,
         "label_stats": label_stats,
         "labels": labels,

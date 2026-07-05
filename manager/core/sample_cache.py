@@ -173,6 +173,8 @@ def _parse_xml_result(xml_path: str) -> list:
                     "url": url,
                     "latency": int(attrs.get("lt", 0)),
                     "connect_time": int(attrs.get("ct", 0)),
+                    "grp_threads": _safe_int_value(attrs.get("ng", attrs.get("grpThreads", 0)), 0),
+                    "all_threads": _safe_int_value(attrs.get("na", attrs.get("allThreads", 0)), 0),
                     "sampler_data": request_body,
                     "response_data": "",
                     "request_headers": request_header,
@@ -218,6 +220,8 @@ def _parse_xml_regex(xml_path: str) -> list:
                 "url": "",
                 "latency": int(attrs.get("lt", 0)),
                 "connect_time": int(attrs.get("ct", 0)),
+                "grp_threads": _safe_int_value(attrs.get("ng", attrs.get("grpThreads", 0)), 0),
+                "all_threads": _safe_int_value(attrs.get("na", attrs.get("allThreads", 0)), 0),
                 "sampler_data": "",
                 "response_data": "",
                 "request_headers": "",
@@ -263,6 +267,8 @@ def _parse_jtl_fast(jtl_path: str) -> list:
                         "url": _safe_row_get(row, "URL", ""),
                         "latency": _safe_row_int(row, "Latency", 0),
                         "connect_time": _safe_row_int(row, "Connect", 0),
+                        "grp_threads": _safe_row_int(row, "grpThreads", 0),
+                        "all_threads": _safe_row_int(row, "allThreads", 0),
                         "sampler_data": _safe_row_get(row, "samplerData", ""),
                         "response_data": _safe_row_get(row, "responseData", ""),
                         "request_headers": _safe_row_get(row, "requestHeaders", ""),
@@ -290,6 +296,10 @@ def _safe_row_get(row: dict, key: str, default=""):
 
 def _safe_row_int(row: dict, key: str, default=0):
     val = _safe_row_get(row, key, "")
+    return _safe_int_value(val, default)
+
+
+def _safe_int_value(val, default=0):
     try:
         return int(float(val)) if str(val).strip() else default
     except (ValueError, AttributeError):

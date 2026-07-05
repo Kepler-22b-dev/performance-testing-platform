@@ -253,6 +253,46 @@ class JMeterRunner:
                     return children[index + 1]
         return None
 
+    def _find_named_child_prop(self, element, name: str):
+        for child in list(element):
+            if child.get("name") == name and str(child.tag).endswith("Prop"):
+                return child
+        return None
+
+    def _set_named_child_prop(self, element, name: str, value, default_tag: str = "stringProp"):
+        prop = self._find_named_child_prop(element, name)
+        if prop is None:
+            prop = ET.SubElement(element, default_tag, name=name)
+        prop.text = str(value)
+        return prop
+
+    def _set_existing_named_child_prop(self, element, name: str, value) -> bool:
+        prop = self._find_named_child_prop(element, name)
+        if prop is None:
+            return False
+        prop.text = str(value)
+        return True
+
+    def _is_standard_thread_group(self, element) -> bool:
+        return element.tag == "ThreadGroup" or element.get("testclass") == "ThreadGroup"
+
+    def _iter_thread_group_elements(self, root):
+        seen = set()
+        for element in root.iter():
+            if id(element) in seen:
+                continue
+            tag = str(element.tag)
+            testclass = str(element.get("testclass") or "")
+            has_thread_prop = self._find_named_child_prop(element, "ThreadGroup.num_threads") is not None
+            is_thread_group = (
+                self._is_standard_thread_group(element)
+                or tag.endswith("ThreadGroup")
+                or testclass.endswith("ThreadGroup")
+            )
+            if has_thread_prop or is_thread_group:
+                seen.add(id(element))
+                yield element
+
     def _get_image_resource_config(self, scenario: dict = None) -> Optional[dict]:
         if not isinstance(scenario, dict):
             return None
@@ -369,31 +409,26 @@ class JMeterRunner:
 
             image_resource_config = self._get_image_resource_config(scenario)
 
-            # 遍历所有 ThreadGroup 元素并修改配置
-            for thread_group in root.iter("ThreadGroup"):
-                num_threads = thread_group.find("intProp[@name='ThreadGroup.num_threads']")
-                if num_threads is not None:
-                    num_threads.text = str(threads)
+            # 遍历所有线程组并修改配置，兼容 intProp/stringProp 以及常见插件线程组。
+            for thread_group in self._iter_thread_group_elements(root):
+                is_standard_thread_group = self._is_standard_thread_group(thread_group)
+                self._set_named_child_prop(thread_group, "ThreadGroup.num_threads", threads)
 
-                ramp = thread_group.find("intProp[@name='ThreadGroup.ramp_time']")
-                if ramp is not None:
-                    ramp.text = str(ramp_time)
+                if is_standard_thread_group or self._find_named_child_prop(thread_group, "ThreadGroup.ramp_time") is not None:
+                    self._set_named_child_prop(thread_group, "ThreadGroup.ramp_time", ramp_time)
+                self._set_existing_named_child_prop(thread_group, "rampUp", ramp_time)
 
-                dur = thread_group.find("stringProp[@name='ThreadGroup.duration']")
-                if dur is not None:
-                    dur.text = str(duration)
-                else:
-                    ET.SubElement(thread_group, "stringProp", name="ThreadGroup.duration").text = str(duration)
+                if is_standard_thread_group or self._find_named_child_prop(thread_group, "ThreadGroup.duration") is not None:
+                    self._set_named_child_prop(thread_group, "ThreadGroup.duration", duration)
+                self._set_existing_named_child_prop(thread_group, "duration", duration)
+                self._set_existing_named_child_prop(thread_group, "flighttime", duration)
 
                 # 启用调度器
-                sched = thread_group.find("boolProp[@name='ThreadGroup.scheduler']")
-                if sched is not None:
-                    sched.text = "true"
-                else:
-                    ET.SubElement(thread_group, "boolProp", name="ThreadGroup.scheduler").text = "true"
+                if is_standard_thread_group:
+                    self._set_named_child_prop(thread_group, "ThreadGroup.scheduler", "true", "boolProp")
 
                 # 设置无限循环
-                loop = thread_group.find(".//intProp[@name='LoopController.loops']")
+                loop = thread_group.find(".//*[@name='LoopController.loops']")
                 if loop is not None:
                     loop.text = "-1"
 

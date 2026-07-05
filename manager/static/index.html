@@ -32,6 +32,10 @@
         .chart-box { background: #fff; border-radius: 6px; padding: 16px; border: 1px solid #e0e0e0; overflow-x: auto; }
         .chart-box h3 { font-size: 13px; color: #666; margin-bottom: 12px; font-weight: 500; }
         .chart-container { height: 280px; }
+        .pressure-segment-section .segment-note { font-size: 12px; color: #64748b; line-height: 1.45; margin-bottom: 10px; }
+        .segment-type-badge { display: inline-flex; align-items: center; border-radius: 4px; padding: 2px 7px; font-size: 12px; line-height: 1.3; font-weight: 600; }
+        .segment-type-badge.base { background: #eef2ff; color: #3730a3; }
+        .segment-type-badge.dynamic { background: #fff7ed; color: #c2410c; }
         #script-tree div { white-space: normal; word-break: break-all; }
         .tree-node:hover { background: #f5f5f5; }
         .full-width { grid-column: 1 / -1; }
@@ -723,6 +727,30 @@
                     <div class="chart-box" style="margin-bottom:12px">
                         <h3>场景总览（并发数 / TPS / 响应时间 / 错误率）</h3>
                         <div class="chart-container" id="chart-overview" style="height:350px"></div>
+                    </div>
+
+                    <div class="chart-box pressure-segment-section hidden" id="pressure-segment-section" style="margin-bottom:12px">
+                        <div class="section-header">
+                            <h3>压力段识别</h3>
+                            <span style="font-size:12px;color:#64748b;">基础压测 + 动态调压段</span>
+                        </div>
+                        <div class="segment-note">动态调压会以独立压力段写入结果文件，报告会按压力段汇总并在总览图中用浅色区间标记。</div>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>压力段</th>
+                                    <th>时间范围</th>
+                                    <th>持续</th>
+                                    <th>请求数</th>
+                                    <th>最大 TPS</th>
+                                    <th>峰值并发</th>
+                                    <th>平均RT</th>
+                                    <th>P99</th>
+                                    <th>错误率</th>
+                                </tr>
+                            </thead>
+                            <tbody id="pressure-segment-tbody"></tbody>
+                        </table>
                     </div>
 
                     <div class="charts-grid">
@@ -3420,6 +3448,10 @@
             clearPagination('labelStats', 'label-stats-pagination');
             var respSection = document.getElementById('response-code-section');
             if (respSection) respSection.style.display = 'none';
+            var segmentSection = document.getElementById('pressure-segment-section');
+            var segmentBody = document.getElementById('pressure-segment-tbody');
+            if (segmentSection) segmentSection.classList.add('hidden');
+            if (segmentBody) segmentBody.innerHTML = '';
             Object.values(charts).forEach(c => { try { c.dispose(); } catch(e){} });
             charts = {};
             currentChartData = null;
@@ -5354,6 +5386,84 @@
             `).join('');
         }
 
+        function formatTimestampMs(timestampMs) {
+            const num = Number(timestampMs || 0);
+            if (!num) return '-';
+            const d = new Date(num);
+            if (Number.isNaN(d.getTime())) return '-';
+            const pad = n => String(n).padStart(2, '0');
+            return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+        }
+
+        function renderSegmentStats(data) {
+            const section = document.getElementById('pressure-segment-section');
+            const tbody = document.getElementById('pressure-segment-tbody');
+            if (!section || !tbody) return;
+
+            const segments = Array.isArray(data.segment_stats) ? data.segment_stats : [];
+            const hasDynamic = segments.some(s => s.type === 'dynamic');
+            if (!hasDynamic && segments.length <= 1) {
+                section.classList.add('hidden');
+                tbody.innerHTML = '';
+                return;
+            }
+
+            section.classList.remove('hidden');
+            tbody.innerHTML = segments.map(seg => {
+                const type = seg.type === 'dynamic' ? 'dynamic' : 'base';
+                const typeText = type === 'dynamic' ? (seg.label || '动态调压段') : '基础压测段';
+                const errorRate = Number(seg.error_rate || 0);
+                const errorColor = errorRate > 0 ? '#dc2626' : '#16a34a';
+                const range = `${formatTimestampMs(seg.start_time)} ~ ${formatTimestampMs(seg.end_time)}`;
+                return `
+                    <tr>
+                        <td>
+                            <span class="segment-type-badge ${type}">${escapeHtml(typeText)}</span>
+                            <div style="font-size:11px;color:#94a3b8;margin-top:4px;font-family:monospace;">${escapeHtml(seg.segment_id || '-')}</div>
+                        </td>
+                        <td>${escapeHtml(range)}</td>
+                        <td>${escapeHtml(formatDurationSeconds(Math.round(Number(seg.duration || 0))))}</td>
+                        <td>${formatMetricNumber(seg.sample_count || 0, 0)}</td>
+                        <td style="color:#2563eb;font-weight:500">${formatMetricNumber(seg.max_tps || 0, 0)}</td>
+                        <td>${formatMetricNumber(seg.max_threads || 0, 0)}</td>
+                        <td>${formatMetricNumber(seg.avg_response_time || 0)}ms</td>
+                        <td>${formatMetricNumber(seg.p99 || 0)}ms</td>
+                        <td style="color:${errorColor};font-weight:500">${formatMetricNumber(errorRate)}%</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function nearestTimeLabel(timestampMs, timestamps, labels) {
+            const target = Number(timestampMs || 0);
+            if (!target || !timestamps.length) return labels[0] || '';
+            let bestIndex = 0;
+            let bestDistance = Math.abs(Number(timestamps[0] || 0) - target);
+            for (let i = 1; i < timestamps.length; i++) {
+                const distance = Math.abs(Number(timestamps[i] || 0) - target);
+                if (distance < bestDistance) {
+                    bestDistance = distance;
+                    bestIndex = i;
+                }
+            }
+            return labels[bestIndex] || labels[0] || '';
+        }
+
+        function buildDynamicSegmentMarkAreas(data, timestamps, labels) {
+            const segments = Array.isArray(data.segment_stats) ? data.segment_stats : [];
+            return segments
+                .filter(seg => seg.type === 'dynamic')
+                .map(seg => ([
+                    {
+                        name: seg.label || '动态调压段',
+                        xAxis: nearestTimeLabel(seg.start_time, timestamps, labels),
+                    },
+                    {
+                        xAxis: nearestTimeLabel(seg.end_time, timestamps, labels),
+                    },
+                ]));
+        }
+
         // 存储当前数据用于切换接口图表
         let currentChartData = null;
         let logPage = 0;
@@ -5364,6 +5474,7 @@
             Object.values(charts).forEach(c => c.dispose());
             charts = {};
             currentChartData = data;
+            renderSegmentStats(data);
 
             const ts = data.time_series;
             if (!ts || !ts.timestamps || ts.timestamps.length === 0) {
@@ -5372,6 +5483,7 @@
             }
 
             const t = ts.timestamps.map(x => new Date(x).toLocaleTimeString());
+            const dynamicMarkAreas = buildDynamicSegmentMarkAreas(data, ts.timestamps, t);
             const ax = { axisLabel: { color: '#666' }, axisLine: { lineStyle: { color: '#ddd' } }, splitLine: { lineStyle: { color: '#f0f0f0' } } };
             const grid = { left: 60, right: 60, top: 40, bottom: 30 };
 
@@ -5418,6 +5530,12 @@
                         symbolSize: 4,
                         areaStyle: { color: 'rgba(37,99,235,0.08)' },
                         yAxisIndex: 0,
+                        markArea: dynamicMarkAreas.length ? {
+                            silent: true,
+                            itemStyle: { color: 'rgba(249,115,22,0.10)' },
+                            label: { color: '#c2410c', fontSize: 11, fontWeight: 600 },
+                            data: dynamicMarkAreas,
+                        } : undefined,
                     },
                     {
                         name: '平均RT(ms)',

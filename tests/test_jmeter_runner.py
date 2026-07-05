@@ -435,6 +435,47 @@ def test_error_response_capture_uses_sample_label_api(tmp_path):
     assert "prev.getLabel()" not in text
 
 
+def test_thread_config_injection_updates_string_props(tmp_path):
+    script_path = tmp_path / "string-props.jmx"
+    script_path.write_text(
+        """<?xml version="1.0" encoding="UTF-8"?>
+<jmeterTestPlan version="1.2" properties="5.0" jmeter="5.6.3">
+  <hashTree>
+    <TestPlan guiclass="TestPlanGui" testclass="TestPlan" testname="Test Plan"/>
+    <hashTree>
+      <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="Thread Group">
+        <stringProp name="ThreadGroup.num_threads">5</stringProp>
+        <stringProp name="ThreadGroup.ramp_time">1</stringProp>
+        <boolProp name="ThreadGroup.scheduler">false</boolProp>
+        <stringProp name="ThreadGroup.duration">15</stringProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController">
+          <intProp name="LoopController.loops">1</intProp>
+        </elementProp>
+      </ThreadGroup>
+      <hashTree/>
+    </hashTree>
+  </hashTree>
+</jmeterTestPlan>
+""",
+        encoding="utf-8",
+    )
+    runner = JMeterRunner("/opt/jmeter")
+
+    modified = runner._inject_thread_config(
+        str(script_path),
+        threads=1500,
+        ramp_time=5,
+        duration=60,
+    )
+
+    root = ET.parse(modified).getroot()
+    assert root.find(".//stringProp[@name='ThreadGroup.num_threads']").text == "1500"
+    assert root.find(".//stringProp[@name='ThreadGroup.ramp_time']").text == "5"
+    assert root.find(".//stringProp[@name='ThreadGroup.duration']").text == "60"
+    assert root.find(".//boolProp[@name='ThreadGroup.scheduler']").text == "true"
+    assert root.find(".//*[@name='LoopController.loops']").text == "-1"
+
+
 def test_image_resource_loader_enables_subresults_output(tmp_path):
     script_path = tmp_path / "test.jmx"
     script_path.write_text("<jmeterTestPlan></jmeterTestPlan>", encoding="utf-8")
