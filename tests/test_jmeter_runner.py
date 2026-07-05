@@ -136,6 +136,58 @@ def test_jmeter_xml_result_format_is_debug_option(tmp_path):
     assert report.call_args.args[0].endswith("result.xml")
 
 
+def test_distributed_run_skips_unavailable_remote_hosts(tmp_path):
+    script_path = tmp_path / "test.jmx"
+    script_path.write_text("<jmeterTestPlan></jmeterTestPlan>", encoding="utf-8")
+    runner = JMeterRunner("/opt/jmeter")
+
+    with patch.object(runner, "_is_remote_host_available", side_effect=lambda host: host.endswith(":1101")), \
+         patch.object(runner, "_parse_final_result", return_value={"total_samples": 0}), \
+         patch.object(runner, "_generate_report"), \
+         patch("agent.jmeter_runner.subprocess.Popen", return_value=FakeProcess()) as popen:
+        result = runner.execute(
+            script_path=str(script_path),
+            result_dir=str(tmp_path / "result"),
+            jmeter_args={"capture_error_log": "false"},
+            distributed=True,
+            remote_hosts="192.168.31.178:1101,192.168.31.178:1100",
+            timeout=10,
+        )
+
+    cmd = popen.call_args.args[0]
+    assert result["status"] == "completed"
+    assert cmd[cmd.index("-R") + 1] == "192.168.31.178:1101"
+    assert all("192.168.31.178:1100" not in part for part in cmd)
+    assert "192.168.31.178:1100" in result["warnings"][0]
+    assert result["summary"]["execution_warnings"] == result["warnings"]
+
+
+def test_distributed_run_falls_back_to_local_when_all_remote_hosts_unavailable(tmp_path):
+    script_path = tmp_path / "test.jmx"
+    script_path.write_text("<jmeterTestPlan></jmeterTestPlan>", encoding="utf-8")
+    runner = JMeterRunner("/opt/jmeter")
+
+    with patch.object(runner, "_is_remote_host_available", return_value=False), \
+         patch.object(runner, "_parse_final_result", return_value={"total_samples": 0}), \
+         patch.object(runner, "_generate_report"), \
+         patch("agent.jmeter_runner.subprocess.Popen", return_value=FakeProcess()) as popen:
+        result = runner.execute(
+            script_path=str(script_path),
+            result_dir=str(tmp_path / "result"),
+            jmeter_args={"capture_error_log": "false"},
+            distributed=True,
+            remote_hosts="192.168.31.178:1101,192.168.31.178:1100",
+            timeout=10,
+        )
+
+    cmd = popen.call_args.args[0]
+    assert result["status"] == "completed"
+    assert "-R" not in cmd
+    assert "-r" not in cmd
+    assert any("全部不可用" in warning for warning in result["warnings"])
+    assert result["summary"]["execution_warnings"] == result["warnings"]
+
+
 def test_nonzero_jmeter_exit_with_samples_is_failed(tmp_path):
     script_path = tmp_path / "test.jmx"
     script_path.write_text("<jmeterTestPlan></jmeterTestPlan>", encoding="utf-8")

@@ -9,6 +9,7 @@ import time
 import csv
 import json
 import logging
+import socket
 import xml.etree.ElementTree as ET
 import random
 from collections import deque
@@ -64,6 +65,105 @@ class JMeterRunner:
         except (TypeError, ValueError):
             parsed = default
         return max(min_value, min(max_value, parsed))
+
+    def _split_remote_hosts(self, remote_hosts: Optional[str]) -> list[str]:
+        if not remote_hosts:
+            return []
+        return [host.strip() for host in str(remote_hosts).split(",") if host.strip()]
+
+    def _read_jmeter_remote_hosts(self) -> list[str]:
+        properties_path = os.path.join(self.jmeter_home, "bin", "jmeter.properties")
+        if not os.path.exists(properties_path):
+            return []
+        try:
+            with open(properties_path, "r", encoding="utf-8", errors="replace") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith("#"):
+                        continue
+                    if line.startswith("remote_hosts="):
+                        return self._split_remote_hosts(line.split("=", 1)[1])
+        except Exception:
+            return []
+        return []
+
+    def _parse_remote_host(self, remote_host: str) -> tuple[str, int] | None:
+        remote_host = str(remote_host or "").strip()
+        if not remote_host:
+            return None
+        if remote_host.startswith("[") and "]:" in remote_host:
+            host, port = remote_host.rsplit("]:", 1)
+            host = host[1:]
+        elif ":" in remote_host:
+            host, port = remote_host.rsplit(":", 1)
+        else:
+            host, port = remote_host, "1099"
+        try:
+            return host.strip(), int(port)
+        except (TypeError, ValueError):
+            return None
+
+    def _is_remote_host_available(self, remote_host: str, timeout: float = 0.5) -> bool:
+        parsed = self._parse_remote_host(remote_host)
+        if not parsed:
+            return False
+        host, port = parsed
+        try:
+            with socket.create_connection((host, port), timeout=timeout):
+                return True
+        except OSError:
+            return False
+
+    def _resolve_distributed_execution(
+        self,
+        distributed: bool,
+        remote_hosts: Optional[str],
+    ) -> tuple[bool, Optional[str], list[str]]:
+        """过滤不可用 Slave；全部不可用时回退到本机执行。"""
+        if not distributed:
+            return False, None, []
+
+        configured_hosts = self._split_remote_hosts(remote_hosts)
+        source = "任务配置"
+        if not configured_hosts:
+            configured_hosts = self._read_jmeter_remote_hosts()
+            source = "jmeter.properties"
+
+        if not configured_hosts:
+            warning = "分布式模式未找到可用 remote_hosts，已回退为本机执行"
+            self.logger.warning(warning)
+            return False, None, [warning]
+
+        available_hosts = []
+        unavailable_hosts = []
+        for host in configured_hosts:
+            if self._is_remote_host_available(host):
+                available_hosts.append(host)
+            else:
+                unavailable_hosts.append(host)
+
+        warnings = []
+        if unavailable_hosts:
+            warnings.append(
+                f"{source} 中不可用的 Slave 已跳过: {', '.join(unavailable_hosts)}"
+            )
+
+        if available_hosts:
+            if unavailable_hosts:
+                self.logger.warning(
+                    "Some JMeter slaves are unavailable and will be skipped: unavailable=%s, available=%s",
+                    unavailable_hosts,
+                    available_hosts,
+                )
+            return True, ",".join(available_hosts), warnings
+
+        warning = (
+            f"{source} 中配置的 Slave 全部不可用，已回退为本机执行: "
+            + ", ".join(unavailable_hosts)
+        )
+        self.logger.warning(warning)
+        warnings.append(warning)
+        return False, None, warnings
 
     def _final_result_sample_limit(self) -> int:
         """Limit retained response times for final percentile calculation."""
@@ -561,6 +661,7 @@ class JMeterRunner:
         error_sample_limit = self._parse_int_range(jmeter_args.get("error_log_sample_limit"), 100, 0, 10000)
         error_max_body_chars = self._parse_int_range(jmeter_args.get("error_log_max_body_chars"), 8192, 256, 262144)
         jvm_heap_mb = self._parse_heap_mb(jmeter_args.get("jvm_heap_mb"))
+        distributed, remote_hosts, execution_warnings = self._resolve_distributed_execution(distributed, remote_hosts)
 
         # 注入线程组配置
         scenario = None
@@ -686,9 +787,17 @@ class JMeterRunner:
                 self._ensure_xml_complete(jtl_path)
 
             summary = self._parse_final_result(jtl_path)
+            if execution_warnings:
+                summary = dict(summary or {})
+                summary["execution_warnings"] = execution_warnings
 
             if exit_code != 0:
-                return {"status": "failed", "error": f"JMeter exit code {exit_code}", "summary": summary}
+                return {
+                    "status": "failed",
+                    "error": f"JMeter exit code {exit_code}",
+                    "summary": summary,
+                    "warnings": execution_warnings,
+                }
 
             # 生成 HTML 报告
             self._generate_report(jtl_path, report_path, jmeter_args)
@@ -697,6 +806,7 @@ class JMeterRunner:
                 "status": "completed",
                 "report_path": report_path,
                 "summary": summary,
+                "warnings": execution_warnings,
             }
 
         except Exception as e:
