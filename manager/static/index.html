@@ -1404,18 +1404,54 @@
             <div id="jtl-compare-result" class="hidden">
                 <div class="summary-cards" id="jtl-compare-cards"></div>
 
-                <div class="chart-box" style="margin-bottom:12px">
-                    <h3>TPS 对比</h3>
-                    <div class="chart-container" id="chart-jtl-tps" style="height:300px"></div>
+                <div class="charts-grid">
+                    <div class="chart-box">
+                        <h3>TPS 对比</h3>
+                        <div class="chart-container" id="chart-jtl-tps"></div>
+                    </div>
+                    <div class="chart-box">
+                        <h3>平均响应时间对比</h3>
+                        <div class="chart-container" id="chart-jtl-rt"></div>
+                    </div>
+                    <div class="chart-box">
+                        <h3>错误率趋势对比</h3>
+                        <div class="chart-container" id="chart-jtl-error"></div>
+                    </div>
+                    <div class="chart-box">
+                        <h3>成功率趋势对比</h3>
+                        <div class="chart-container" id="chart-jtl-success"></div>
+                    </div>
+                    <div class="chart-box">
+                        <h3>P90 / P99 响应时间对比</h3>
+                        <div class="chart-container" id="chart-jtl-percentile"></div>
+                    </div>
+                    <div class="chart-box">
+                        <h3>吞吐量 (字节/秒) 对比</h3>
+                        <div class="chart-container" id="chart-jtl-throughput"></div>
+                    </div>
+                </div>
+
+                <div class="charts-grid" style="margin-bottom:12px">
+                    <div class="chart-box">
+                        <h3>响应时间分布</h3>
+                        <div class="chart-container" id="chart-jtl-rt-dist"></div>
+                    </div>
+                    <div class="chart-box">
+                        <h3>接口级 TPS 对比</h3>
+                        <div class="chart-container" id="chart-jtl-label-tps"></div>
+                    </div>
+                    <div class="chart-box">
+                        <h3>接口级平均 RT 对比</h3>
+                        <div class="chart-container" id="chart-jtl-label-rt"></div>
+                    </div>
+                    <div class="chart-box">
+                        <h3>接口级 P99 对比</h3>
+                        <div class="chart-container" id="chart-jtl-label-p99"></div>
+                    </div>
                 </div>
 
                 <div class="chart-box" style="margin-bottom:12px">
-                    <h3>平均响应时间对比</h3>
-                    <div class="chart-container" id="chart-jtl-rt" style="height:300px"></div>
-                </div>
-
-                <div class="chart-box" style="margin-bottom:12px">
-                    <h3>接口级对比</h3>
+                    <h3>接口级明细对比</h3>
                     <div style="overflow-x:auto">
                         <table>
                             <thead id="jtl-compare-label-thead"></thead>
@@ -7796,55 +7832,131 @@
             }).join('');
             document.getElementById('jtl-compare-cards').innerHTML = cardsHtml;
 
-            // TPS 对比图
-            if (charts.jtlTps) charts.jtlTps.dispose();
-            const tpsData = jtlFiles.map((f, i) => ({
-                name: f.filename,
-                type: 'line',
-                data: (f.time_series || {}).tps || [],
-                smooth: true,
-                lineStyle: { width: 2.5, color: colors[i % colors.length] },
-                itemStyle: { color: colors[i % colors.length] },
-                symbol: 'circle',
-                symbolSize: 4,
-            }));
             const maxTpsLen = Math.max(...jtlFiles.map(f => ((f.time_series || {}).tps || []).length));
             const jtlTimeLabels = Array.from({length: maxTpsLen}, (_, i) => i + 's');
+
+            // 通用图表配置
+            const gridOpt = { left: 60, right: 20, top: 40, bottom: 30 };
+            const tooltipOpt = { trigger: 'axis' };
+            const legendOpt = { data: jtlFiles.map(f => f.filename), top: 0, textStyle: { fontSize: 12 } };
+            const xOpt = { type: 'category', data: jtlTimeLabels, axisLabel: { color: '#666' }, boundaryGap: false };
+
+            function makeLineSeries(key, opts) {
+                return jtlFiles.map((f, i) => ({
+                    name: f.filename,
+                    type: 'line',
+                    data: (f.time_series || {})[key] || [],
+                    smooth: true,
+                    lineStyle: { width: 2.5, color: colors[i % colors.length] },
+                    itemStyle: { color: colors[i % colors.length] },
+                    symbol: 'circle',
+                    symbolSize: 4,
+                    ...opts,
+                }));
+            }
+
+            // TPS 对比图
+            if (charts.jtlTps) charts.jtlTps.dispose();
             charts.jtlTps = echarts.init(document.getElementById('chart-jtl-tps'));
             charts.jtlTps.setOption({
-                backgroundColor: 'transparent',
-                tooltip: { trigger: 'axis' },
-                legend: { data: jtlFiles.map(f => f.filename), top: 0, textStyle: { fontSize: 12 } },
-                xAxis: { type: 'category', data: jtlTimeLabels, axisLabel: { color: '#666' }, boundaryGap: false },
+                backgroundColor: 'transparent', tooltip: tooltipOpt, legend: legendOpt, xAxis: xOpt,
                 yAxis: { type: 'value', name: 'TPS', axisLabel: { color: '#666' }, splitLine: { lineStyle: { color: '#f0f0f0' } } },
-                series: tpsData,
-                grid: { left: 60, right: 20, top: 40, bottom: 30 },
+                series: makeLineSeries('tps'), grid: gridOpt,
             });
 
             // RT 对比图
             if (charts.jtlRt) charts.jtlRt.dispose();
-            const rtData = jtlFiles.map((f, i) => ({
-                name: f.filename,
-                type: 'line',
-                data: (f.time_series || {}).avg_rt || [],
-                smooth: true,
-                lineStyle: { width: 2.5, color: colors[i % colors.length] },
-                itemStyle: { color: colors[i % colors.length] },
-                symbol: 'circle',
-                symbolSize: 4,
-            }));
             charts.jtlRt = echarts.init(document.getElementById('chart-jtl-rt'));
             charts.jtlRt.setOption({
-                backgroundColor: 'transparent',
-                tooltip: { trigger: 'axis' },
-                legend: { data: jtlFiles.map(f => f.filename), top: 0, textStyle: { fontSize: 12 } },
-                xAxis: { type: 'category', data: jtlTimeLabels, axisLabel: { color: '#666' }, boundaryGap: false },
+                backgroundColor: 'transparent', tooltip: tooltipOpt, legend: legendOpt, xAxis: xOpt,
                 yAxis: { type: 'value', name: 'ms', axisLabel: { color: '#666' }, splitLine: { lineStyle: { color: '#f0f0f0' } } },
-                series: rtData,
-                grid: { left: 60, right: 20, top: 40, bottom: 30 },
+                series: makeLineSeries('avg_rt'), grid: gridOpt,
             });
 
-            // 接口级对比表
+            // 错误率趋势对比
+            if (charts.jtlError) charts.jtlError.dispose();
+            charts.jtlError = echarts.init(document.getElementById('chart-jtl-error'));
+            charts.jtlError.setOption({
+                backgroundColor: 'transparent', tooltip: tooltipOpt, legend: legendOpt, xAxis: xOpt,
+                yAxis: { type: 'value', name: '%', axisLabel: { color: '#666' }, splitLine: { lineStyle: { color: '#f0f0f0' } } },
+                series: makeLineSeries('error_rate'), grid: gridOpt,
+            });
+
+            // 成功率趋势对比
+            if (charts.jtlSuccess) charts.jtlSuccess.dispose();
+            charts.jtlSuccess = echarts.init(document.getElementById('chart-jtl-success'));
+            charts.jtlSuccess.setOption({
+                backgroundColor: 'transparent', tooltip: tooltipOpt, legend: legendOpt, xAxis: xOpt,
+                yAxis: { type: 'value', name: '%', min: 0, max: 100, axisLabel: { color: '#666' }, splitLine: { lineStyle: { color: '#f0f0f0' } } },
+                series: makeLineSeries('success_rate'), grid: gridOpt,
+            });
+
+            // P90 / P99 响应时间对比
+            if (charts.jtlPercentile) charts.jtlPercentile.dispose();
+            charts.jtlPercentile = echarts.init(document.getElementById('chart-jtl-percentile'));
+            const pSeries = [];
+            jtlFiles.forEach((f, i) => {
+                const c = colors[i % colors.length];
+                pSeries.push({
+                    name: f.filename + ' P90', type: 'line',
+                    data: (f.time_series || {}).p90_rt || [],
+                    smooth: true, lineStyle: { width: 2, color: c, type: 'solid' },
+                    itemStyle: { color: c }, symbol: 'none',
+                });
+                pSeries.push({
+                    name: f.filename + ' P99', type: 'line',
+                    data: (f.time_series || {}).p99_rt || [],
+                    smooth: true, lineStyle: { width: 2, color: c, type: 'dashed' },
+                    itemStyle: { color: c }, symbol: 'none',
+                });
+            });
+            charts.jtlPercentile.setOption({
+                backgroundColor: 'transparent', tooltip: tooltipOpt,
+                legend: { data: pSeries.map(s => s.name), top: 0, textStyle: { fontSize: 11 } },
+                xAxis: xOpt,
+                yAxis: { type: 'value', name: 'ms', axisLabel: { color: '#666' }, splitLine: { lineStyle: { color: '#f0f0f0' } } },
+                series: pSeries, grid: gridOpt,
+            });
+
+            // 吞吐量对比
+            if (charts.jtlThroughput) charts.jtlThroughput.dispose();
+            charts.jtlThroughput = echarts.init(document.getElementById('chart-jtl-throughput'));
+            charts.jtlThroughput.setOption({
+                backgroundColor: 'transparent', tooltip: tooltipOpt, legend: legendOpt, xAxis: xOpt,
+                yAxis: { type: 'value', name: 'B/s', axisLabel: { color: '#666', formatter: v => v >= 1048576 ? (v/1048576).toFixed(1)+'M' : v >= 1024 ? (v/1024).toFixed(1)+'K' : v }, splitLine: { lineStyle: { color: '#f0f0f0' } } },
+                series: makeLineSeries('bytes_received'), grid: gridOpt,
+            });
+
+            // 响应时间分布直方图
+            if (charts.jtlRtDist) charts.jtlRtDist.dispose();
+            charts.jtlRtDist = echarts.init(document.getElementById('chart-jtl-rt-dist'));
+            const rtBuckets = [0, 50, 100, 200, 300, 500, 1000, 2000, 5000];
+            const rtLabels = ['0-50', '50-100', '100-200', '200-300', '300-500', '500-1k', '1k-2k', '2k-5k'];
+            const rtDistSeries = jtlFiles.map((f, i) => {
+                const counts = new Array(rtBuckets.length - 1).fill(0);
+                (f.labels || []).forEach(l => {
+                    const avg = l.avg || 0;
+                    for (let b = 0; b < rtBuckets.length - 1; b++) {
+                        if (avg >= rtBuckets[b] && avg < rtBuckets[b + 1]) { counts[b] += l.count; break; }
+                        if (b === rtBuckets.length - 2 && avg >= rtBuckets[b]) { counts[b] += l.count; }
+                    }
+                });
+                return {
+                    name: f.filename, type: 'bar', data: counts,
+                    itemStyle: { color: colors[i % colors.length], borderRadius: [3, 3, 0, 0] },
+                    barMaxWidth: 30,
+                };
+            });
+            charts.jtlRtDist.setOption({
+                backgroundColor: 'transparent',
+                tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+                legend: legendOpt,
+                xAxis: { type: 'category', data: rtLabels, axisLabel: { color: '#666', fontSize: 11 } },
+                yAxis: { type: 'value', name: '请求数', axisLabel: { color: '#666' }, splitLine: { lineStyle: { color: '#f0f0f0' } } },
+                series: rtDistSeries, grid: gridOpt,
+            });
+
+            // 接口级柱状图
             const allLabelsMap = {};
             jtlFiles.forEach((f, i) => {
                 (f.labels || []).forEach(l => {
@@ -7852,8 +7964,32 @@
                     allLabelsMap[l.label][i] = l;
                 });
             });
+            const labelNames = Object.keys(allLabelsMap);
+            const topLabels = labelNames.slice(0, 15);
 
-            // 简单表头：文件名横跨4列，下面4个指标
+            function labelBarChart(chartId, metric, yName) {
+                if (charts[chartId]) charts[chartId].dispose();
+                charts[chartId] = echarts.init(document.getElementById(chartId));
+                const barSeries = jtlFiles.map((f, i) => ({
+                    name: f.filename, type: 'bar',
+                    data: topLabels.map(l => (allLabelsMap[l][i] || {})[metric] || 0),
+                    itemStyle: { color: colors[i % colors.length], borderRadius: [3, 3, 0, 0] },
+                    barMaxWidth: 24,
+                }));
+                charts[chartId].setOption({
+                    backgroundColor: 'transparent',
+                    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+                    legend: legendOpt,
+                    xAxis: { type: 'category', data: topLabels, axisLabel: { color: '#666', fontSize: 11, rotate: 30, interval: 0 }, axisTick: { show: false } },
+                    yAxis: { type: 'value', name: yName, axisLabel: { color: '#666' }, splitLine: { lineStyle: { color: '#f0f0f0' } } },
+                    series: barSeries, grid: { left: 60, right: 20, top: 40, bottom: 80 },
+                });
+            }
+            labelBarChart('chart-jtl-label-tps', 'tps', 'TPS');
+            labelBarChart('chart-jtl-label-rt', 'avg', 'ms');
+            labelBarChart('chart-jtl-label-p99', 'p99', 'ms');
+
+            // 接口级对比表
             const fileHeaders = jtlFiles.map((f, i) =>
                 `<th colspan="4" style="text-align:center;background:${colors[i % colors.length]}12;color:${colors[i % colors.length]};font-weight:600;font-size:13px;border-left:3px solid ${colors[i % colors.length]}">${f.filename}</th>`
             ).join('');
@@ -7882,8 +8018,7 @@
             renderJtlCompareLabels();
 
             window.addEventListener('resize', () => {
-                if (charts.jtlTps) charts.jtlTps.resize();
-                if (charts.jtlRt) charts.jtlRt.resize();
+                Object.keys(charts).forEach(k => { if (k.startsWith('jtl') && charts[k]) charts[k].resize(); });
             });
         }
 
