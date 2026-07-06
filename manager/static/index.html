@@ -435,7 +435,7 @@
                 <div class="home-trend-head">
                     <div>
                         <div class="home-trend-title">近期压测结果</div>
-                        <div class="home-trend-subtitle" id="home-trend-range">按最近任务展示 RT、TPS、错误率和请求量</div>
+                        <div class="home-trend-subtitle" id="home-trend-range">按最近任务展示 RT、QPS、错误率和请求量</div>
                     </div>
                     <div class="home-trend-kpis">
                         <div class="home-trend-kpi">
@@ -594,13 +594,13 @@
                         <div class="home-capability-card">
                             <div class="cap-step">3</div>
                             <div class="cap-title">过程实时可观测</div>
-                            <div class="cap-desc">运行中持续推送 TPS、RT、错误率、线程数和资源水位，异常不是压完才知道。</div>
+                            <div class="cap-desc">运行中持续推送 QPS、RT、错误率、线程数和资源水位，异常不是压完才知道。</div>
                             <div class="cap-proof">监控：实时曲线 + 告警通知 + 工具日志</div>
                         </div>
                         <div class="home-capability-card">
                             <div class="cap-step">4</div>
                             <div class="cap-title">产出容量结论</div>
-                            <div class="cap-desc">自动汇总请求量、TPS、平均 RT、P90/P99、错误率、接口明细、历史趋势和任务对比。</div>
+                            <div class="cap-desc">自动汇总请求量、QPS、平均 RT、P90/P99、错误率、接口明细、历史趋势和任务对比。</div>
                             <div class="cap-proof">交付：HTML/PDF 报告 + 趋势看板 + JTL 导入</div>
                         </div>
                     </div>
@@ -725,7 +725,7 @@
 
                     <!-- 场景总览：多曲线合并 -->
                     <div class="chart-box" style="margin-bottom:12px">
-                        <h3>场景总览（并发数 / TPS / 响应时间 / 错误率）</h3>
+                        <h3>场景总览（并发数 / QPS / 响应时间 / 错误率）</h3>
                         <div class="chart-container" id="chart-overview" style="height:350px"></div>
                     </div>
 
@@ -742,7 +742,7 @@
                                     <th>时间范围</th>
                                     <th>持续</th>
                                     <th>请求数</th>
-                                    <th>最大 TPS</th>
+                                    <th>最大 QPS</th>
                                     <th>峰值并发</th>
                                     <th>平均RT</th>
                                     <th>P99</th>
@@ -770,7 +770,7 @@
                     <div class="chart-box">
                         <h3>接口统计</h3>
                         <table>
-                            <thead><tr><th>接口名称</th><th>请求数</th><th>TPS</th><th>平均耗时</th><th>P50</th><th>P90</th><th>P99</th><th>错误率</th></tr></thead>
+                            <thead><tr><th>接口名称</th><th>请求数</th><th>QPS</th><th>平均耗时</th><th>P50</th><th>P90</th><th>P99</th><th>错误率</th></tr></thead>
                             <tbody id="label-stats-tbody"></tbody>
                         </table>
                         <div id="label-stats-pagination"></div>
@@ -975,8 +975,8 @@
                             <input type="number" id="create-duration" value="60" min="1" oninput="updateScenarioPreview()" style="width:100%;padding:4px;border:1px solid #d0d0d0;border-radius:4px;font-size:13px;font-weight:bold;text-align:center;">
                         </div>
                         <div style="text-align:center;">
-                            <div style="font-size:11px;color:#888;margin-bottom:2px;">超时(s)</div>
-                            <input type="number" id="create-timeout" value="130" min="10" oninput="onCreateTimeoutInput()" style="width:100%;padding:4px;border:1px solid #d0d0d0;border-radius:4px;font-size:13px;font-weight:bold;text-align:center;">
+                            <div style="font-size:11px;color:#888;margin-bottom:2px;">任务超时(s)</div>
+                            <input type="number" id="create-timeout" value="130" min="10" oninput="onCreateTimeoutInput()" style="width:100%;padding:4px;border:1px solid #d0d0d0;border-radius:4px;font-size:13px;font-weight:bold;text-align:center;" title="JMeter 进程最大运行时间，超时后自动终止。建议 ≥ 持续时间 + 60s 缓冲">
                         </div>
                     </div>
                     <div id="scenario-desc" style="font-size:11px;color:#666;margin-top:6px;padding-top:6px;border-top:1px solid #e0e0e0;">选择场景后显示说明</div>
@@ -1349,38 +1349,46 @@
                 <div class="toolbar">
                     <h3>任务对比</h3>
                     <div class="toolbar-actions">
-                        <select id="compare-task-1" class="compact-select" style="min-width:200px">
-                            <option value="">选择任务 A</option>
-                        </select>
-                        <span style="color:#888;font-size:13px">VS</span>
-                        <select id="compare-task-2" class="compact-select" style="min-width:200px">
-                            <option value="">选择任务 B</option>
-                        </select>
-                        <button class="btn-primary" onclick="runCompare()">对比</button>
+                        <span style="font-size:12px;color:#888" id="compare-selected-hint">已选 0 个任务（最多5个）</span>
+                        <button class="btn-primary" onclick="runCompare()" id="compare-run-btn" disabled>开始对比</button>
+                        <button class="filter-btn" onclick="clearCompareSelection()">清空选择</button>
                     </div>
                 </div>
+                <div id="compare-task-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px;max-height:400px;overflow-y:auto;padding:4px 0;"></div>
             </div>
 
             <div id="compare-result" class="hidden">
                 <div class="summary-cards" id="compare-cards"></div>
-                <div class="chart-box" style="margin-bottom:12px">
-                    <h3>TPS 对比</h3>
-                    <div class="chart-container" id="chart-compare-tps" style="height:300px"></div>
+                <div class="charts-grid">
+                    <div class="chart-box">
+                        <h3>QPS 对比</h3>
+                        <div class="chart-container" id="chart-compare-tps"></div>
+                    </div>
+                    <div class="chart-box">
+                        <h3>平均响应时间对比</h3>
+                        <div class="chart-container" id="chart-compare-rt"></div>
+                    </div>
+                    <div class="chart-box">
+                        <h3>P99 响应时间对比</h3>
+                        <div class="chart-container" id="chart-compare-p99"></div>
+                    </div>
+                    <div class="chart-box">
+                        <h3>错误率对比</h3>
+                        <div class="chart-container" id="chart-compare-error"></div>
+                    </div>
                 </div>
                 <div class="chart-box" style="margin-bottom:12px">
-                    <h3>平均响应时间对比</h3>
-                    <div class="chart-container" id="chart-compare-rt" style="height:300px"></div>
-                </div>
-                <div class="chart-box">
                     <h3>接口级对比</h3>
-                    <table>
-                        <thead><tr><th>接口</th><th>任务A 耗时</th><th>任务B 耗时</th><th>变化</th><th>任务A 错误率</th><th>任务B 错误率</th><th>变化</th></tr></thead>
-                        <tbody id="compare-label-tbody"></tbody>
-                    </table>
+                    <div style="overflow-x:auto">
+                        <table>
+                            <thead id="compare-label-thead"></thead>
+                            <tbody id="compare-label-tbody"></tbody>
+                        </table>
+                    </div>
                     <div id="compare-label-pagination"></div>
                 </div>
             </div>
-            <div id="compare-empty" class="empty-tip" style="margin-top:40px">请选择两个已完成的任务进行对比</div>
+            <div id="compare-empty" class="empty-tip" style="margin-top:40px">点击上方任务卡片选择要对比的任务</div>
         </div>
 
         <!-- JTL 导入对比 -->
@@ -1406,7 +1414,7 @@
 
                 <div class="charts-grid">
                     <div class="chart-box">
-                        <h3>TPS 对比</h3>
+                        <h3>QPS 对比</h3>
                         <div class="chart-container" id="chart-jtl-tps"></div>
                     </div>
                     <div class="chart-box">
@@ -1437,7 +1445,7 @@
                         <div class="chart-container" id="chart-jtl-rt-dist"></div>
                     </div>
                     <div class="chart-box">
-                        <h3>接口级 TPS 对比</h3>
+                        <h3>接口级 QPS 对比</h3>
                         <div class="chart-container" id="chart-jtl-label-tps"></div>
                     </div>
                     <div class="chart-box">
@@ -1487,14 +1495,14 @@
                     </style>
                 </div>
                 <div class="chart-box" id="trend-chart-box" style="display:none">
-                    <h3>TPS / 响应时间 / 错误率 趋势</h3>
+                    <h3>QPS / 响应时间 / 错误率 趋势</h3>
                     <div id="chart-trend" style="height:350px;"></div>
                 </div>
             </div>
             <div class="task-list">
                 <h3>历史数据</h3>
                 <table>
-                    <thead><tr><th>接口</th><th>请求数</th><th>TPS</th><th>平均RT</th><th>P50</th><th>P90</th><th>P99</th><th>错误率</th></tr></thead>
+                    <thead><tr><th>接口</th><th>请求数</th><th>QPS</th><th>平均RT</th><th>P50</th><th>P90</th><th>P99</th><th>错误率</th></tr></thead>
                     <tbody id="trend-tbody"></tbody>
                 </table>
                 <div id="no-trend" class="empty-tip">暂无历史数据</div>
@@ -2395,7 +2403,7 @@
                         '<span style="color:#16a34a">●</span> 已完成 ' + completedData.reduce((a, b) => a + b, 0),
                         '<span style="color:#dc2626">●</span> 失败 ' + failedData.reduce((a, b) => a + b, 0),
                         '<span style="color:#2563eb">●</span> 运行中 ' + runningData.reduce((a, b) => a + b, 0),
-                        '暂无 RT/TPS 指标时自动降级显示任务数量'
+                        '暂无 RT/QPS 指标时自动降级显示任务数量'
                     ].join('');
                 }
                 document.getElementById('home-total-tasks').textContent = sortedTasks.length;
@@ -2475,7 +2483,7 @@
                 legendEl.innerHTML = [
                     '<span style="color:#94a3b8">■</span> 请求数 ' + homeCompactNumber(totalRequests),
                     '<span style="color:#2563eb">━━</span> 平均 RT ' + homeFormatMs(avgRt),
-                    '<span style="color:#7c3aed">━━</span> 峰值 TPS ' + (maxTps ? maxTps.toFixed(1).replace(/\.0$/, '') : '-'),
+                    '<span style="color:#7c3aed">━━</span> 峰值 QPS ' + (maxTps ? maxTps.toFixed(1).replace(/\.0$/, '') : '-'),
                     '<span style="color:#dc2626">┅┅</span> 最高错误率 ' + homeFormatPercent(maxError)
                 ].join('');
             }
@@ -2496,7 +2504,7 @@
                             `时间：${escapeHtml(formatTimeShort(item.ts))}`,
                             `请求数：${escapeHtml(homeCompactNumber(summary.total_samples))}`,
                             `平均 RT：${escapeHtml(homeFormatMs(summary.avg_response_time))}`,
-                            `TPS：${summary.tps ? escapeHtml(String(Number(summary.tps).toFixed(2).replace(/\.00$/, ''))) : '-'}`,
+                            `QPS：${summary.tps ? escapeHtml(String(Number(summary.tps).toFixed(2).replace(/\.00$/, ''))) : '-'}`,
                             `错误率：${escapeHtml(homeFormatPercent(summary.error_rate))}`,
                         ];
                         return lines.join('<br>');
@@ -2531,7 +2539,7 @@
                     },
                     {
                         type: 'value',
-                        name: 'TPS / 错误率%',
+                        name: 'QPS / 错误率%',
                         nameTextStyle: { color: '#64748b', fontSize: 11 },
                         axisLabel: { color: '#64748b', fontSize: 11 },
                         splitLine: { show: false },
@@ -2544,7 +2552,7 @@
                 series: [
                     { name: '请求数', type: 'bar', yAxisIndex: 2, data: requestData, barMaxWidth: 22, itemStyle: { color: 'rgba(148,163,184,0.45)' } },
                     { name: '平均 RT', type: 'line', yAxisIndex: 0, data: rtData, smooth: true, symbol: 'circle', symbolSize: 6, lineStyle: { width: 3, color: '#2563eb' }, itemStyle: { color: '#2563eb' }, areaStyle: { color: 'rgba(37,99,235,0.08)' } },
-                    { name: 'TPS', type: 'line', yAxisIndex: 1, data: tpsData, smooth: true, symbol: 'circle', symbolSize: 5, lineStyle: { width: 3, color: '#7c3aed' }, itemStyle: { color: '#7c3aed' } },
+                    { name: 'QPS', type: 'line', yAxisIndex: 1, data: tpsData, smooth: true, symbol: 'circle', symbolSize: 5, lineStyle: { width: 3, color: '#7c3aed' }, itemStyle: { color: '#7c3aed' } },
                     { name: '错误率', type: 'line', yAxisIndex: 1, data: errorData, smooth: true, symbol: 'circle', symbolSize: 5, lineStyle: { width: 2, type: 'dashed', color: '#dc2626' }, itemStyle: { color: '#dc2626' } },
                 ],
             });
@@ -3569,7 +3577,7 @@
                 '<div class="item"><span class="dot"></span> 实时监控</div>' +
                 '<div class="item" id="live-status" style="color:#666;">等待首次进度</div>' +
                 '<div class="item">运行: <strong id="live-elapsed">0s</strong></div>' +
-                '<div class="item">TPS: <strong id="live-tps-val">0</strong></div>' +
+                '<div class="item">QPS: <strong id="live-tps-val">0</strong></div>' +
                 '<div class="item">平均RT: <strong id="live-rt-val">0ms</strong></div>' +
                 '<div class="item">成功率: <strong id="live-sr-val">100%</strong></div>' +
                 '<div class="item">并发: <strong id="live-threads-val">0</strong></div>' +
@@ -3585,7 +3593,7 @@
                 '<div class="live-chart-panel" style="background:#fff;border:1px solid #e0e0e0;border-radius:6px;padding:12px;">' +
                 '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px;flex-wrap:wrap;">' +
                 '<div style="font-size:13px;font-weight:600;color:#333;">实时压测曲线</div>' +
-                '<div style="font-size:11px;color:#777;">横轴：运行时间；左轴：TPS/并发；右轴：RT(ms)；右偏移轴：错误率(%)</div>' +
+                '<div style="font-size:11px;color:#777;">横轴：运行时间；左轴：QPS/并发；右轴：RT(ms)；右偏移轴：错误率(%)</div>' +
                 '</div>' +
                 '<div id="live-chart-combined" style="height:420px;min-height:360px;"></div>' +
                 '</div>';
@@ -3873,7 +3881,7 @@
 
             var series = [
                 {
-                    name: 'TPS (/s)',
+                    name: 'QPS (/s)',
                     type: 'line',
                     yAxisIndex: 0,
                     data: ld.tps,
@@ -3939,7 +3947,7 @@
                         var html = '<div style="font-size:12px;color:#666;margin-bottom:4px">运行时间 ' + title + '</div>';
                         params.forEach(function(p) {
                             var unit = '';
-                            if (p.seriesName.indexOf('TPS') >= 0) unit = ' /s';
+                            if (p.seriesName.indexOf('QPS') >= 0) unit = ' /s';
                             else if (p.seriesName.indexOf('RT') >= 0) unit = ' ms';
                             else if (p.seriesName.indexOf('错误率') >= 0) unit = ' %';
                             else unit = ' 用户';
@@ -3975,7 +3983,7 @@
                 yAxis: [
                     {
                         type: 'value',
-                        name: 'TPS / 并发',
+                        name: 'QPS / 并发',
                         position: 'left',
                         min: 0,
                         axisLabel: { fontSize: 10, color: '#555' },
@@ -4701,7 +4709,6 @@
             if (!scriptId) return { ok: false, type: 'warn', message: '请选择或上传一个 JMX 脚本。' };
             if (threads <= 0) return { ok: false, type: 'warn', message: '并发数必须大于 0。' };
             if (duration <= 0) return { ok: false, type: 'warn', message: '持续时间必须大于 0。' };
-            if (timeout < duration) return { ok: false, type: 'warn', message: '超时时间不能小于持续时间。' };
             if (runtime.jvmHeapMb < 256) return { ok: false, type: 'warn', message: 'JVM 堆内存不能小于 256MB。' };
             if (runtime.jvmHeapMb > 65536) return { ok: false, type: 'warn', message: 'JVM 堆内存不能大于 65536MB。' };
             const summariserInterval = getCreateOptionalNumber('create-jmeter-summariser');
@@ -4800,7 +4807,7 @@
                 { label: '场景', value: scenarioName },
                 { label: '参数', value: `${scenario.threads} 并发 / ${durationText}` },
                 { label: '预热', value: formatCreateDuration(scenario.ramp_time) },
-                { label: '超时', value: timeoutText },
+                { label: '任务超时', value: timeoutText },
                 { label: 'JVM', value: heapText },
                 { label: 'JMeter', value: jmeterOptionsText, wide: jmeterOptionsText.length > 16 },
                 { label: '错误日志', value: errorLogText },
@@ -5539,7 +5546,7 @@
                         return html;
                     }
                 },
-                legend: { data: ['并发线程数', 'TPS', '平均RT(ms)', '错误率(%)'], top: 0, textStyle: { fontSize: 12 } },
+                legend: { data: ['并发线程数', 'QPS', '平均RT(ms)', '错误率(%)'], top: 0, textStyle: { fontSize: 12 } },
                 xAxis: { type: 'category', data: t, ...ax, boundaryGap: false },
                 yAxis: [
                     { type: 'value', name: '数量', ...ax, position: 'left' },
@@ -5556,7 +5563,7 @@
                         yAxisIndex: 0,
                     },
                     {
-                        name: 'TPS',
+                        name: 'QPS',
                         type: 'line',
                         data: ts.tps,
                         smooth: true,
@@ -5695,14 +5702,14 @@
             charts.label.setOption({
                 backgroundColor: 'transparent',
                 tooltip: { trigger: 'axis', axisPointer: { type: 'cross' } },
-                legend: { data: ['TPS', '平均RT(ms)', '错误率(%)'], top: 0, textStyle: { fontSize: 12 } },
+                legend: { data: ['QPS', '平均RT(ms)', '错误率(%)'], top: 0, textStyle: { fontSize: 12 } },
                 xAxis: { type: 'category', data: labels, ...{ axisLabel: { color: '#666' }, axisLine: { lineStyle: { color: '#ddd' } } }, boundaryGap: false },
                 yAxis: [
-                    { type: 'value', name: 'TPS', ...{ axisLabel: { color: '#666' }, splitLine: { lineStyle: { color: '#f0f0f0' } } } },
+                    { type: 'value', name: 'QPS', ...{ axisLabel: { color: '#666' }, splitLine: { lineStyle: { color: '#f0f0f0' } } } },
                     { type: 'value', name: 'ms / %', ...{ axisLabel: { color: '#666' }, splitLine: { show: false } } }
                 ],
                 series: [
-                    { name: 'TPS', type: 'line', data: ts.tps || [], smooth: true, lineStyle: { width: 2.5, color: '#2563eb' }, itemStyle: { color: '#2563eb' }, symbol: 'circle', symbolSize: 4, areaStyle: { color: 'rgba(37,99,235,0.08)' }, yAxisIndex: 0 },
+                    { name: 'QPS', type: 'line', data: ts.tps || [], smooth: true, lineStyle: { width: 2.5, color: '#2563eb' }, itemStyle: { color: '#2563eb' }, symbol: 'circle', symbolSize: 4, areaStyle: { color: 'rgba(37,99,235,0.08)' }, yAxisIndex: 0 },
                     { name: '平均RT(ms)', type: 'line', data: ts.avg_rt || [], smooth: true, lineStyle: { width: 2.5, color: '#16a34a' }, itemStyle: { color: '#16a34a' }, symbol: 'circle', symbolSize: 4, areaStyle: { color: 'rgba(22,163,74,0.06)' }, yAxisIndex: 1 },
                     { name: '错误率(%)', type: 'line', data: ts.error_rate || [], smooth: true, lineStyle: { width: 2, color: '#dc2626' }, itemStyle: { color: '#dc2626' }, symbol: 'circle', symbolSize: 4, yAxisIndex: 1 }
                 ],
@@ -6064,14 +6071,58 @@
                 const jmEl = document.getElementById('monitor-jmeter');
 
                 if (jmData.processes.length > 0) {
-                    jmEl.innerHTML = `<h3 style="font-size:13px;color:#666;margin-bottom:8px;font-weight:500">JMeter 进程详情</h3>
-                    <table><thead><tr><th>PID</th><th>CPU</th><th>内存</th><th>线程数</th></tr></thead>
-                    <tbody>${jmData.processes.map(p => `<tr>
-                        <td>${p.pid}</td>
-                        <td>${p.cpu_percent}%</td>
-                        <td>${p.memory_percent}%</td>
-                        <td>${p.threads}</td>
-                    </tr>`).join('')}</tbody></table>`;
+                    const procs = jmData.processes;
+                    const totalCpu = procs.reduce((s, p) => s + p.cpu_percent, 0).toFixed(1);
+                    const totalMemMb = procs.reduce((s, p) => s + (p.memory_mb || 0), 0).toFixed(0);
+                    const totalThreads = procs.reduce((s, p) => s + p.threads, 0);
+                    const serverCount = procs.filter(p => p.role === 'server').length;
+                    const clientCount = procs.filter(p => p.role === 'client').length;
+                    const javaCount = procs.filter(p => p.role === 'java主进程').length;
+
+                    const colorVal = (v, warn, danger) => v >= danger ? '#dc2626' : v >= warn ? '#d97706' : '#16a34a';
+
+                    jmEl.innerHTML = `
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                        <h3 style="font-size:13px;color:#666;font-weight:500">JMeter 进程详情</h3>
+                        <div style="display:flex;gap:6px;">
+                            ${serverCount > 0 ? `<span style="background:#eff6ff;color:#1d4ed8;padding:3px 10px;border-radius:4px;font-size:11px;font-weight:600">Server: ${serverCount}</span>` : ''}
+                            ${clientCount > 0 ? `<span style="background:#f0fdf4;color:#16a34a;padding:3px 10px;border-radius:4px;font-size:11px;font-weight:600">Client: ${clientCount}</span>` : ''}
+                            ${javaCount > 0 ? `<span style="background:#fef3c7;color:#92400e;padding:3px 10px;border-radius:4px;font-size:11px;font-weight:600">JVM: ${javaCount}</span>` : ''}
+                        </div>
+                    </div>
+                    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px;">
+                        <div style="background:#fafafa;border:1px solid #e0e0e0;border-radius:6px;padding:10px 12px;">
+                            <div style="font-size:11px;color:#888;margin-bottom:2px">总 CPU</div>
+                            <div style="font-size:18px;font-weight:700;color:${colorVal(totalCpu, 50, 80)}">${totalCpu}%</div>
+                        </div>
+                        <div style="background:#fafafa;border:1px solid #e0e0e0;border-radius:6px;padding:10px 12px;">
+                            <div style="font-size:11px;color:#888;margin-bottom:2px">总内存</div>
+                            <div style="font-size:18px;font-weight:700;color:${colorVal(totalMemMb, 1024, 2048)}">${totalMemMb} MB</div>
+                        </div>
+                        <div style="background:#fafafa;border:1px solid #e0e0e0;border-radius:6px;padding:10px 12px;">
+                            <div style="font-size:11px;color:#888;margin-bottom:2px">总线程</div>
+                            <div style="font-size:18px;font-weight:700;color:#2563eb">${totalThreads}</div>
+                        </div>
+                    </div>
+                    <div style="overflow-x:auto">
+                    <table><thead><tr><th>PID</th><th>角色</th><th>CPU</th><th>内存占用</th><th>内存</th><th>内存(MB)</th><th>线程数</th><th>命令</th></tr></thead>
+                    <tbody>${procs.map(p => {
+                        const roleMap = { 'server': { color: '#1d4ed8', bg: '#eff6ff', label: 'Server' }, 'client': { color: '#16a34a', bg: '#f0fdf4', label: 'Client' }, 'java主进程': { color: '#92400e', bg: '#fef3c7', label: 'JVM' } };
+                        const r = roleMap[p.role] || { color: '#666', bg: '#f3f4f6', label: p.role };
+                        const cpuColor = colorVal(p.cpu_percent, 50, 80);
+                        const memColor = colorVal(p.memory_percent, 50, 80);
+                        const cmdShort = p.cmdline.replace(/^.*?(jmeter[^ ]*).*/i, '$1').substring(0, 40);
+                        return `<tr>
+                            <td style="font-family:monospace;font-size:12px">${p.pid}</td>
+                            <td><span style="background:${r.bg};color:${r.color};padding:2px 8px;border-radius:3px;font-size:11px;font-weight:600">${r.label}</span></td>
+                            <td style="color:${cpuColor};font-weight:600">${p.cpu_percent}%</td>
+                            <td><div style="background:#f0f0f0;border-radius:3px;height:6px;width:80px;overflow:hidden"><div style="background:${memColor};height:100%;width:${Math.min(p.memory_percent, 100)}%"></div></div></td>
+                            <td style="color:${memColor};font-weight:600">${p.memory_percent}%</td>
+                            <td style="text-align:right;font-family:monospace;font-size:12px">${p.memory_mb} MB</td>
+                            <td style="text-align:center">${p.threads}</td>
+                            <td style="font-size:11px;color:#888;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${p.cmdline.replace(/"/g, '&quot;')}">${cmdShort}</td>
+                        </tr>`;}).join('')}</tbody></table>
+                    </div>`;
                 } else {
                     jmEl.innerHTML = '';
                 }
@@ -7063,16 +7114,16 @@
                         });
                         return html;
                     }},
-                    legend: { data: ['平均RT(ms)', 'P99(ms)', 'TPS', '错误率(%)'], top: 0 },
+                    legend: { data: ['平均RT(ms)', 'P99(ms)', 'QPS', '错误率(%)'], top: 0 },
                     xAxis: { type: 'category', data: chartLabels, axisLabel: { rotate: 20, fontSize: 11 } },
                     yAxis: [
-                        { type: 'value', name: 'TPS' },
+                        { type: 'value', name: 'QPS' },
                         { type: 'value', name: 'ms / %' }
                     ],
                     series: [
                         { name: '平均RT(ms)', type: 'line', data: items.map(t => t.avg_response_time), smooth: true, lineStyle: { width: 2.5, color: '#2563eb' }, itemStyle: { color: '#2563eb' }, symbol: 'circle', symbolSize: 8, areaStyle: { color: 'rgba(37,99,235,0.08)' }, label: { show: true, position: 'top', fontSize: 11, formatter: '{c}ms' }, yAxisIndex: 1 },
                         { name: 'P99(ms)', type: 'line', data: items.map(t => t.p99), smooth: true, lineStyle: { width: 2, color: '#d97706' }, itemStyle: { color: '#d97706' }, symbol: 'circle', symbolSize: 6, yAxisIndex: 1 },
-                        { name: 'TPS', type: 'bar', data: items.map(t => t.tps || 0), itemStyle: { color: 'rgba(37,99,235,0.2)' }, barMaxWidth: 50, yAxisIndex: 0 },
+                        { name: 'QPS', type: 'bar', data: items.map(t => t.tps || 0), itemStyle: { color: 'rgba(37,99,235,0.2)' }, barMaxWidth: 50, yAxisIndex: 0 },
                         { name: '错误率(%)', type: 'line', data: items.map(t => t.error_rate), smooth: true, lineStyle: { width: 2, color: '#dc2626', type: 'dashed' }, itemStyle: { color: '#dc2626' }, symbol: 'diamond', symbolSize: 6, yAxisIndex: 1 }
                     ],
                     grid: { left: 60, right: 60, top: 40, bottom: 60 }
@@ -7560,6 +7611,10 @@
 
         // ===== 任务对比 =====
         let compareLabelRows = [];
+        let compareSelectedTasks = [];
+        let compareAllTasks = [];
+
+        const compareColors = ['#2563eb', '#16a34a', '#d97706', '#dc2626', '#9333ea'];
 
         async function loadCompareForm() {
             try {
@@ -7575,122 +7630,204 @@
                 const scriptMap = {};
                 scripts.forEach(s => { scriptMap[s.script_id] = s.original_name || s.filename || s.script_id; });
 
-                const opts = tasks.map(t => {
-                    const name = scriptMap[t.script_id] || t.script_id || '';
-                    const shortId = formatTaskId(t.task_id, t);
-                    const date = new Date(t.modified_at * 1000).toLocaleString();
-                    const label = name ? `${shortId} — ${name} (${date})` : `${shortId} (${date})`;
-                    return `<option value="${t.task_id}">${label}</option>`;
-                }).join('');
-                document.getElementById('compare-task-1').innerHTML = '<option value="">选择任务 A</option>' + opts;
-                document.getElementById('compare-task-2').innerHTML = '<option value="">选择任务 B</option>' + opts;
+                compareAllTasks = tasks.map(t => ({
+                    ...t,
+                    _scriptName: scriptMap[t.script_id] || t.script_id || '',
+                    _date: new Date(t.modified_at * 1000),
+                    _shortId: formatTaskId(t.task_id, t),
+                }));
+
+                renderCompareTaskGrid();
             } catch (e) { console.error('loadCompareForm error:', e); }
         }
 
-        async function runCompare() {
-            const id1 = document.getElementById('compare-task-1').value;
-            const id2 = document.getElementById('compare-task-2').value;
-            if (!id1 || !id2) { alert('请选择两个任务'); return; }
-            if (id1 === id2) { alert('请选择不同的任务'); return; }
+        function renderCompareTaskGrid() {
+            const grid = document.getElementById('compare-task-grid');
+            if (!compareAllTasks.length) {
+                grid.innerHTML = '<div class="empty-tip">暂无已完成的任务</div>';
+                return;
+            }
 
+            grid.innerHTML = compareAllTasks.map((t, i) => {
+                const isSelected = compareSelectedTasks.includes(t.task_id);
+                const selIdx = compareSelectedTasks.indexOf(t.task_id);
+                const s = t.summary || {};
+                const color = isSelected ? compareColors[selIdx % compareColors.length] : '#e0e0e0';
+                const dateStr = t._date.toLocaleDateString() + ' ' + t._date.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+                const statusColor = t.status === 'completed' ? '#16a34a' : t.status === 'failed' ? '#dc2626' : '#d97706';
+                const statusLabel = t.status === 'completed' ? '已完成' : t.status === 'failed' ? '失败' : t.status || '-';
+
+                return `<div onclick="toggleCompareTask('${t.task_id}')" style="
+                    border:2px solid ${color};border-radius:8px;padding:12px;cursor:pointer;
+                    background:${isSelected ? color + '08' : '#fff'};transition:all 0.15s;position:relative;
+                " onmouseenter="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.08)'" onmouseleave="this.style.boxShadow='none'">
+                    ${isSelected ? `<div style="position:absolute;top:8px;right:8px;background:${color};color:#fff;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700">${selIdx + 1}</div>` : ''}
+                    <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
+                        <span style="font-family:monospace;font-size:11px;color:#888">${t._shortId}</span>
+                        <span style="background:${statusColor}18;color:${statusColor};padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600">${statusLabel}</span>
+                    </div>
+                    <div style="font-size:12px;color:#333;font-weight:600;margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${t._scriptName}">${t._scriptName || '-'}</div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:11px;color:#666">
+                        <div>QPS: <b style="color:#1a1a1a">${s.tps || 0}</b></div>
+                        <div>RT: <b style="color:#1a1a1a">${s.avg_response_time || 0}ms</b></div>
+                        <div>P99: <b style="color:#1a1a1a">${s.p99 || 0}ms</b></div>
+                        <div>错误: <b style="color:${(s.error_rate || 0) > 0 ? '#dc2626' : '#16a34a'}">${s.error_rate || 0}%</b></div>
+                    </div>
+                    <div style="margin-top:6px;font-size:10px;color:#aaa">${dateStr}</div>
+                </div>`;
+            }).join('');
+        }
+
+        function toggleCompareTask(taskId) {
+            const idx = compareSelectedTasks.indexOf(taskId);
+            if (idx >= 0) {
+                compareSelectedTasks.splice(idx, 1);
+            } else {
+                if (compareSelectedTasks.length >= 5) { alert('最多选择5个任务'); return; }
+                compareSelectedTasks.push(taskId);
+            }
+            renderCompareTaskGrid();
+            updateCompareHint();
+        }
+
+        function clearCompareSelection() {
+            compareSelectedTasks = [];
+            renderCompareTaskGrid();
+            updateCompareHint();
+            document.getElementById('compare-result').classList.add('hidden');
+            document.getElementById('compare-empty').classList.remove('hidden');
+        }
+
+        function updateCompareHint() {
+            const n = compareSelectedTasks.length;
+            document.getElementById('compare-selected-hint').textContent = `已选 ${n} 个任务（最多5个）`;
+            document.getElementById('compare-run-btn').disabled = n < 2;
+        }
+
+        async function runCompare() {
+            if (compareSelectedTasks.length < 2) { alert('请至少选择2个任务'); return; }
+
+            const ids = compareSelectedTasks.join(',');
             try {
-                const res = await fetch(`${API}/api/results/compare?task_ids=${id1},${id2}`);
+                const res = await fetch(`${API}/api/results/compare?task_ids=${ids}`);
                 if (!res.ok) { const d = await res.json(); alert(d.detail || '对比失败'); return; }
                 const data = await res.json();
 
                 document.getElementById('compare-result').classList.remove('hidden');
                 document.getElementById('compare-empty').classList.add('hidden');
 
-                const [t1, t2] = data.tasks;
-                const s1 = t1.summary, s2 = t2.summary;
+                const tasks = data.tasks;
+                const n = tasks.length;
 
                 // 获取脚本名称
-                let scriptName1 = '', scriptName2 = '';
+                let scriptMap = {};
                 try {
                     const scriptsRes = await fetch(`${API}/api/scripts/?limit=500`);
                     if (scriptsRes.ok) {
-                        const scripts = (await scriptsRes.json()).scripts || [];
-                        const scriptMap = {};
-                        scripts.forEach(s => { scriptMap[s.script_id] = s.original_name || s.filename; });
-                        scriptName1 = scriptMap[t1.task_id] || '';
-                        scriptName2 = scriptMap[t2.task_id] || '';
+                        (await scriptsRes.json()).scripts.forEach(s => { scriptMap[s.script_id] = s.original_name || s.filename; });
                     }
                 } catch (e) {}
 
-                const diff = (a, b) => {
-                    if (b === 0) return '-';
-                    const pct = ((a - b) / b * 100).toFixed(1);
-                    return (pct > 0 ? '+' : '') + pct + '%';
-                };
-                const diffColor = (a, b) => {
-                    if (b === 0) return '#888';
-                    return a > b ? '#dc2626' : a < b ? '#16a34a' : '#888';
-                };
+                const taskLabels = tasks.map(t => scriptMap[t.task_id] || formatTaskId(t.task_id, t));
 
-                const labelA = scriptName1 || formatTaskId(t1.task_id, t1);
-                const labelB = scriptName2 || formatTaskId(t2.task_id, t2);
+                // 汇总卡片
+                const cardsHtml = tasks.map((t, i) => {
+                    const s = t.summary || {};
+                    const c = compareColors[i % compareColors.length];
+                    return `<div class="card" style="border-top:3px solid ${c}">
+                        <div class="label">${taskLabels[i]}</div>
+                        <div class="value blue" style="font-size:14px">${s.total_samples || 0} 请求</div>
+                        <div style="font-size:11px;color:#666;margin-top:4px;">
+                            QPS:${s.tps || 0} | RT:${s.avg_response_time || 0}ms | P99:${s.p99 || 0}ms | 错误:${s.error_rate || 0}%
+                        </div>
+                    </div>`;
+                }).join('');
+                document.getElementById('compare-cards').innerHTML = cardsHtml;
 
-                document.getElementById('compare-cards').innerHTML = `
-                    <div class="card"><div class="label">指标</div><div class="value" style="font-size:14px">${labelA} / ${labelB}</div></div>
-                    <div class="card"><div class="label">总请求数</div><div class="value" style="font-size:16px">${s1.total_samples} / ${s2.total_samples}</div></div>
-                    <div class="card"><div class="label">平均RT (ms)</div><div class="value" style="font-size:16px">${s1.avg_response_time} / ${s2.avg_response_time}<br><span style="font-size:12px;color:${diffColor(s1.avg_response_time, s2.avg_response_time)}">${diff(s1.avg_response_time, s2.avg_response_time)}</span></div></div>
-                    <div class="card"><div class="label">P99 (ms)</div><div class="value" style="font-size:16px">${s1.p99} / ${s2.p99}<br><span style="font-size:12px;color:${diffColor(s1.p99, s2.p99)}">${diff(s1.p99, s2.p99)}</span></div></div>
-                    <div class="card"><div class="label">错误率 (%)</div><div class="value" style="font-size:16px">${s1.error_rate} / ${s2.error_rate}<br><span style="font-size:12px;color:${diffColor(s1.error_rate, s2.error_rate)}">${diff(s1.error_rate, s2.error_rate)}</span></div></div>
-                `;
+                const maxLen = Math.max(...tasks.map(t => ((t.time_series || {}).tps || []).length));
+                const timeLabels = Array.from({length: maxLen}, (_, i) => i + 's');
+                const gridOpt = { left: 60, right: 20, top: 40, bottom: 30 };
+                const tooltipOpt = { trigger: 'axis' };
+                const legendOpt = { data: taskLabels, top: 0, textStyle: { fontSize: 12 } };
+                const xOpt = { type: 'category', data: timeLabels, axisLabel: { color: '#666' }, boundaryGap: false };
 
-                // TPS comparison chart
+                function makeSeries(key, opts) {
+                    return tasks.map((t, i) => ({
+                        name: taskLabels[i], type: 'line',
+                        data: (t.time_series || {})[key] || [],
+                        smooth: true,
+                        lineStyle: { width: 2.5, color: compareColors[i % compareColors.length] },
+                        itemStyle: { color: compareColors[i % compareColors.length] },
+                        symbol: 'circle', symbolSize: 3,
+                        ...opts,
+                    }));
+                }
+
+                // TPS
                 if (charts.compareTps) charts.compareTps.dispose();
                 charts.compareTps = echarts.init(document.getElementById('chart-compare-tps'));
-                const t1tps = t1.time_series.tps || [];
-                const t2tps = t2.time_series.tps || [];
-                const maxLen = Math.max(t1tps.length, t2tps.length);
-                const tpsLabels = Array.from({length: maxLen}, (_, i) => i + 's');
                 charts.compareTps.setOption({
-                    tooltip: { trigger: 'axis' },
-                    legend: { data: [labelA, labelB], top: 0 },
-                    xAxis: { type: 'category', data: tpsLabels },
-                    yAxis: { type: 'value', name: 'TPS' },
-                    series: [
-                        { name: labelA, type: 'line', data: t1tps, smooth: true, lineStyle: { width: 2, color: '#2563eb' }, itemStyle: { color: '#2563eb' }, symbol: 'none' },
-                        { name: labelB, type: 'line', data: t2tps, smooth: true, lineStyle: { width: 2, color: '#16a34a' }, itemStyle: { color: '#16a34a' }, symbol: 'none' }
-                    ],
-                    grid: { left: 50, right: 20, top: 30, bottom: 30 }
+                    backgroundColor: 'transparent', tooltip: tooltipOpt, legend: legendOpt, xAxis: xOpt,
+                    yAxis: { type: 'value', name: 'QPS', axisLabel: { color: '#666' }, splitLine: { lineStyle: { color: '#f0f0f0' } } },
+                    series: makeSeries('tps'), grid: gridOpt,
                 });
 
-                // RT comparison chart
+                // RT
                 if (charts.compareRt) charts.compareRt.dispose();
                 charts.compareRt = echarts.init(document.getElementById('chart-compare-rt'));
-                const t1rt = t1.time_series.avg_rt || [];
-                const t2rt = t2.time_series.avg_rt || [];
                 charts.compareRt.setOption({
-                    tooltip: { trigger: 'axis' },
-                    legend: { data: [labelA, labelB], top: 0 },
-                    xAxis: { type: 'category', data: tpsLabels },
-                    yAxis: { type: 'value', name: 'ms' },
-                    series: [
-                        { name: labelA, type: 'line', data: t1rt, smooth: true, lineStyle: { width: 2, color: '#2563eb' }, itemStyle: { color: '#2563eb' }, symbol: 'none' },
-                        { name: labelB, type: 'line', data: t2rt, smooth: true, lineStyle: { width: 2, color: '#16a34a' }, itemStyle: { color: '#16a34a' }, symbol: 'none' }
-                    ],
-                    grid: { left: 50, right: 20, top: 30, bottom: 30 }
+                    backgroundColor: 'transparent', tooltip: tooltipOpt, legend: legendOpt, xAxis: xOpt,
+                    yAxis: { type: 'value', name: 'ms', axisLabel: { color: '#666' }, splitLine: { lineStyle: { color: '#f0f0f0' } } },
+                    series: makeSeries('avg_rt'), grid: gridOpt,
                 });
 
-                // Label comparison table
-                const l1Map = {};
-                (t1.label_stats || []).forEach(l => l1Map[l.label] = l);
-                const l2Map = {};
-                (t2.label_stats || []).forEach(l => l2Map[l.label] = l);
-                const allLabels = new Set([...Object.keys(l1Map), ...Object.keys(l2Map)]);
+                // P99
+                if (charts.compareP99) charts.compareP99.dispose();
+                charts.compareP99 = echarts.init(document.getElementById('chart-compare-p99'));
+                charts.compareP99.setOption({
+                    backgroundColor: 'transparent', tooltip: tooltipOpt, legend: legendOpt, xAxis: xOpt,
+                    yAxis: { type: 'value', name: 'ms', axisLabel: { color: '#666' }, splitLine: { lineStyle: { color: '#f0f0f0' } } },
+                    series: makeSeries('p99_rt'), grid: gridOpt,
+                });
 
-                compareLabelRows = Array.from(allLabels).map(label => ({
-                    label,
-                    a: l1Map[label] || { avg: 0, error_rate: 0 },
-                    b: l2Map[label] || { avg: 0, error_rate: 0 },
+                // Error rate
+                if (charts.compareError) charts.compareError.dispose();
+                charts.compareError = echarts.init(document.getElementById('chart-compare-error'));
+                charts.compareError.setOption({
+                    backgroundColor: 'transparent', tooltip: tooltipOpt, legend: legendOpt, xAxis: xOpt,
+                    yAxis: { type: 'value', name: '%', axisLabel: { color: '#666' }, splitLine: { lineStyle: { color: '#f0f0f0' } } },
+                    series: makeSeries('error_rate'), grid: gridOpt,
+                });
+
+                // 接口级对比表
+                const allLabelsMap = {};
+                tasks.forEach((t, i) => {
+                    (t.label_stats || []).forEach(l => {
+                        if (!allLabelsMap[l.label]) allLabelsMap[l.label] = {};
+                        allLabelsMap[l.label][i] = l;
+                    });
+                });
+
+                const fileHeaders = taskLabels.map((label, i) =>
+                    `<th colspan="3" style="text-align:center;background:${compareColors[i % compareColors.length]}12;color:${compareColors[i % compareColors.length]};font-weight:600;font-size:12px;border-left:3px solid ${compareColors[i % compareColors.length]}">${label}</th>`
+                ).join('');
+                const metricHeaders = taskLabels.map(() =>
+                    '<th style="font-size:11px;color:#888;font-weight:400;width:60px">请求数</th><th style="font-size:11px;color:#888;font-weight:400;width:60px">RT</th><th style="font-size:11px;color:#888;font-weight:400;width:50px">QPS</th>'
+                ).join('');
+
+                document.getElementById('compare-label-thead').innerHTML =
+                    `<tr><th style="min-width:120px">接口</th>${fileHeaders}</tr>` +
+                    `<tr><th></th>${metricHeaders}</tr>`;
+
+                compareLabelRows = Object.keys(allLabelsMap).map(label => ({
+                    label, byTask: allLabelsMap[label]
                 }));
                 renderCompareLabels();
 
                 window.addEventListener('resize', () => {
-                    if (charts.compareTps) charts.compareTps.resize();
-                    if (charts.compareRt) charts.compareRt.resize();
+                    ['compareTps', 'compareRt', 'compareP99', 'compareError'].forEach(k => {
+                        if (charts[k]) charts[k].resize();
+                    });
                 });
             } catch (e) { alert('对比失败: ' + e.message); }
         }
@@ -7699,23 +7836,21 @@
             const tbody = document.getElementById('compare-label-tbody');
             if (!tbody) return;
             if (!compareLabelRows.length) {
-                tbody.innerHTML = '<tr><td colspan="7" class="empty-tip">暂无接口级数据</td></tr>';
+                tbody.innerHTML = `<tr><td colspan="${1 + compareSelectedTasks.length * 3}" class="empty-tip">暂无接口级数据</td></tr>`;
                 clearPagination('compareLabels', 'compare-label-pagination');
                 return;
             }
             const page = paginateItems('compareLabels', compareLabelRows, renderCompareLabels, {
                 containerId: 'compare-label-pagination',
             });
+            const n = compareSelectedTasks.length;
             tbody.innerHTML = page.items.map(row => {
-                const a = row.a;
-                const b = row.b;
-                return `<tr>
-                    <td>${row.label}</td>
-                    <td>${a.avg}ms</td><td>${b.avg}ms</td>
-                    <td style="color:${diffColor(a.avg, b.avg)}">${diff(a.avg, b.avg)}</td>
-                    <td>${a.error_rate}%</td><td>${b.error_rate}%</td>
-                    <td style="color:${diffColor(a.error_rate, b.error_rate)}">${diff(a.error_rate, b.error_rate)}</td>
-                </tr>`;
+                const cells = compareSelectedTasks.map((_, i) => {
+                    const l = row.byTask[i];
+                    if (!l) return '<td style="text-align:right">-</td><td style="text-align:right">-</td><td style="text-align:right">-</td>';
+                    return `<td style="text-align:right">${l.count}</td><td style="text-align:right">${l.avg}ms</td><td style="text-align:right">${l.tps}</td>`;
+                }).join('');
+                return `<tr><td style="font-weight:500;white-space:nowrap">${row.label}</td>${cells}</tr>`;
             }).join('');
         }
 
@@ -7786,7 +7921,7 @@
                         <div style="font-size:11px;color:#666;">
                             <div>请求数: ${s.total_samples || 0}</div>
                             <div>平均RT: ${s.avg_response_time || 0}ms</div>
-                            <div>TPS: ${s.tps || 0}</div>
+                            <div>QPS: ${s.tps || 0}</div>
                         </div>
                     </div>`;
                 }).join('') + '</div>';
@@ -7826,7 +7961,7 @@
                     <div class="label">${f.filename}</div>
                     <div class="value blue" style="font-size:16px">${s.total_samples || 0} 请求</div>
                     <div style="font-size:12px;color:#666;margin-top:4px;">
-                        TPS: ${s.tps || 0} | RT: ${s.avg_response_time || 0}ms | P99: ${s.p99 || 0}ms | 错误: ${s.error_rate || 0}%
+                        QPS: ${s.tps || 0} | RT: ${s.avg_response_time || 0}ms | P99: ${s.p99 || 0}ms | 错误: ${s.error_rate || 0}%
                     </div>
                 </div>`;
             }).join('');
@@ -7860,7 +7995,7 @@
             charts.jtlTps = echarts.init(document.getElementById('chart-jtl-tps'));
             charts.jtlTps.setOption({
                 backgroundColor: 'transparent', tooltip: tooltipOpt, legend: legendOpt, xAxis: xOpt,
-                yAxis: { type: 'value', name: 'TPS', axisLabel: { color: '#666' }, splitLine: { lineStyle: { color: '#f0f0f0' } } },
+                yAxis: { type: 'value', name: 'QPS', axisLabel: { color: '#666' }, splitLine: { lineStyle: { color: '#f0f0f0' } } },
                 series: makeLineSeries('tps'), grid: gridOpt,
             });
 
@@ -7985,7 +8120,7 @@
                     series: barSeries, grid: { left: 60, right: 20, top: 40, bottom: 80 },
                 });
             }
-            labelBarChart('chart-jtl-label-tps', 'tps', 'TPS');
+            labelBarChart('chart-jtl-label-tps', 'tps', 'QPS');
             labelBarChart('chart-jtl-label-rt', 'avg', 'ms');
             labelBarChart('chart-jtl-label-p99', 'p99', 'ms');
 
@@ -7994,7 +8129,7 @@
                 `<th colspan="4" style="text-align:center;background:${colors[i % colors.length]}12;color:${colors[i % colors.length]};font-weight:600;font-size:13px;border-left:3px solid ${colors[i % colors.length]}">${f.filename}</th>`
             ).join('');
             const metricHeaders = jtlFiles.map(() =>
-                '<th style="font-size:11px;color:#888;font-weight:400;width:60px">请求数</th><th style="font-size:11px;color:#888;font-weight:400;width:60px">RT</th><th style="font-size:11px;color:#888;font-weight:400;width:50px">TPS</th><th style="font-size:11px;color:#888;font-weight:400;width:60px">错误率</th>'
+                '<th style="font-size:11px;color:#888;font-weight:400;width:60px">请求数</th><th style="font-size:11px;color:#888;font-weight:400;width:60px">RT</th><th style="font-size:11px;color:#888;font-weight:400;width:50px">QPS</th><th style="font-size:11px;color:#888;font-weight:400;width:60px">错误率</th>'
             ).join('');
 
             document.getElementById('jtl-compare-label-thead').innerHTML =

@@ -94,22 +94,48 @@ def get_system_metrics() -> dict:
 def get_jmeter_processes() -> list:
     """获取当前系统中所有 JMeter 相关进程的信息。
 
-    返回每个进程的 PID、名称、CPU 占用、内存占用、线程数和命令行。
+    返回每个进程的 PID、名称、CPU 占用、内存占用、内存MB、线程数、命令行和角色。
     """
     processes = []
-    for proc in psutil.process_iter(["pid", "name", "cmdline", "cpu_percent", "memory_percent", "num_threads"]):
+    for proc in psutil.process_iter(["pid", "name", "cmdline", "cpu_percent", "memory_percent", "num_threads", "memory_info"]):
         try:
             info = proc.info
             cmdline = " ".join(info.get("cmdline") or [])
-            if "jmeter" in cmdline.lower() or "ApacheJMeter" in cmdline:
-                processes.append({
-                    "pid": info["pid"],
-                    "name": info["name"],
-                    "cpu_percent": round(info.get("cpu_percent", 0), 1),
-                    "memory_percent": round(info.get("memory_percent", 0), 1),
-                    "threads": info.get("num_threads", 0),
-                    "cmdline": cmdline[:200],
-                })
+            name = info.get("name", "")
+
+            is_jmeter = False
+            if "jmeter-server" in cmdline:
+                is_jmeter = True
+            elif name == "java" and ("ApacheJMeter" in cmdline or "jmeter" in cmdline.lower()):
+                is_jmeter = True
+            elif name in ("bash", "sh") and "jmeter" in cmdline:
+                is_jmeter = True
+
+            if not is_jmeter:
+                continue
+
+            try:
+                mem_mb = round(info["memory_info"].rss / 1024 / 1024, 1)
+            except (AttributeError, TypeError):
+                mem_mb = 0
+
+            if name == "java":
+                role = "java主进程"
+            elif "jmeter-server" in cmdline:
+                role = "server"
+            else:
+                role = "client"
+
+            processes.append({
+                "pid": info["pid"],
+                "name": name,
+                "cpu_percent": round(info.get("cpu_percent", 0), 1),
+                "memory_percent": round(info.get("memory_percent", 0), 1),
+                "memory_mb": mem_mb,
+                "threads": info.get("num_threads", 0),
+                "cmdline": cmdline[:200],
+                "role": role,
+            })
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             pass
     return processes
