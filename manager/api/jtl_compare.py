@@ -185,6 +185,33 @@ def _build_analysis(samples: list) -> dict:
     # 时序数据
     time_series = _build_time_series(samples)
 
+    # 补充 P90/P99 时序
+    bucket_size = 1000
+    p90_list = []
+    p99_list = []
+    success_rate_list = []
+    buckets_ts = {}
+    for s in samples:
+        bk = (s["timestamp"] // bucket_size) * bucket_size
+        if bk not in buckets_ts:
+            buckets_ts[bk] = {"times": [], "ok": 0, "total": 0}
+        buckets_ts[bk]["times"].append(s["elapsed"])
+        buckets_ts[bk]["total"] += 1
+        if s["success"]:
+            buckets_ts[bk]["ok"] += 1
+    for bk in sorted(buckets_ts.keys()):
+        bt = buckets_ts[bk]["times"]
+        bt_sorted = sorted(bt)
+        p90_list.append(percentile(bt_sorted, 90))
+        p99_list.append(percentile(bt_sorted, 99))
+        total_b = buckets_ts[bk]["total"]
+        ok_b = buckets_ts[bk]["ok"]
+        success_rate_list.append(round(ok_b / total_b * 100, 2) if total_b > 0 else 100)
+
+    time_series["p90_rt"] = p90_list
+    time_series["p99_rt"] = p99_list
+    time_series["success_rate"] = success_rate_list
+
     return {
         "labels": labels_result,
         "summary": summary,
