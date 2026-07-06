@@ -337,6 +337,28 @@
         .arch-flow { display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px; align-items: center; padding: 10px 0; color: #777; font-size: 12px; }
         .arch-flow::before, .arch-flow::after { content: ""; height: 1px; background: #d8dee8; }
         .arch-flow span { white-space: nowrap; }
+        .template-preview-popover {
+            position: fixed;
+            z-index: 2000;
+            background: #fff;
+            border: 1px solid #e0e0e0;
+            border-radius: 10px;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.15);
+            padding: 16px;
+            width: 420px;
+            height: 300px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s ease, transform 0.2s ease;
+            transform: translateY(4px);
+        }
+        .template-preview-popover.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        @media (max-width: 700px) {
+            .template-preview-popover { width: 300px; height: 240px; }
+        }
         @media (max-width: 1100px) {
             .create-page { display: block; min-height: auto; }
             .create-guide-panel { margin-bottom: 12px; }
@@ -953,8 +975,7 @@
                         <div id="scenario-advanced" style="display:none;border:1px solid #e0e0e0;border-radius:6px;padding:6px;margin-top:6px;background:#fafafa;">
                             <div style="font-size:11px;color:#888;margin-bottom:4px;">高级参数</div>
                             <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
-                                <div class="form-group" style="margin-bottom:0;"><label style="font-size:12px;">阶梯数</label><input type="number" id="create-steps" value="5" min="2" oninput="updateScenarioPreview()"></div>
-                                <div class="form-group" style="margin-bottom:0;"><label style="font-size:12px;">每阶梯(s)</label><input type="number" id="create-step-duration" value="30" min="5" oninput="updateScenarioPreview()"></div>
+                                <div class="form-group" style="margin-bottom:0;"><label style="font-size:12px;">递增速率(并发/秒)</label><input type="number" id="create-steps" value="5" min="1" oninput="updateScenarioPreview()"></div>
                             </div>
                         </div>
                     </div>
@@ -1238,6 +1259,10 @@
                 </div>
                 <div id="templates-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;"></div>
                 <div id="templates-pagination"></div>
+            </div>
+            <div id="template-preview-popover" class="template-preview-popover">
+                <div style="font-size:12px;color:#888;margin-bottom:6px" id="tpl-preview-title"></div>
+                <div id="tpl-preview-chart" style="width:100%;height:calc(100% - 20px)"></div>
             </div>
 
             <div id="template-create-modal" class="hidden" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:none;z-index:1000;justify-content:center;align-items:center;">
@@ -4019,7 +4044,7 @@
             load: { threads: 100, ramp: 30, duration: 600, desc: '负载测试：模拟正常业务负载，持续运行观察系统表现。', advanced: false },
             stress: { threads: 500, ramp: 120, duration: 900, desc: '压力测试：逐步加压直到系统出现瓶颈或崩溃。', advanced: false },
             spike: { threads: 1000, ramp: 5, duration: 120, desc: '尖刺测试：模拟秒杀、抢购等突发流量场景。', advanced: false },
-            step: { threads: 200, ramp: 10, duration: 600, desc: '阶梯加压：分 5 步逐步增加并发，观察性能变化趋势。', advanced: true },
+            step: { threads: 200, ramp: 40, duration: 600, desc: '阶梯加压：按指定速率逐步增加并发，观察性能变化趋势。', advanced: true },
             peak: { threads: 300, ramp: 60, duration: 1800, desc: '峰值测试：高并发持续 30 分钟压力。', advanced: false },
             endurance: { threads: 80, ramp: 30, duration: 7200, desc: '稳定性测试：中等并发持续 2 小时运行。', advanced: false },
             'spike-recovery': { threads: 800, ramp: 3, duration: 300, desc: '尖刺恢复：瞬间冲击后系统恢复能力。', advanced: false },
@@ -4136,12 +4161,11 @@
                     data.push({ time: t, threads: Math.round((t / duration) * maxThreads) });
                 }
             } else if (scenario === 'step') {
-                const stepThreads = Math.floor(maxThreads / steps);
-                const stepDur = Math.floor(duration / steps);
-                for (let s = 0; s < steps; s++) {
-                    for (let t = 0; t < stepDur; t += interval) {
-                        data.push({ time: s * stepDur + t, threads: Math.round(s * stepThreads + (t / stepDur) * stepThreads) });
-                    }
+                const rampRate = parseInt(document.getElementById('create-steps')?.value) || 5;
+                const rampTime = Math.ceil(maxThreads / rampRate);
+                for (let t = 0; t <= duration; t += interval) {
+                    let threads = t < rampTime ? Math.round((t / rampTime) * maxThreads) : maxThreads;
+                    data.push({ time: t, threads: threads });
                 }
             } else if (scenario === 'spike-recovery') {
                 const spikeHold = 30;
@@ -7358,7 +7382,11 @@
                 const color = categoryColors[t.category] || '#666';
                 const cfg = t.config || {};
                 const created = t.created_at ? formatTimeShort(t.created_at) : '';
-                return `<div style="background:#fff;border:1px solid #e0e0e0;border-radius:8px;padding:16px;">
+                const configJson = JSON.stringify(cfg).replace(/"/g, '&quot;');
+                return `<div style="background:#fff;border:1px solid #e0e0e0;border-radius:8px;padding:16px;cursor:pointer;transition:box-shadow 0.15s" 
+                    onmouseenter="showTemplatePreview(event, '${t.template_id}')" 
+                    onmousemove="moveTemplatePreview(event)" 
+                    onmouseleave="hideTemplatePreview()">
                     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
                         <span style="font-size:14px;font-weight:600">${t.name}</span>
                         <span style="font-size:11px;color:#fff;background:${color};padding:2px 8px;border-radius:10px">${t.category}</span>
@@ -7369,11 +7397,78 @@
                     </div>
                     ${created ? `<div style="font-size:11px;color:#aaa;margin-bottom:8px">创建: ${created}</div>` : ''}
                     <div style="display:flex;gap:8px">
-                        <button class="btn-primary btn-sm" onclick="useTemplate('${t.template_id}')">使用模板</button>
-                        ${!t.builtin ? `<button class="btn-danger btn-sm" onclick="deleteTemplate('${t.template_id}')">删除</button>` : ''}
+                        <button class="btn-primary btn-sm" onclick="event.stopPropagation();useTemplate('${t.template_id}')">使用模板</button>
+                        ${!t.builtin ? `<button class="btn-danger btn-sm" onclick="event.stopPropagation();deleteTemplate('${t.template_id}')">删除</button>` : ''}
                     </div>
                 </div>`;
             }).join('');
+        }
+
+        let tplPreviewChart = null;
+        let tplPreviewTimer = null;
+
+        function generateTemplatePreviewData(cfg) {
+            const threads = cfg.threads || 10;
+            const rampTime = cfg.ramp_time || 1;
+            const duration = cfg.duration || 60;
+            const data = [];
+            const interval = Math.max(1, Math.floor(duration / 120));
+            for (let t = 0; t <= duration; t += interval) {
+                let th = t < rampTime ? Math.round((t / rampTime) * threads) : threads;
+                data.push({ time: t, threads: th });
+            }
+            return data;
+        }
+
+        function showTemplatePreview(event, templateId) {
+            const t = templatesList.find(t => t.template_id === templateId);
+            if (!t) return;
+            const cfg = t.config || {};
+            const popover = document.getElementById('template-preview-popover');
+            const titleEl = document.getElementById('tpl-preview-title');
+            titleEl.textContent = `${t.name} — ${cfg.threads || '-'}并发 / ${cfg.ramp_time || '-'}s预热 / ${cfg.duration || '-'}s持续`;
+            positionPopover(popover, event);
+            popover.classList.add('visible');
+
+            clearTimeout(tplPreviewTimer);
+            tplPreviewTimer = setTimeout(() => {
+                if (tplPreviewChart) tplPreviewChart.dispose();
+                const data = generateTemplatePreviewData(cfg);
+                const chartDom = document.getElementById('tpl-preview-chart');
+                tplPreviewChart = echarts.init(chartDom);
+                tplPreviewChart.setOption({
+                    backgroundColor: 'transparent',
+                    tooltip: { trigger: 'axis', formatter: function(p) { return '<b>' + p[0].name + '</b><br/>并发: ' + p[0].data[1]; } },
+                    xAxis: { type: 'category', data: data.map(d => d.time + 's'), axisLabel: { fontSize: 11, color: '#888' }, axisLine: { lineStyle: { color: '#eee' } } },
+                    yAxis: { type: 'value', name: '并发', nameTextStyle: { fontSize: 11, color: '#888' }, axisLabel: { fontSize: 11, color: '#888' }, splitLine: { lineStyle: { color: '#f5f5f5' } } },
+                    series: [{ type: 'line', data: data.map(d => [d.time + 's', d.threads]), smooth: true, symbol: 'none', lineStyle: { width: 2.5, color: '#2563eb' }, areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: 'rgba(37,99,235,0.2)' }, { offset: 1, color: 'rgba(37,99,235,0.02)' }] } } }],
+                    grid: { left: 45, right: 15, top: 25, bottom: 28 }
+                });
+            }, 80);
+        }
+
+        function moveTemplatePreview(event) {
+            const popover = document.getElementById('template-preview-popover');
+            positionPopover(popover, event);
+        }
+
+        function positionPopover(popover, event) {
+            const pw = popover.offsetWidth || 420;
+            const ph = popover.offsetHeight || 300;
+            let x = event.clientX + 16;
+            let y = event.clientY - ph / 2;
+            if (x + pw > window.innerWidth - 10) x = event.clientX - pw - 16;
+            if (y < 10) y = 10;
+            if (y + ph > window.innerHeight - 10) y = window.innerHeight - ph - 10;
+            popover.style.left = x + 'px';
+            popover.style.top = y + 'px';
+        }
+
+        function hideTemplatePreview() {
+            clearTimeout(tplPreviewTimer);
+            const popover = document.getElementById('template-preview-popover');
+            popover.classList.remove('visible');
+            if (tplPreviewChart) { tplPreviewChart.dispose(); tplPreviewChart = null; }
         }
 
         function useTemplate(templateId) {
