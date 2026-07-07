@@ -1,0 +1,27 @@
+{
+  "name": "performancetestingplatform",
+  "version": "1.0.0",
+  "description": "基于 Apache JMeter 的分布式性能测试平台，提供 Web 界面管理压测任务、分析结果、监控资源。",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/your-org/performance-testing-platform.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/your-org/performance-testing-platform/issues"
+  },
+  "homepage": "https://github.com/your-org/performance-testing-platform#readme",
+  "devDependencies": {
+    "playwright": "^1.61.1"
+  }
+}

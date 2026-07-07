@@ -29,12 +29,24 @@ MOCK_USERS = [
     {"id": 5, "username": "user005", "email": "user005@example.com", "role": "viewer"},
 ]
 
+ECOMMERCE_TEST_USERS = [
+    {
+        "id": 1000 + i,
+        "username": f"orderuser{i:03d}",
+        "password": f"orderpass{i:03d}",
+        "email": f"orderuser{i:03d}@example.com",
+        "role": "buyer",
+    }
+    for i in range(1, 101)
+]
+
 TRACE_FILE = os.getenv(
     "MOCK_ECOMMERCE_TRACE",
     os.path.join(os.path.dirname(__file__), "mock-data", "ecommerce-trace.jsonl"),
 )
 _lock = threading.Lock()
 _users = {u["username"]: dict(u, password="pass1234") for u in MOCK_USERS}
+_users.update({u["username"]: u.copy() for u in ECOMMERCE_TEST_USERS})
 _tokens = {}
 _cart_items = {}
 _orders = {}
@@ -172,7 +184,7 @@ async def ecommerce_login(request: Request):
     username = str(body.get("username", "")).strip()
     password = str(body.get("password", "")).strip()
     user = _users.get(username)
-    if not user or not password:
+    if not user or not password or user.get("password") != password:
         _trace("login", 401, username=username)
         return JSONResponse(status_code=401, content={"error": "invalid credentials"})
 
@@ -200,6 +212,17 @@ async def ecommerce_search(q: str = "mock", page: int = 1, size: int = 10):
     page_items = matched[start:start + size]
     _trace("search_products", 200, keyword=q, count=len(page_items))
     return {"ok": True, "total": len(matched), "products": page_items}
+
+
+@app.get("/api/ecommerce/products/{product_id}")
+async def ecommerce_product_detail(product_id: str):
+    _sleep_like_service()
+    product = next((p for p in _products if p["product_id"] == product_id), None)
+    if not product:
+        _trace("select_product", 404, product_id=product_id)
+        return JSONResponse(status_code=404, content={"error": "product not found"})
+    _trace("select_product", 200, product_id=product_id, price=product["price"])
+    return {"ok": True, "product": product}
 
 
 @app.post("/api/ecommerce/cart/items")
@@ -322,6 +345,7 @@ if __name__ == "__main__":
     print(f"  POST http://localhost:{port}/api/ecommerce/users/register")
     print(f"  POST http://localhost:{port}/api/ecommerce/auth/login")
     print(f"  GET  http://localhost:{port}/api/ecommerce/products/search?q=mock")
+    print(f"  GET  http://localhost:{port}/api/ecommerce/products/{{product_id}}")
     print(f"  POST http://localhost:{port}/api/ecommerce/cart/items")
     print(f"  POST http://localhost:{port}/api/ecommerce/orders")
     print(f"  GET  http://localhost:{port}/api/ecommerce/orders/{{order_id}}")
