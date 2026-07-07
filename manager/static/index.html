@@ -1487,7 +1487,8 @@
                         <button class="filter-btn" onclick="clearCompareSelection()">清空选择</button>
                     </div>
                 </div>
-                <div id="compare-task-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px;max-height:400px;overflow-y:auto;padding:4px 0;"></div>
+                <div id="compare-task-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px;padding:4px 0;"></div>
+                <div id="compare-pagination" style="display:flex;align-items:center;justify-content:center;gap:6px;padding:12px 0;border-top:1px solid #e5e7eb;margin-top:8px;"></div>
             </div>
 
             <div id="compare-result" class="hidden">
@@ -7818,6 +7819,8 @@
         let compareLabelRows = [];
         let compareSelectedTasks = [];
         let compareAllTasks = [];
+        let comparePage = 1;
+        const comparePageSize = 12;
 
         const compareColors = ['#2563eb', '#16a34a', '#d97706', '#dc2626', '#9333ea'];
 
@@ -7853,7 +7856,14 @@
                 return;
             }
 
-            grid.innerHTML = compareAllTasks.map((t, i) => {
+            const totalPages = Math.ceil(compareAllTasks.length / comparePageSize);
+            if (comparePage > totalPages) comparePage = totalPages;
+            if (comparePage < 1) comparePage = 1;
+            
+            const start = (comparePage - 1) * comparePageSize;
+            const pageTasks = compareAllTasks.slice(start, start + comparePageSize);
+
+            grid.innerHTML = pageTasks.map((t, i) => {
                 const isSelected = compareSelectedTasks.includes(t.task_id);
                 const selIdx = compareSelectedTasks.indexOf(t.task_id);
                 const s = t.summary || {};
@@ -7881,6 +7891,35 @@
                     <div style="margin-top:6px;font-size:10px;color:#aaa">${dateStr}</div>
                 </div>`;
             }).join('');
+
+            const pagination = document.getElementById('compare-pagination');
+            if (totalPages <= 1) {
+                pagination.innerHTML = `<span style="font-size:12px;color:#888;">共 ${compareAllTasks.length} 个任务</span>`;
+                return;
+            }
+            
+            let paginationHtml = `<span style="font-size:12px;color:#888;margin-right:12px;">共 ${compareAllTasks.length} 个任务，第 ${comparePage}/${totalPages} 页</span>`;
+            paginationHtml += `<button class="filter-btn" style="padding:4px 10px;font-size:12px;" onclick="compareGoPage(1)" ${comparePage===1?'disabled':''}>首页</button>`;
+            paginationHtml += `<button class="filter-btn" style="padding:4px 10px;font-size:12px;" onclick="compareGoPage(${comparePage-1})" ${comparePage===1?'disabled':''}>上一页</button>`;
+            
+            const maxShow = 5;
+            let startPage = Math.max(1, comparePage - Math.floor(maxShow / 2));
+            let endPage = Math.min(totalPages, startPage + maxShow - 1);
+            if (endPage - startPage < maxShow - 1) startPage = Math.max(1, endPage - maxShow + 1);
+            
+            for (let p = startPage; p <= endPage; p++) {
+                paginationHtml += `<button class="filter-btn" style="padding:4px 10px;font-size:12px;${p===comparePage?'background:#1a1a1a;color:#fff;border-color:#1a1a1a;':''}" onclick="compareGoPage(${p})">${p}</button>`;
+            }
+            
+            paginationHtml += `<button class="filter-btn" style="padding:4px 10px;font-size:12px;" onclick="compareGoPage(${comparePage+1})" ${comparePage===totalPages?'disabled':''}>下一页</button>`;
+            paginationHtml += `<button class="filter-btn" style="padding:4px 10px;font-size:12px;" onclick="compareGoPage(${totalPages})" ${comparePage===totalPages?'disabled':''}>末页</button>`;
+            
+            pagination.innerHTML = paginationHtml;
+        }
+
+        function compareGoPage(page) {
+            comparePage = page;
+            renderCompareTaskGrid();
         }
 
         function toggleCompareTask(taskId) {
