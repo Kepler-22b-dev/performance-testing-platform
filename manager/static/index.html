@@ -433,7 +433,7 @@
             <button class="active" onclick="showPage('home')">首页</button>
             <button onclick="showPage('tasks')">任务管理</button>
             <button onclick="showPage('create')">创建任务</button>
-            <button onclick="showPage('data')">数据管理</button>
+            <button onclick="showPage('data')">配置管理</button>
             <button onclick="showPage('nodes')">施压节点</button>
             <button onclick="showPage('compare')">任务对比</button>
             <button onclick="showPage('jtl')">JTL 导入</button>
@@ -442,7 +442,6 @@
             <button onclick="showPage('notify')">通知设置</button>
             <button onclick="showPage('trend')">性能趋势</button>
             <button onclick="showPage('alerts')">告警规则</button>
-            <button onclick="showPage('envs')">环境管理</button>
             <button onclick="showPage('tool-logs')">工具日志</button>
             <button onclick="showPage('mobile')">移动端监控</button>
             <button onclick="showPage('scripts')">脚本管理</button>
@@ -1289,9 +1288,9 @@
             </div>
         </div>
 
-        <!-- 数据管理 -->
+        <!-- 配置管理 -->
         <div id="page-data" class="hidden">
-            <!-- 变量管理 -->
+            <!-- 全局变量 -->
             <div class="task-list" style="margin-bottom:12px;">
                 <div class="toolbar">
                     <h3>全局变量</h3>
@@ -1320,7 +1319,7 @@
             </div>
 
             <!-- CSV 数据文件 -->
-            <div class="task-list">
+            <div class="task-list" style="margin-bottom:12px;">
                 <div class="toolbar">
                     <h3>CSV 数据文件</h3>
                     <div class="toolbar-actions">
@@ -1334,6 +1333,45 @@
                 </table>
                 <div id="no-csvs" class="empty-tip">暂无数据文件</div>
                 <div id="csvs-pagination"></div>
+            </div>
+
+            <!-- 环境配置 -->
+            <div class="task-list">
+                <div class="toolbar">
+                    <h3>环境配置</h3>
+                    <div class="toolbar-actions">
+                        <button class="btn-success" onclick="showCreateEnv()">新建环境</button>
+                    </div>
+                </div>
+                <table>
+                    <thead><tr><th>环境名称</th><th>Base URL</th><th>说明</th><th>变量数</th><th>创建时间</th><th>操作</th></tr></thead>
+                    <tbody id="envs-tbody"></tbody>
+                </table>
+                <div id="no-envs" class="empty-tip">暂无环境配置</div>
+                <div id="envs-pagination"></div>
+            </div>
+
+            <!-- 新建环境弹窗 -->
+            <div id="env-create-modal" class="hidden" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:none;z-index:1000;justify-content:center;align-items:center;">
+                <div style="background:#fff;border-radius:8px;padding:20px;width:560px;max-height:80vh;overflow:auto;">
+                    <h3 style="font-size:16px;margin-bottom:16px">新建环境</h3>
+                    <div class="form-group"><label>环境名称</label><input type="text" id="env-name" placeholder="production"></div>
+                    <div class="form-group"><label>Base URL</label><input type="text" id="env-url" placeholder="https://api.example.com"></div>
+                    <div class="form-group"><label>说明</label><input type="text" id="env-desc" placeholder="生产环境"></div>
+                    <div class="form-group">
+                        <label>自定义变量 (JSON 格式)</label>
+                        <textarea id="env-vars" style="width:100%;height:80px;font-family:monospace;font-size:12px;border:1px solid #d0d0d0;border-radius:4px;padding:8px;" placeholder='{"api_key": "xxx", "timeout": "30000"}'></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>请求头 (JSON 格式)</label>
+                        <textarea id="env-headers" style="width:100%;height:60px;font-family:monospace;font-size:12px;border:1px solid #d0d0d0;border-radius:4px;padding:8px;" placeholder='{"Content-Type": "application/json"}'></textarea>
+                    </div>
+                    <div class="form-group"><label>Auth Token (可选)</label><input type="text" id="env-token" placeholder="Bearer xxx"></div>
+                    <div style="display:flex;gap:8px;justify-content:flex-end;">
+                        <button class="filter-btn" onclick="closeCreateEnv()">取消</button>
+                        <button class="btn-primary" onclick="submitEnv()">创建</button>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -1682,46 +1720,6 @@
                     <div style="display:flex;gap:8px;justify-content:flex-end;">
                         <button class="filter-btn" onclick="closeCreateAlert()">取消</button>
                         <button class="btn-primary" onclick="submitAlert()">创建</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- 多环境管理 -->
-        <div id="page-envs" class="hidden">
-            <div class="task-list" style="margin-bottom:12px;">
-                <div class="toolbar">
-                    <h3>环境管理</h3>
-                    <div class="toolbar-actions">
-                        <button class="btn-success" onclick="showCreateEnv()">新建环境</button>
-                    </div>
-                </div>
-                <table>
-                    <thead><tr><th>环境名称</th><th>Base URL</th><th>说明</th><th>变量数</th><th>创建时间</th><th>操作</th></tr></thead>
-                    <tbody id="envs-tbody"></tbody>
-                </table>
-                <div id="no-envs" class="empty-tip">暂无环境配置</div>
-                <div id="envs-pagination"></div>
-            </div>
-
-            <div id="env-create-modal" class="hidden" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:none;z-index:1000;justify-content:center;align-items:center;">
-                <div style="background:#fff;border-radius:8px;padding:20px;width:560px;max-height:80vh;overflow:auto;">
-                    <h3 style="font-size:16px;margin-bottom:16px">新建环境</h3>
-                    <div class="form-group"><label>环境名称</label><input type="text" id="env-name" placeholder="production"></div>
-                    <div class="form-group"><label>Base URL</label><input type="text" id="env-url" placeholder="https://api.example.com"></div>
-                    <div class="form-group"><label>说明</label><input type="text" id="env-desc" placeholder="生产环境"></div>
-                    <div class="form-group">
-                        <label>自定义变量 (JSON 格式)</label>
-                        <textarea id="env-vars" style="width:100%;height:80px;font-family:monospace;font-size:12px;border:1px solid #d0d0d0;border-radius:4px;padding:8px;" placeholder='{"api_key": "xxx", "timeout": "30000"}'></textarea>
-                    </div>
-                    <div class="form-group">
-                        <label>请求头 (JSON 格式)</label>
-                        <textarea id="env-headers" style="width:100%;height:60px;font-family:monospace;font-size:12px;border:1px solid #d0d0d0;border-radius:4px;padding:8px;" placeholder='{"Content-Type": "application/json"}'></textarea>
-                    </div>
-                    <div class="form-group"><label>Auth Token (可选)</label><input type="text" id="env-token" placeholder="Bearer xxx"></div>
-                    <div style="display:flex;gap:8px;justify-content:flex-end;">
-                        <button class="filter-btn" onclick="closeCreateEnv()">取消</button>
-                        <button class="btn-primary" onclick="submitEnv()">创建</button>
                     </div>
                 </div>
             </div>
@@ -2699,7 +2697,7 @@
                 if ((page === 'home' && b.textContent === '首页') ||
                     (page === 'tasks' && b.textContent === '任务管理') ||
                     (page === 'create' && b.textContent === '创建任务') ||
-                    (page === 'data' && b.textContent === '数据管理') ||
+                    (page === 'data' && b.textContent === '配置管理') ||
                     (page === 'nodes' && b.textContent === '施压节点') ||
                     (page === 'compare' && b.textContent === '任务对比') ||
                     (page === 'jtl' && b.textContent === 'JTL 导入') ||
@@ -2708,7 +2706,6 @@
                     (page === 'notify' && b.textContent === '通知设置') ||
                     (page === 'trend' && b.textContent === '性能趋势') ||
                     (page === 'alerts' && b.textContent === '告警规则') ||
-                    (page === 'envs' && b.textContent === '环境管理') ||
                     (page === 'tool-logs' && b.textContent === '工具日志') ||
                     (page === 'mobile' && b.textContent === '移动端监控') ||
                     (page === 'scripts' && b.textContent === '脚本管理')) {
@@ -2724,7 +2721,7 @@
             if (page === 'home' && charts.homeTrend) setTimeout(() => charts.homeTrend.resize(), 100);
             if (page === 'tasks') { showTaskList(); loadTasks(); loadAgentMap(); startAutoRefresh(); }
             if (page === 'create') loadCreateForm();
-            if (page === 'data') { loadVars(); loadCsvs(); }
+            if (page === 'data') { loadVars(); loadCsvs(); loadEnvs(); }
             if (page === 'nodes') { loadNodes(); startMonitorAutoRefresh(); }
             if (page === 'templates') loadTemplates();
             if (page === 'schedule') loadSchedules();
@@ -2732,7 +2729,6 @@
             if (page === 'compare') loadCompareForm();
             if (page === 'trend') loadTrend();
             if (page === 'alerts') loadAlerts();
-            if (page === 'envs') loadEnvs();
             if (page === 'tool-logs') loadToolLogsPage();
             if (page === 'mobile') loadMobilePage();
             if (page === 'scripts') loadScripts();
