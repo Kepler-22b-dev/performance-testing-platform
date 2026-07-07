@@ -57,3 +57,8 @@ JMETER_SLAVE_HOME = os.getenv(
 
 # Slave 默认端口
 SLAVE_PORT = int(os.getenv("SLAVE_PORT", 1100))
+
+# SOLOX 移动端性能监控配置
+SOLOX_HOST = os.getenv("SOLOX_HOST", "127.0.0.1")
+SOLOX_PORT = int(os.getenv("SOLOX_PORT", 50001))
+SOLOX_BASE_URL = f"http://{SOLOX_HOST}:{SOLOX_PORT}"

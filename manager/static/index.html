@@ -444,6 +444,7 @@
             <button onclick="showPage('alerts')">告警规则</button>
             <button onclick="showPage('envs')">环境管理</button>
             <button onclick="showPage('tool-logs')">工具日志</button>
+            <button onclick="showPage('mobile')">移动端监控</button>
             <button onclick="showPage('scripts')">脚本管理</button>
             <a href="/docs" target="_blank" style="background:transparent;border:1px solid #d0d0d0;color:#555;padding:6px 12px;border-radius:4px;text-decoration:none;font-size:13px;cursor:pointer">API 文档</a>
         </div>
@@ -882,6 +883,115 @@
                         <div id="tool-log-meta" class="tool-log-meta">请选择左侧日志</div>
                         <div id="tool-log-content" class="log-box tool-log-box"><span class="log-loading">请选择日志</span></div>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 移动端监控 -->
+        <div id="page-mobile" class="hidden">
+            <div class="task-list">
+                <div class="page-header">
+                    <div class="page-title-group">
+                        <h2 style="font-size:16px;font-weight:600;">移动端性能监控</h2>
+                        <span class="progress-text">通过 SOLOX 实时采集 Android/iOS 设备性能数据</span>
+                    </div>
+                    <div class="toolbar-actions">
+                        <button class="filter-btn" onclick="checkSoloxStatus()">检查连接</button>
+                        <button class="filter-btn" onclick="refreshMobileData()">刷新数据</button>
+                    </div>
+                </div>
+                
+                <!-- SOLOX 状态 -->
+                <div id="solox-status" style="margin-bottom:16px;padding:12px;border-radius:6px;background:#f8fafc;border:1px solid #e0e0e0;">
+                    <span style="color:#666;">SOLOX 服务状态：</span>
+                    <span id="solox-status-text" style="font-weight:600;">检测中...</span>
+                </div>
+
+                <!-- 设备和应用配置 -->
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px;">
+                    <div class="form-group">
+                        <label>平台</label>
+                        <select id="mobile-platform" class="compact-select" onchange="onPlatformChange()">
+                            <option value="Android">Android</option>
+                            <option value="iOS">iOS</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>设备</label>
+                        <select id="mobile-device" class="compact-select" onchange="onDeviceChange()">
+                            <option value="">自动检测</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>应用</label>
+                        <div style="display:flex;gap:8px;">
+                            <select id="mobile-app" class="compact-select" style="flex:1;" onchange="onAppSelect()">
+                                <option value="">选择应用</option>
+                            </select>
+                            <button class="filter-btn" onclick="loadApps()" title="刷新应用列表">🔄</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 控制按钮 -->
+                <div style="margin-bottom:16px;display:flex;gap:12px;align-items:center;">
+                    <button id="btn-mobile-start" class="filter-btn" style="padding:8px 20px;background:#16a34a;color:#fff;border:none;" onclick="startMobileMonitor()">开始监控</button>
+                    <button id="btn-mobile-stop" class="filter-btn" style="padding:8px 20px;display:none;" onclick="stopMobileMonitor()">停止监控</button>
+                    <span style="color:#888;font-size:12px;">iOS设备仅支持 CPU 和内存数据采集</span>
+                </div>
+
+                <!-- 实时数据卡片 -->
+                <div class="summary-cards" style="margin-bottom:16px;">
+                    <div class="card">
+                        <div class="label">CPU 使用率</div>
+                        <div class="value" id="mobile-cpu">--</div>
+                        <div class="desc">当前应用 CPU 占用</div>
+                    </div>
+                    <div class="card">
+                        <div class="label">内存使用</div>
+                        <div class="value" id="mobile-memory">--</div>
+                        <div class="desc">当前应用内存占用</div>
+                    </div>
+                    <div class="card">
+                        <div class="label">进程 PID</div>
+                        <div class="value" id="mobile-pid" style="font-size:16px;">--</div>
+                        <div class="desc">iOS 进程标识</div>
+                    </div>
+                    <div class="card">
+                        <div class="label">FPS</div>
+                        <div class="value" id="mobile-fps">--</div>
+                        <div class="desc">画面帧率（仅Android）</div>
+                    </div>
+                    <div class="card">
+                        <div class="label">网络流量</div>
+                        <div class="value" id="mobile-network">--</div>
+                        <div class="desc">上行/下行速率（仅Android）</div>
+                    </div>
+                    <div class="card">
+                        <div class="label">电池电量</div>
+                        <div class="value" id="mobile-battery">--</div>
+                        <div class="desc">剩余电量百分比（仅Android）</div>
+                    </div>
+                </div>
+
+                <!-- 图表区域 -->
+                <div class="charts-grid" style="grid-template-columns:1fr;">
+                    <div class="chart-box">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                            <h3>CPU & 内存趋势</h3>
+                            <button class="filter-btn" onclick="saveChart('cpu')" style="font-size:12px;padding:4px 10px;">保存图片</button>
+                        </div>
+                        <div id="mobile-chart-cpu" style="height:400px;"></div>
+                    </div>
+                    <div class="chart-box">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                            <h3>FPS & 网络趋势</h3>
+                            <button class="filter-btn" onclick="saveChart('fps')" style="font-size:12px;padding:4px 10px;">保存图片</button>
+                        </div>
+                        <div id="mobile-chart-fps" style="height:400px;"></div>
+                    </div>
+                </div>
+
                 </div>
             </div>
         </div>
@@ -2601,6 +2711,7 @@
                     (page === 'alerts' && b.textContent === '告警规则') ||
                     (page === 'envs' && b.textContent === '环境管理') ||
                     (page === 'tool-logs' && b.textContent === '工具日志') ||
+                    (page === 'mobile' && b.textContent === '移动端监控') ||
                     (page === 'scripts' && b.textContent === '脚本管理')) {
                     b.classList.add('active');
                 }
@@ -2624,6 +2735,7 @@
             if (page === 'alerts') loadAlerts();
             if (page === 'envs') loadEnvs();
             if (page === 'tool-logs') loadToolLogsPage();
+            if (page === 'mobile') loadMobilePage();
             if (page === 'scripts') loadScripts();
         }
 
@@ -8293,6 +8405,368 @@
 
         loadAgentMap();
         loadHomePage();
+
+        // ===== 移动端监控功能 =====
+        let mobileMonitorInterval = null;
+        let mobileCharts = { cpu: null, fps: null };
+        let mobileData = { cpu: [], memory: [], fps: [], network: [], time: [] };
+
+        async function loadMobilePage() {
+            initMobileCharts();
+            autoDetectDevice();
+        }
+
+        async function autoDetectDevice() {
+            const statusEl = document.getElementById('solox-status-text');
+            const platformSelect = document.getElementById('mobile-platform');
+            const deviceSelect = document.getElementById('mobile-device');
+            const appSelect = document.getElementById('mobile-app');
+            
+            statusEl.textContent = '检测设备中...';
+            statusEl.style.color = '#666';
+            
+            try {
+                const res = await fetch(`${API}/api/mobile/detect`);
+                const data = await res.json();
+                
+                if (data.detected && data.platform) {
+                    // 自动设置平台（注意：选项值是大写开头）
+                    platformSelect.value = data.platform === 'ios' ? 'iOS' : 'Android';
+                    
+                    // 显示设备信息
+                    const devices = data.devices || [];
+                    deviceSelect.innerHTML = '<option value="">自动检测</option>';
+                    
+                    if (devices.length > 0) {
+                        devices.forEach(device => {
+                            const option = document.createElement('option');
+                            option.value = device.udid || device.id || '';
+                            option.textContent = `${device.name || device.product_type || 'Device'}${device.product_version ? ' (iOS ' + device.product_version + ')' : ''}`;
+                            deviceSelect.appendChild(option);
+                        });
+                        
+                        // 自动选择第一个设备
+                        if (devices.length === 1) {
+                            deviceSelect.value = devices[0].udid || devices[0].id || '';
+                        }
+                    }
+                    
+                    const engine = data.platform === 'ios' ? 'pymobiledevice3' : 'SOLOX';
+                    statusEl.textContent = `已检测到 ${data.platform.toUpperCase()} 设备 (${engine})`;
+                    statusEl.style.color = '#16a34a';
+                    
+                    // 自动加载应用列表
+                    await loadApps();
+                } else {
+                    statusEl.textContent = '未检测到设备，请连接设备';
+                    statusEl.style.color = '#d97706';
+                    deviceSelect.innerHTML = '<option value="">未检测到设备</option>';
+                    appSelect.innerHTML = '<option value="">未检测到设备</option>';
+                }
+            } catch (e) {
+                statusEl.textContent = '检测失败';
+                statusEl.style.color = '#dc2626';
+                console.error('Device detection failed:', e);
+            }
+        }
+
+        async function loadApps() {
+            const platformRaw = document.getElementById('mobile-platform').value;
+            const platform = platformRaw === 'iOS' ? 'ios' : 'android';
+            const deviceId = document.getElementById('mobile-device').value;
+            const appSelect = document.getElementById('mobile-app');
+            
+            appSelect.innerHTML = '<option value="">加载中...</option>';
+            
+            try {
+                const url = `${API}/api/mobile/apps/${platform}${deviceId ? '?deviceid=' + deviceId : ''}`;
+                const res = await fetch(url);
+                const data = await res.json();
+                
+                appSelect.innerHTML = '<option value="">选择应用</option>';
+                if (data.apps && data.apps.length > 0) {
+                    data.apps.forEach(app => {
+                        const option = document.createElement('option');
+                        option.value = app.executable || app.bundle_id;
+                        option.textContent = `${app.name} (${app.bundle_id})`;
+                        option.dataset.bundleId = app.bundle_id;
+                        appSelect.appendChild(option);
+                    });
+                } else {
+                    appSelect.innerHTML = '<option value="">未找到应用</option>';
+                }
+            } catch (e) {
+                console.error('Failed to load apps:', e);
+                appSelect.innerHTML = '<option value="">加载失败</option>';
+            }
+        }
+
+        function onPlatformChange() {
+            loadApps();
+        }
+
+        function onDeviceChange() {
+            loadApps();
+        }
+
+        function onAppSelect() {
+            mobileData = { cpu: [], memory: [], fps: [], network: [], time: [] };
+            if (mobileCharts.cpu) {
+                mobileCharts.cpu.setOption({ xAxis: { data: [] }, series: [{ data: [] }, { data: [] }] });
+            }
+            if (mobileCharts.fps) {
+                mobileCharts.fps.setOption({ xAxis: { data: [] }, series: [{ data: [] }, { data: [] }] });
+            }
+            document.getElementById('mobile-cpu').textContent = '--';
+            document.getElementById('mobile-memory').textContent = '--';
+            document.getElementById('mobile-pid').textContent = '--';
+        }
+
+        function saveChart(type) {
+            const chart = type === 'cpu' ? mobileCharts.cpu : mobileCharts.fps;
+            if (!chart) return;
+            
+            const appSelect = document.getElementById('mobile-app');
+            const appName = appSelect.options[appSelect.selectedIndex]?.text || 'unknown';
+            const cleanName = appName.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '_').substring(0, 30);
+            
+            const url = chart.getDataURL({ type: 'png', pixelRatio: 2, backgroundColor: '#fff' });
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${cleanName}_${type}_${new Date().toISOString().slice(0,19).replace(/[:-]/g,'')}.png`;
+            a.click();
+        }
+
+        async function checkSoloxStatus() {
+            const statusEl = document.getElementById('solox-status-text');
+            try {
+                const res = await fetch(`${API}/api/mobile/status`);
+                const data = await res.json();
+                const android = data.android?.available;
+                const ios = data.ios?.available;
+                
+                let statusText = '';
+                if (android && ios) {
+                    statusText = 'Android (SOLOX) + iOS (pymobiledevice3) 已连接';
+                    statusEl.style.color = '#16a34a';
+                } else if (android) {
+                    statusText = 'Android (SOLOX) 已连接';
+                    statusEl.style.color = '#16a34a';
+                } else if (ios) {
+                    statusText = 'iOS (pymobiledevice3) 已连接';
+                    statusEl.style.color = '#16a34a';
+                } else {
+                    statusText = '未检测到设备';
+                    statusEl.style.color = '#dc2626';
+                }
+                statusEl.textContent = statusText;
+            } catch (e) {
+                statusEl.textContent = '监控服务不可用';
+                statusEl.style.color = '#dc2626';
+            }
+        }
+
+        function initMobileCharts() {
+            const cpuChart = echarts.init(document.getElementById('mobile-chart-cpu'));
+            const fpsChart = echarts.init(document.getElementById('mobile-chart-fps'));
+            
+            mobileCharts.cpu = cpuChart;
+            mobileCharts.fps = fpsChart;
+
+            cpuChart.setOption({
+                tooltip: { 
+                    trigger: 'axis',
+                    formatter: function(params) {
+                        let result = params[0].axisValue + '<br/>';
+                        params.forEach(p => {
+                            const unit = p.seriesName.includes('CPU') ? '%' : ' MB';
+                            result += p.marker + p.seriesName + ': ' + p.value + unit + '<br/>';
+                        });
+                        return result;
+                    }
+                },
+                legend: { data: ['CPU (%)', '内存 (MB)'], top: 0 },
+                grid: { left: '3%', right: '4%', bottom: '3%', top: 40, containLabel: true },
+                xAxis: { type: 'category', data: [], axisLabel: { fontSize: 11 } },
+                yAxis: [
+                    { type: 'value', name: 'CPU %', max: 100, axisLabel: { formatter: '{value}%' } },
+                    { type: 'value', name: '内存 MB', axisLabel: { formatter: '{value} MB' } }
+                ],
+                series: [
+                    { name: 'CPU (%)', type: 'line', data: [], smooth: true, symbol: 'circle', symbolSize: 6, lineStyle: { width: 2 }, itemStyle: { color: '#3b82f6' }, areaStyle: { color: 'rgba(59,130,246,0.1)' } },
+                    { name: '内存 (MB)', type: 'line', yAxisIndex: 1, data: [], smooth: true, symbol: 'circle', symbolSize: 6, lineStyle: { width: 2 }, itemStyle: { color: '#10b981' }, areaStyle: { color: 'rgba(16,185,129,0.1)' } }
+                ]
+            });
+
+            fpsChart.setOption({
+                tooltip: { 
+                    trigger: 'axis',
+                    formatter: function(params) {
+                        let result = params[0].axisValue + '<br/>';
+                        params.forEach(p => {
+                            const unit = p.seriesName.includes('FPS') ? ' Hz' : ' KB/s';
+                            result += p.marker + p.seriesName + ': ' + p.value + unit + '<br/>';
+                        });
+                        return result;
+                    }
+                },
+                legend: { data: ['FPS', '网络 (KB/s)'], top: 0 },
+                grid: { left: '3%', right: '4%', bottom: '3%', top: 40, containLabel: true },
+                xAxis: { type: 'category', data: [], axisLabel: { fontSize: 11 } },
+                yAxis: [
+                    { type: 'value', name: 'FPS', axisLabel: { formatter: '{value} Hz' } },
+                    { type: 'value', name: 'KB/s', axisLabel: { formatter: '{value} KB/s' } }
+                ],
+                series: [
+                    { name: 'FPS', type: 'line', data: [], smooth: true, symbol: 'circle', symbolSize: 6, lineStyle: { width: 2 }, itemStyle: { color: '#f59e0b' }, areaStyle: { color: 'rgba(245,158,11,0.1)' } },
+                    { name: '网络 (KB/s)', type: 'line', yAxisIndex: 1, data: [], smooth: true, symbol: 'circle', symbolSize: 6, lineStyle: { width: 2 }, itemStyle: { color: '#8b5cf6' }, areaStyle: { color: 'rgba(139,92,246,0.1)' } }
+                ]
+            });
+        }
+
+        async function refreshMobileData() {
+            const platformRaw = document.getElementById('mobile-platform').value;
+            const platform = platformRaw === 'iOS' ? 'ios' : 'android';
+            const deviceId = document.getElementById('mobile-device').value;
+            const appSelect = document.getElementById('mobile-app');
+            const pkgname = appSelect.value;
+
+            if (!pkgname) {
+                return;
+            }
+
+            try {
+                const res = await fetch(`${API}/api/mobile/collect/all`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        platform, 
+                        deviceid: deviceId || undefined, 
+                        pkgname 
+                    })
+                });
+                const data = await res.json();
+                updateMobileDisplay(data, platform);
+            } catch (e) {
+                console.error('Failed to fetch mobile data:', e);
+            }
+        }
+
+        function updateMobileDisplay(data, platform) {
+            const now = new Date().toLocaleTimeString();
+            
+            // CPU
+            if (data.cpu && data.cpu.cpu !== undefined) {
+                const cpuVal = parseFloat(data.cpu.cpu) || 0;
+                document.getElementById('mobile-cpu').textContent = `${cpuVal.toFixed(1)}%`;
+            }
+            
+            // Memory
+            if (data.memory && data.memory.total !== undefined) {
+                const memVal = parseFloat(data.memory.total) || 0;
+                document.getElementById('mobile-memory').textContent = `${memVal.toFixed(1)} MB`;
+            }
+            
+            // PID (iOS会显示)
+            if (data.pid) {
+                document.getElementById('mobile-pid').textContent = `PID: ${data.pid}`;
+            }
+            
+            // FPS (Android only)
+            if (data.fps) {
+                document.getElementById('mobile-fps').textContent = `${data.fps.fps || '--'} Hz`;
+            } else {
+                document.getElementById('mobile-fps').textContent = platform === 'ios' ? 'iOS不支持' : '--';
+            }
+            
+            // Network (Android only)
+            if (data.network) {
+                const total = (data.network.upload + data.network.download) / 1024;
+                document.getElementById('mobile-network').textContent = `${total.toFixed(1)} KB/s`;
+            } else {
+                document.getElementById('mobile-network').textContent = platform === 'ios' ? 'iOS不支持' : '--';
+            }
+            
+            // Battery (Android only)
+            if (data.battery) {
+                document.getElementById('mobile-battery').textContent = `${data.battery.level || '--'}%`;
+            } else {
+                document.getElementById('mobile-battery').textContent = platform === 'ios' ? 'iOS不支持' : '--';
+            }
+            
+            // GPU (Android only, Qualcomm)
+            if (data.gpu && document.getElementById('mobile-gpu')) {
+                document.getElementById('mobile-gpu').textContent = `${data.gpu.gpu || '--'}%`;
+            }
+
+            // 更新图表数据
+            mobileData.time.push(now);
+            mobileData.cpu.push(data.cpu?.cpu || 0);
+            mobileData.memory.push(data.memory?.total || 0);
+            mobileData.fps.push(data.fps?.fps || 0);
+            mobileData.network.push((data.network?.upload || 0) + (data.network?.download || 0) / 1024);
+
+            if (mobileData.time.length > 30) {
+                mobileData.time.shift();
+                mobileData.cpu.shift();
+                mobileData.memory.shift();
+                mobileData.fps.shift();
+                mobileData.network.shift();
+            }
+
+            updateMobileCharts();
+        }
+
+        function updateMobileCharts() {
+            if (mobileCharts.cpu) {
+                mobileCharts.cpu.setOption({
+                    xAxis: { data: mobileData.time },
+                    series: [
+                        { data: mobileData.cpu },
+                        { data: mobileData.memory }
+                    ]
+                });
+            }
+            if (mobileCharts.fps) {
+                mobileCharts.fps.setOption({
+                    xAxis: { data: mobileData.time },
+                    series: [
+                        { data: mobileData.fps },
+                        { data: mobileData.network }
+                    ]
+                });
+            }
+        }
+
+        function startMobileMonitor() {
+            document.getElementById('btn-mobile-start').style.display = 'none';
+            document.getElementById('btn-mobile-stop').style.display = 'inline-block';
+            mobileMonitorInterval = setInterval(refreshMobileData, 5000);
+            refreshMobileData();
+        }
+
+        function stopMobileMonitor() {
+            document.getElementById('btn-mobile-start').style.display = 'inline-block';
+            document.getElementById('btn-mobile-stop').style.display = 'none';
+            if (mobileMonitorInterval) {
+                clearInterval(mobileMonitorInterval);
+                mobileMonitorInterval = null;
+            }
+        }
+
+        function onPlatformChange() {
+            const platform = document.getElementById('mobile-platform').value;
+            const deviceSelect = document.getElementById('mobile-device');
+            const pkgnameInput = document.getElementById('mobile-pkgname');
+            
+            deviceSelect.innerHTML = '<option value="">自动检测</option>';
+            
+            if (platform === 'ios') {
+                pkgnameInput.placeholder = 'Bundle ID: com.example.app';
+            } else {
+                pkgnameInput.placeholder = '包名: com.example.app';
+            }
+        }
     </script>
 </body>
 </html>

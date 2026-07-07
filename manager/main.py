@@ -50,6 +50,7 @@ from manager.api.tool_logs import (
     cleanup_expired_logs,
     router as tool_logs_router,
 )
+from manager.api.mobile import router as mobile_router
 
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -197,7 +198,7 @@ async def log_requests(request, call_next):
     api_logger.info(f"{request.method} {request.url.path} -> {response.status_code} ({duration:.1f}ms)")
     return response
 
-logger.info(f"API 路由已注册: nodes, scripts, tasks, results, slave, registry, monitor, data, templates, notifications, scheduler, alerts, environments, tool_logs")
+logger.info(f"API 路由已注册: nodes, scripts, tasks, results, slave, registry, monitor, data, templates, notifications, scheduler, alerts, environments, tool_logs, mobile")
 
 set_node_manager(node_manager)
 set_scheduler(scheduler)
@@ -220,6 +221,7 @@ app.include_router(alerts_router)
 app.include_router(environments_router)
 app.include_router(jtl_router)
 app.include_router(tool_logs_router)
+app.include_router(mobile_router)
 
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")

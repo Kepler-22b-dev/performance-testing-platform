@@ -8,3 +8,5 @@ weasyprint
 sqlalchemy[asyncio]
 asyncpg
 pytest
+httpx
+pymobiledevice3
