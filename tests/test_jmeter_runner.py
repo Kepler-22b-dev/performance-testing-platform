@@ -432,6 +432,10 @@ def test_error_response_capture_uses_sample_label_api(tmp_path):
     text = open(modified, encoding="utf-8").read()
     assert "Error Response Capture" in text
     assert "prev.getSampleLabel()" in text
+    assert "prev.getRequestHeaders()" in text
+    assert "prev.getResponseHeaders()" in text
+    assert "prev.getSamplerData()" in text
+    assert "captureVersion: 2" in text
     assert "prev.getLabel()" not in text
 
 

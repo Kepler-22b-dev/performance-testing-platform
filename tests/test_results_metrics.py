@@ -127,9 +127,17 @@ def test_sample_cache_includes_dynamic_segment_results(monkeypatch, tmp_path):
     )
     (segment_dir / "error_responses.jsonl").write_text(
         json.dumps({
+            "captureVersion": 2,
             "ts": 1700000001000,
             "label": "segment, api",
+            "threadName": "tg 2",
+            "requestMethod": "POST",
+            "requestUrl": "http://example.test/seg?source=capture",
+            "requestHeaders": "Content-Type: application/json",
+            "responseHeaders": "X-Request-Id: req-1",
+            "samplerData": "{\"item\":\"demo\"}",
             "responseData": "segment failure body",
+            "responseDataTruncated": True,
         }) + "\n",
         encoding="utf-8",
     )
@@ -143,6 +151,13 @@ def test_sample_cache_includes_dynamic_segment_results(monkeypatch, tmp_path):
     assert [s["label"] for s in samples] == ["base api", "segment, api"]
     assert samples[1]["source_segment"] == "dyn-001"
     assert samples[1]["response_data"] == "segment failure body"
+    assert samples[1]["request_method"] == "POST"
+    assert samples[1]["url"] == "http://example.test/seg?source=capture"
+    assert samples[1]["request_headers"] == "Content-Type: application/json"
+    assert samples[1]["response_headers"] == "X-Request-Id: req-1"
+    assert samples[1]["sampler_data"] == "{\"item\":\"demo\"}"
+    assert samples[1]["response_data_truncated"] is True
+    assert samples[1]["error_details_captured"] is True
 
 
 def test_sample_cache_parses_jtl_thread_counts(monkeypatch, tmp_path):

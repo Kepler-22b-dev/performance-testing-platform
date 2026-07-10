@@ -5925,9 +5925,24 @@
                 const time = new Date(s.timestamp).toLocaleString();
                 const content = document.getElementById('request-detail-content');
 
-                const parseHeaders = (h) => {
-                    if (!h) return '<span style="color:#888">无</span>';
-                    return h.split('\n').filter(l => l.trim()).map(l => `<div style="padding:2px 0">${l}</div>`).join('');
+                const missingDetail = (kind) => {
+                    if (!s.success && !s.error_details_captured) {
+                        return '<span style="color:#888">未采集：该历史报告未保存此字段</span>';
+                    }
+                    if (!s.success && (kind === 'responseHeaders' || kind === 'responseBody')) {
+                        return '<span style="color:#888">未收到响应（请求可能在建立连接前失败）</span>';
+                    }
+                    return '<span style="color:#888">无</span>';
+                };
+                const parseHeaders = (headers, kind) => {
+                    if (!headers) return missingDetail(kind);
+                    return String(headers).split('\n').filter(line => line.trim())
+                        .map(line => `<div style="padding:2px 0">${escapeHtml(line)}</div>`).join('');
+                };
+                const formatDetailText = (value, kind, truncated) => {
+                    if (!value) return missingDetail(kind);
+                    const suffix = truncated ? '\n\n[内容已按采集上限截断]' : '';
+                    return escapeHtml(String(value) + suffix);
                 };
 
                 content.innerHTML = `
@@ -5970,7 +5985,7 @@
 
                     <div style="background:#f8f9fa;padding:12px;border-radius:6px;margin-bottom:12px">
                         <div style="font-size:12px;color:#888;margin-bottom:4px">请求 URL</div>
-                        <div style="font-family:monospace;font-size:12px;word-break:break-all;color:#1a1a1a">${s.url || '-'}</div>
+                        <div style="font-family:monospace;font-size:12px;word-break:break-all;color:#1a1a1a">${escapeHtml(s.request_method ? `${s.request_method} ${s.url || ''}` : (s.url || '-'))}</div>
                     </div>
 
                     ${!s.success && s.failure_message ? `
@@ -5981,22 +5996,22 @@
 
                     <div style="margin-bottom:12px">
                         <div style="font-size:13px;font-weight:500;margin-bottom:6px">请求 Headers</div>
-                        <div style="background:#1a1a1a;color:#d4d4d4;padding:12px;border-radius:6px;font-family:monospace;font-size:11px;line-height:1.6;max-height:150px;overflow:auto;white-space:pre-wrap">${parseHeaders(s.request_headers)}</div>
+                        <div style="background:#1a1a1a;color:#d4d4d4;padding:12px;border-radius:6px;font-family:monospace;font-size:11px;line-height:1.6;max-height:150px;overflow:auto;white-space:pre-wrap">${parseHeaders(s.request_headers, 'requestHeaders')}</div>
                     </div>
 
                     <div style="margin-bottom:12px">
                         <div style="font-size:13px;font-weight:500;margin-bottom:6px">响应 Headers</div>
-                        <div style="background:#1a1a1a;color:#d4d4d4;padding:12px;border-radius:6px;font-family:monospace;font-size:11px;line-height:1.6;max-height:150px;overflow:auto;white-space:pre-wrap">${parseHeaders(s.response_headers)}</div>
+                        <div style="background:#1a1a1a;color:#d4d4d4;padding:12px;border-radius:6px;font-family:monospace;font-size:11px;line-height:1.6;max-height:150px;overflow:auto;white-space:pre-wrap">${parseHeaders(s.response_headers, 'responseHeaders')}</div>
                     </div>
 
                     <div style="margin-bottom:12px">
                         <div style="font-size:13px;font-weight:500;margin-bottom:6px">请求体</div>
-                        <div style="background:#1a1a1a;color:#d4d4d4;padding:12px;border-radius:6px;font-family:monospace;font-size:11px;line-height:1.6;max-height:150px;overflow:auto;white-space:pre-wrap">${s.sampler_data || '<span style="color:#888">无</span>'}</div>
+                        <div style="background:#1a1a1a;color:#d4d4d4;padding:12px;border-radius:6px;font-family:monospace;font-size:11px;line-height:1.6;max-height:150px;overflow:auto;white-space:pre-wrap">${formatDetailText(s.sampler_data, 'requestBody', s.sampler_data_truncated)}</div>
                     </div>
 
                     <div>
                         <div style="font-size:13px;font-weight:500;margin-bottom:6px">响应体</div>
-                        <div style="background:#1a1a1a;color:#d4d4d4;padding:12px;border-radius:6px;font-family:monospace;font-size:11px;line-height:1.6;max-height:200px;overflow:auto;white-space:pre-wrap">${s.response_data || '<span style="color:#888">无</span>'}</div>
+                        <div style="background:#1a1a1a;color:#d4d4d4;padding:12px;border-radius:6px;font-family:monospace;font-size:11px;line-height:1.6;max-height:200px;overflow:auto;white-space:pre-wrap">${formatDetailText(s.response_data, 'responseBody', s.response_data_truncated)}</div>
                     </div>
                 `;
 

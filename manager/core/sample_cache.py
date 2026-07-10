@@ -106,14 +106,14 @@ def _iter_result_files(task_path: str):
 
 
 def _merge_error_response_data(samples: list, task_path: str):
-    """将 error_responses.jsonl 中的响应体数据合并到对应的样本中。"""
+    """将 error_responses.jsonl 中采集的错误请求和响应详情合并到对应样本。"""
     import json as json_mod
 
-    # 建立 (timestamp, label) -> sample 的索引
+    # 建立 (timestamp, label) -> samples 的索引。相同毫秒内的同名请求需再按线程匹配。
     sample_index = {}
     for s in samples:
         key = (s["timestamp"], s["label"])
-        sample_index[key] = s
+        sample_index.setdefault(key, []).append(s)
 
     for root, dirs, files in os.walk(task_path):
         dirs[:] = [d for d in dirs if d not in {"html-report", "__pycache__"}]
@@ -130,9 +130,31 @@ def _merge_error_response_data(samples: list, task_path: str):
                     try:
                         entry = json_mod.loads(line)
                         key = (entry.get("ts", 0), entry.get("label", ""))
-                        sample = sample_index.get(key)
+                        candidates = sample_index.get(key, [])
+                        thread_name = entry.get("threadName", "")
+                        sample = next(
+                            (item for item in candidates if thread_name and item.get("thread_name") == thread_name),
+                            candidates[0] if candidates else None,
+                        )
                         if sample:
                             sample["response_data"] = entry.get("responseData", "")
+                            sample["response_data_truncated"] = bool(
+                                entry.get("responseDataTruncated", entry.get("truncated", False))
+                            )
+                            for entry_key, sample_key in (
+                                ("requestHeaders", "request_headers"),
+                                ("responseHeaders", "response_headers"),
+                                ("samplerData", "sampler_data"),
+                                ("requestMethod", "request_method"),
+                            ):
+                                if entry_key in entry:
+                                    sample[sample_key] = entry.get(entry_key) or ""
+                            if entry.get("requestUrl"):
+                                sample["url"] = entry["requestUrl"]
+                            if entry.get("samplerDataTruncated"):
+                                sample["sampler_data_truncated"] = True
+                            if entry.get("captureVersion", 0) >= 2:
+                                sample["error_details_captured"] = True
                     except Exception:
                         pass
         except Exception:
