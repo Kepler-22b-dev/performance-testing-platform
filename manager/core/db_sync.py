@@ -165,7 +165,7 @@ def db_get_all_tasks(db: Session) -> list:
     return list(tasks_map.values())
 
 
-def db_get_tasks_page(db: Session, offset: int = 0, limit: int = 100, status: str = None) -> tuple[int, list]:
+def db_get_tasks_page(db: Session, offset: int = 0, limit: int = 100, status: Optional[str] = None) -> tuple[int, list]:
     base = select(Task)
     count_query = select(func.count()).select_from(Task)
     if status:
@@ -212,9 +212,9 @@ def db_delete_task(db: Session, task_id: str) -> bool:
 # ===== 任务结果 =====
 
 def db_add_task_result(db: Session, task_id: str, agent_id: str,
-                        status: str, start_time: float = None,
-                        end_time: float = None, report_path: str = None,
-                        error_message: str = None, summary: dict = None) -> None:
+                        status: str, start_time: Optional[float] = None,
+                        end_time: Optional[float] = None, report_path: Optional[str] = None,
+                        error_message: Optional[str] = None, summary: Optional[dict] = None) -> None:
     result = TaskResult(
         task_id=task_id, agent_id=agent_id, status=status,
         start_time=start_time, end_time=end_time,

@@ -2,13 +2,18 @@ import time
 from types import SimpleNamespace
 from unittest.mock import patch, MagicMock
 
+import redis
+
 from common.protocol import CommandType, ProgressUpdate, TaskCommand, TaskResult, TaskStatus
 from manager.core.scheduler import TaskScheduler
 from tests.conftest import make_running_task, make_task, make_completed_result
 
 
 def _build_scheduler():
-    with patch("manager.core.scheduler.redis.Redis"):
+    with patch("manager.core.scheduler.redis.Redis") as mock_redis_cls:
+        mock_redis = MagicMock()
+        mock_redis.incr.return_value = 1
+        mock_redis_cls.return_value = mock_redis
         s = TaskScheduler()
     return s
 
@@ -28,14 +33,28 @@ class FakeNodeManager:
 
 
 class TestCreateTaskValidation:
-    def test_generate_task_id_uses_date_sequence(self, tmp_path):
+    def test_generate_task_id_uses_redis_incr(self):
         s = _build_scheduler()
+        s.redis.incr.return_value = 42
+        with patch("manager.core.scheduler.time.strftime", return_value="20260704"):
+            assert s._generate_task_id() == "task-20260704-042"
+        s.redis.incr.assert_called_once_with("jmeter:task_seq:20260704")
+        s.redis.expire.assert_not_called()
+
+    def test_generate_task_id_sets_expiry_on_first_use(self):
+        s = _build_scheduler()
+        s.redis.incr.return_value = 1
+        with patch("manager.core.scheduler.time.strftime", return_value="20260704"):
+            assert s._generate_task_id() == "task-20260704-001"
+        s.redis.expire.assert_called_once_with("jmeter:task_seq:20260704", 86400 * 2)
+
+    def test_generate_task_id_fallback_on_redis_error(self, tmp_path):
+        s = _build_scheduler()
+        s.redis.incr.side_effect = redis.ConnectionError("connection refused")
         existing = [
             make_task(task_id="task-20260704-001"),
             make_task(task_id="task-20260704-003"),
-            make_task(task_id="task-old"),
         ]
-
         with patch("manager.core.scheduler.time.strftime", return_value="20260704"), \
              patch("manager.core.scheduler.REPORTS_DIR", str(tmp_path)), \
              patch("manager.core.scheduler.db_get_all_tasks", return_value=existing):
@@ -124,6 +143,7 @@ class TestCreateTaskValidation:
         ]
         mock_db = MagicMock()
         with patch("manager.core.scheduler.db_get_running_tasks", return_value=running_tasks), \
+             patch("manager.core.scheduler.get_vars_dict", return_value={}), \
              patch("manager.core.scheduler.get_sync_db", return_value=mock_db), \
              patch("manager.core.scheduler.os.path.exists", side_effect=lambda path: str(path).endswith("x.jmx")), \
              patch("manager.core.scheduler.db_get_all_tasks", return_value=[]), \
@@ -136,6 +156,32 @@ class TestCreateTaskValidation:
             )
             assert task_id.startswith("task-")
             mock_create.assert_called_once()
+
+    def test_global_variables_are_snapshotted_and_task_args_override(self):
+        s = _build_scheduler()
+        mock_db = MagicMock()
+        with patch("manager.core.scheduler.get_vars_dict", return_value={
+            "base_url": "https://test.example.com",
+            "region": "cn-test",
+            "threads": "999",
+        }), \
+             patch("manager.core.scheduler.db_get_running_tasks", return_value=[]), \
+             patch("manager.core.scheduler.get_sync_db", return_value=mock_db), \
+             patch("manager.core.scheduler.os.path.exists", side_effect=lambda path: str(path).endswith("x.jmx")), \
+             patch("manager.core.scheduler.db_get_all_tasks", return_value=[]), \
+             patch("manager.core.scheduler.db_create_task") as mock_create:
+            s.create_task(
+                script_id="x",
+                target_agents=["a-1"],
+                jmeter_args={"base_url": "https://override.example.com", "threads": "10"},
+            )
+
+        args = mock_create.call_args.args[1]["jmeter_args"]
+        assert args == {
+            "base_url": "https://override.example.com",
+            "region": "cn-test",
+            "threads": "10",
+        }
 
 
 class TestCleanupStuckTasks:
@@ -245,7 +291,7 @@ class TestStartTaskScriptCheck:
         mock_update.assert_called_once()
         assert mock_update.call_args.kwargs["status"] == TaskStatus.FAILED
         assert "agent-stale 未在线" in mock_update.call_args.kwargs["error_message"]
-        s.redis.publish.assert_not_called()
+        s.redis.xadd.assert_not_called()
 
     def test_rerun_uses_available_agent_when_original_target_is_stale(self):
         node_manager = FakeNodeManager([
@@ -269,6 +315,16 @@ class TestStartTaskScriptCheck:
 
 
 class TestTaskCommandTargeting:
+    def _extract_command_payloads(self, scheduler):
+        """从 redis.xadd 调用中提取命令 payload。"""
+        payloads = []
+        for call in scheduler.redis.xadd.call_args_list:
+            if call.args and call.args[0] == "jmeter:command":
+                fields = call.args[1] if len(call.args) > 1 else call.kwargs.get("field_map", {})
+                if "data" in fields:
+                    payloads.append(fields["data"])
+        return [TaskCommand.from_json(p) for p in payloads]
+
     def test_start_task_targets_each_agent(self):
         s = _build_scheduler()
         task = make_task(
@@ -284,8 +340,7 @@ class TestTaskCommandTargeting:
             result = s.start_task(task["task_id"])
 
         assert result is True
-        payloads = [call.args[1] for call in s.redis.publish.call_args_list]
-        commands = [TaskCommand.from_json(payload) for payload in payloads]
+        commands = self._extract_command_payloads(s)
         assert [c.target_agent_id for c in commands] == ["agent-001", "agent-002"]
 
     def test_adjust_load_targets_each_running_agent(self):
@@ -306,8 +361,7 @@ class TestTaskCommandTargeting:
             )
 
         assert result["segment_id"].startswith("dyn-")
-        payloads = [call.args[1] for call in s.redis.publish.call_args_list]
-        commands = [TaskCommand.from_json(payload) for payload in payloads]
+        commands = self._extract_command_payloads(s)
         assert [c.command for c in commands] == [CommandType.ADJUST_LOAD, CommandType.ADJUST_LOAD]
         assert [c.target_agent_id for c in commands] == ["agent-001", "agent-002"]
         assert all(c.jmeter_args["action"] == "increase" for c in commands)
@@ -325,8 +379,7 @@ class TestTaskCommandTargeting:
             result = s.stop_task(task["task_id"])
 
         assert result is True
-        payloads = [call.args[1] for call in s.redis.publish.call_args_list]
-        commands = [TaskCommand.from_json(payload) for payload in payloads]
+        commands = self._extract_command_payloads(s)
         assert [c.target_agent_id for c in commands] == ["agent-001", "agent-002"]
 
 

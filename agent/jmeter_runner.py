@@ -375,7 +375,7 @@ class JMeterRunner:
 
             return modified_path
         except Exception as e:
-            print(f"CSV injection failed: {e}")
+            self.logger.error("CSV injection failed: %s", e)
             return script_path
 
     def _inject_thread_config(
@@ -449,7 +449,7 @@ class JMeterRunner:
             tree.write(modified_path, encoding="UTF-8", xml_declaration=True)
             return modified_path
         except Exception as e:
-            print(f"Thread config injection failed: {e}")
+            self.logger.error("Thread config injection failed: %s", e)
             return script_path
 
     def _inject_error_response_capture(
@@ -1156,7 +1156,7 @@ class JMeterRunner:
                     summary = self._parse_csv_final(f, summary, first_line)
 
         except Exception as e:
-            print(f"解析 JTL 结果失败: {e}")
+            self.logger.error("解析 JTL 结果失败: %s", e)
 
         return summary
 
@@ -1350,9 +1350,9 @@ class JMeterRunner:
                     env=env,
                 )
             if result.returncode != 0:
-                print(f"JMeter report generation failed, see log: {report_log_path}")
+                self.logger.warning("JMeter report generation failed, see log: %s", report_log_path)
         except Exception as e:
-            print(f"JMeter report generation error: {e}")
+            self.logger.error("JMeter report generation error: %s", e)
 
     @property
     def is_running(self) -> bool:

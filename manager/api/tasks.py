@@ -20,14 +20,21 @@ from common.protocol import TaskStatus
 from common.config import REPORTS_DIR
 from common.utils import fmt_pct
 
+# 前向引用 TaskScheduler，避免循环导入
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from manager.core.scheduler import TaskScheduler
+
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
 
-_scheduler = None
-_jtl_progress_cache = {}
-_jtl_progress_cache_ttl = 1.0
+_scheduler: "Optional[TaskScheduler]" = None
+# JTL 进度缓存：用于 Manager 重启后从磁盘 JTL 文件回填实时进度曲线
+_jtl_progress_cache: dict = {}
+_jtl_progress_cache_ttl: float = 1.0  # 缓存有效期(秒)，1秒内不重复解析同一文件
+_JTL_CACHE_MAX: int = 200           # 缓存最大条目数，防止内存无限增长
 
 
-def set_scheduler(scheduler):
+def set_scheduler(scheduler: "TaskScheduler") -> None:
     """注入 Scheduler 实例供 API 路由使用。
 
     Args:
@@ -37,7 +44,31 @@ def set_scheduler(scheduler):
     _scheduler = scheduler
 
 
-def _row_value(row: dict, key: str, default=""):
+def _get_scheduler() -> "TaskScheduler":
+    """获取 Scheduler 实例，确保已注入。"""
+    assert _scheduler is not None, "Scheduler 未初始化，请先调用 set_scheduler()"
+    return _scheduler
+
+
+def _evict_jtl_cache() -> None:
+    """JTL 缓存 LRU 淘汰：当缓存超过上限时，移除最旧的条目。
+
+    防止长时间运行的系统中缓存条目无限增长导致内存泄漏。
+    淘汰策略：优先移除已过期的条目，其次移除访问时间最早的条目。
+    """
+    if len(_jtl_progress_cache) <= _JTL_CACHE_MAX:
+        return
+    now = time.time()
+    entries = sorted(
+        _jtl_progress_cache.items(),
+        key=lambda item: item[1]["time"] if now - item[1]["time"] < _jtl_progress_cache_ttl else 0,
+    )
+    to_remove = len(_jtl_progress_cache) - _JTL_CACHE_MAX
+    for key, _ in entries[:to_remove]:
+        _jtl_progress_cache.pop(key, None)
+
+
+def _row_value(row: dict, key: str, default: str = "") -> str:
     value = row.get(key)
     if value is not None:
         return value
@@ -85,7 +116,7 @@ def _recover_progress_history_from_jtl(task_id: str, task: dict | None = None) -
     if task and task.get("start_time"):
         start_ms = int(float(task["start_time"]) * 1000)
 
-    buckets = {}
+    buckets: dict[int, dict] = {}
     earliest_ts = None
 
     for source_index, jtl_path in enumerate(jtl_files):
@@ -135,6 +166,7 @@ def _recover_progress_history_from_jtl(task_id: str, task: dict | None = None) -
             continue
 
     if not buckets:
+        _evict_jtl_cache()
         _jtl_progress_cache[task_id] = {"time": now, "history": []}
         return []
 
@@ -175,6 +207,7 @@ def _recover_progress_history_from_jtl(task_id: str, task: dict | None = None) -
         })
 
     history = history[-3600:]
+    _evict_jtl_cache()
     _jtl_progress_cache[task_id] = {"time": now, "history": history}
     return history
 
@@ -350,7 +383,7 @@ def create_task(req: TaskCreateRequest):
             except ValueError:
                 raise HTTPException(status_code=400, detail="JVM 内存必须是整数 MB")
 
-        task_id = _scheduler.create_task(
+        task_id = _get_scheduler().create_task(
             script_id=req.script_id,
             target_agents=req.target_agents,
             jmeter_args=req.jmeter_args,
@@ -376,18 +409,18 @@ def create_task(req: TaskCreateRequest):
 @router.post("/{task_id}/start")
 def start_task(task_id: str):
     """启动指定的压测任务。"""
-    success = _scheduler.start_task(task_id)
+    success = _get_scheduler().start_task(task_id)
     if not success:
-        raise HTTPException(status_code=400, detail="Cannot start task")
+        raise HTTPException(status_code=400, detail="无法启动任务")
     return {"message": "Task started"}
 
 
 @router.post("/{task_id}/stop")
 def stop_task(task_id: str):
     """停止正在运行的压测任务。"""
-    success = _scheduler.stop_task(task_id)
+    success = _get_scheduler().stop_task(task_id)
     if not success:
-        raise HTTPException(status_code=400, detail="Cannot stop task")
+        raise HTTPException(status_code=400, detail="无法停止任务")
     return {"message": "Task stopped"}
 
 
@@ -396,7 +429,7 @@ def list_tasks(offset: int = 0, limit: int = 100, status: Optional[str] = None):
     """获取所有压测任务的列表。"""
     offset = max(0, int(offset or 0))
     limit = max(1, min(500, int(limit or 100)))
-    result = _scheduler.get_all_tasks(offset=offset, limit=limit, status=status)
+    result = _get_scheduler().get_all_tasks(offset=offset, limit=limit, status=status)
     if isinstance(result, tuple):
         total, tasks = result
     else:
@@ -408,7 +441,7 @@ def list_tasks(offset: int = 0, limit: int = 100, status: Optional[str] = None):
 @router.get("/{task_id}")
 def get_task(task_id: str):
     """获取指定任务的详细信息。"""
-    task = _scheduler.get_task(task_id)
+    task = _get_scheduler().get_task(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     return task
@@ -417,8 +450,8 @@ def get_task(task_id: str):
 @router.get("/{task_id}/progress")
 def get_progress(task_id: str):
     """获取指定任务的执行进度。"""
-    task = _scheduler.get_task(task_id)
-    progress = _scheduler.get_progress(task_id)
+    task = _get_scheduler().get_task(task_id)
+    progress = _get_scheduler().get_progress(task_id)
     if progress:
         return {"task_id": task_id, "data": asdict(progress)}
 
@@ -431,9 +464,9 @@ def get_progress(task_id: str):
 @router.get("/{task_id}/progress/history")
 def get_progress_history(task_id: str):
     """获取指定任务的进度历史数据。"""
-    history = _scheduler.get_progress_history(task_id)
+    history = _get_scheduler().get_progress_history(task_id)
     if not history:
-        history = _recover_progress_history_from_jtl(task_id, _scheduler.get_task(task_id))
+        history = _recover_progress_history_from_jtl(task_id, _get_scheduler().get_task(task_id))
     return {"task_id": task_id, "data": history}
 
 
@@ -445,14 +478,16 @@ def batch_create_tasks(req: BatchTaskRequest):
         cfg = item.model_dump()
         cfg["timeout"] = _resolve_timeout_seconds(cfg.get("timeout"), cfg.get("jmeter_args", {}), cfg.get("distributed", False))
         tasks_config.append(cfg)
-    task_ids = _scheduler.batch_create_tasks(tasks_config)
-    return {"task_ids": task_ids, "total": len(task_ids)}
+    results = _get_scheduler().batch_create_tasks(tasks_config)
+    success_ids = [r["task_id"] for r in results if r["task_id"]]
+    errors = [{"index": i, "error": r["error"]} for i, r in enumerate(results) if r["error"]]
+    return {"results": results, "total": len(results), "success_count": len(success_ids), "error_count": len(errors)}
 
 
 @router.delete("/{task_id}")
 def delete_task(task_id: str):
     """删除指定的压测任务（仅限非运行中状态）。"""
-    success = _scheduler.delete_task(task_id)
+    success = _get_scheduler().delete_task(task_id)
     if not success:
         raise HTTPException(status_code=400, detail="无法删除任务（可能正在运行中）")
     return {"message": "Task deleted"}
@@ -461,7 +496,7 @@ def delete_task(task_id: str):
 @router.post("/{task_id}/rerun")
 def rerun_task(task_id: str):
     """重新执行指定的压测任务，生成新任务。"""
-    new_id = _scheduler.rerun_task(task_id)
+    new_id = _get_scheduler().rerun_task(task_id)
     if not new_id:
         raise HTTPException(status_code=400, detail="无法重新执行任务")
     return {"task_id": new_id, "message": "任务已重新执行"}
@@ -480,7 +515,7 @@ def stop_and_restart(task_id: str, req: Optional[TaskCreateRequest] = None):
             "target_agents": req.target_agents,
             "timeout": timeout,
         }
-    new_id = _scheduler.stop_and_rerun(task_id, overrides if overrides else None)
+    new_id = _get_scheduler().stop_and_rerun(task_id, overrides if overrides else None)
     if not new_id:
         raise HTTPException(status_code=400, detail="无法停止并重启任务")
     return {"task_id": new_id, "message": "已停止旧任务并启动新任务"}
@@ -490,7 +525,7 @@ def stop_and_restart(task_id: str, req: Optional[TaskCreateRequest] = None):
 def adjust_load(task_id: str, req: AdjustLoadRequest):
     """动态调整运行中任务的压力。"""
     try:
-        result = _scheduler.adjust_load(
+        result = _get_scheduler().adjust_load(
             task_id=task_id,
             action=req.action,
             threads=req.threads,
@@ -511,20 +546,16 @@ def quick_run(req: QuickRunRequest):
 
     target = req.target_agents
     if not target:
-        agents = _scheduler._node_manager.get_available_agents() if hasattr(_scheduler, '_node_manager') else []
-        if not agents:
-            all_agents = _scheduler._node_manager.get_agents() if hasattr(_scheduler, '_node_manager') else []
-            if not all_agents:
+        agent_id = _get_scheduler().get_available_agent()
+        if not agent_id:
+            summary = _get_scheduler().get_agent_status_summary()
+            if summary.get("available", 0) == 0 and summary.get("busy", 0) > 0:
+                raise HTTPException(status_code=400, detail="所有 Agent 节点正忙，请等待任务完成")
+            elif summary.get("available", 0) == 0 and summary.get("offline", 0) > 0:
+                raise HTTPException(status_code=400, detail="Agent 节点不在线，请检查 Agent 是否启动")
+            else:
                 raise HTTPException(status_code=400, detail="没有注册的 Agent 节点，请先启动 Agent")
-            online_agents = [a for a in all_agents if a.status == "online"]
-            if not online_agents:
-                busy_agents = [a for a in all_agents if a.status == "busy"]
-                if busy_agents:
-                    raise HTTPException(status_code=400, detail="Agent 正在执行其他任务，请等待当前任务完成")
-                else:
-                    raise HTTPException(status_code=400, detail="Agent 节点不在线，请检查 Agent 是否启动")
-            raise HTTPException(status_code=400, detail="所有 Agent 节点正忙，请等待任务完成")
-        target = [agents[0].agent_id]
+        target = [agent_id]
 
     # 构建 JMeter 参数
     jmeter_args = {
@@ -554,7 +585,7 @@ def quick_run(req: QuickRunRequest):
     )
 
     try:
-        task_id = _scheduler.create_task(
+        task_id = _get_scheduler().create_task(
             script_id=req.script_id,
             target_agents=target,
             jmeter_args=jmeter_args,
@@ -568,8 +599,8 @@ def quick_run(req: QuickRunRequest):
             csv_stop_on_eof=req.csv_stop_on_eof,
             enforce_single_agent_task=req.enforce_single_agent_task,
         )
-        if not _scheduler.start_task(task_id):
-            task = _scheduler.get_task(task_id)
+        if not _get_scheduler().start_task(task_id):
+            task = _get_scheduler().get_task(task_id)
             detail = (task or {}).get("error_message") or "无法启动任务"
             raise HTTPException(status_code=400, detail=detail)
         return {"task_id": task_id, "message": "任务已创建并启动"}

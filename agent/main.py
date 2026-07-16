@@ -32,6 +32,8 @@ from common.config import (
     REDIS_CHANNEL_COMMAND, REDIS_CHANNEL_RESULT,
     REDIS_CHANNEL_HEARTBEAT, REDIS_CHANNEL_PROGRESS,
     AGENT_HEARTBEAT_INTERVAL,
+    AGENT_REDIS_RETRY_DELAY, AGENT_REDIS_MAX_RETRIES,
+    REDIS_STREAM_MAX_LEN, REDIS_STREAM_READ_BLOCK_MS,
 )
 from common.protocol import (
     AgentInfo, TaskCommand, TaskResult, ProgressUpdate,
@@ -51,7 +53,7 @@ class JMeterAgent:
 
     def __init__(self):
         """初始化 Agent 实例。生成唯一 ID、获取本机 IP、建立 Redis 连接、注册信号处理。"""
-        self.agent_id = f"agent-{uuid.uuid4().hex[:8]}"
+        self.agent_id = self._load_or_create_agent_id()
         self.host = self._get_local_ip()
         self.port = int(os.getenv("AGENT_PORT", 9999))
 
@@ -84,16 +86,76 @@ class JMeterAgent:
         signal.signal(signal.SIGINT, self._shutdown)
         signal.signal(signal.SIGTERM, self._shutdown)
 
+    def _load_or_create_agent_id(self) -> str:
+        """加载持久化的 Agent ID，不存在则生成新的并保存。
+
+        Agent ID 持久化到 .agent_id 文件，确保：
+        1. Agent 重启后保持相同身份，Manager 可追踪历史任务
+        2. 避免每次重启生成新 UUID 导致节点列表混乱
+        """
+        agent_id_file = os.path.join(os.path.dirname(__file__), ".agent_id")
+        try:
+            if os.path.exists(agent_id_file):
+                with open(agent_id_file, "r") as f:
+                    saved = f.read().strip()
+                if saved:
+                    return saved
+        except Exception:
+            pass
+        new_id = f"agent-{uuid.uuid4().hex[:8]}"
+        try:
+            with open(agent_id_file, "w") as f:
+                f.write(new_id)
+        except Exception:
+            pass
+        return new_id
+
+    def _ensure_redis_connection(self):
+        """确保 Redis 连接健康，断连时自动重连。
+
+        重连策略：
+        - 最多重试 AGENT_REDIS_MAX_RETRIES 次
+        - 每次重试间隔 AGENT_REDIS_RETRY_DELAY 秒
+        - 全部重试失败后返回 False，Agent 将停止运行
+
+        为什么需要重连：
+        Redis 短暂不可用（如重启、网络抖动）后会自动恢复，
+        如果 Agent 不重连就会变成"僵尸节点"——在线但无法接收命令。
+        """
+        for attempt in range(AGENT_REDIS_MAX_RETRIES):
+            try:
+                self.redis.ping()
+                return True
+            except Exception:
+                self.logger.warning("Redis 连接异常，%ds 后重试 (%d/%d)",
+                                    AGENT_REDIS_RETRY_DELAY, attempt + 1, AGENT_REDIS_MAX_RETRIES)
+                time.sleep(AGENT_REDIS_RETRY_DELAY)
+        self.logger.error("Redis 连接失败，超过最大重试次数")
+        return False
+
+    def _ensure_stream_consumer_group(self):
+        """确保 Redis Stream 消费者组存在。
+
+        每个 Agent 使用自己的 agent_id 作为消费者组名称，
+        这样 Manager 下发的命令会被路由到对应的 Agent。
+        mkstream=True 表示 Stream 不存在时自动创建。
+        BUSYGROUP 错误表示消费者组已存在，属于正常情况。
+        """
+        for stream_key in [REDIS_CHANNEL_COMMAND]:
+            try:
+                self.redis.xgroup_create(stream_key, self.agent_id, id="0", mkstream=True)
+            except redis.exceptions.ResponseError as e:
+                if "BUSYGROUP" not in str(e):
+                    self.logger.warning("创建消费者组失败: %s", e)
+
     def start(self):
-        """启动 Agent。订阅 Redis 命令通道、注册到 Agent 列表并进入心跳循环。"""
+        """启动 Agent。订阅 Redis Stream 命令通道、注册到 Agent 列表并进入心跳循环。"""
         self.logger.info(f"Agent 启动: {self.host}:{self.port}")
         self.logger.info(f"JMeter 路径: {JMETER_HOME}")
         self.logger.info(f"脚本目录: {SCRIPTS_DIR}")
         self.logger.info(f"报告目录: {REPORTS_DIR}")
 
-        self.pubsub.subscribe(**{
-            REDIS_CHANNEL_COMMAND: self._on_command,
-        })
+        self._ensure_stream_consumer_group()
 
         self.redis.sadd("jmeter:agents", self.agent_id)
         self.redis.hset(f"jmeter:agent:{self.agent_id}", mapping=self.info.to_dict())
@@ -101,10 +163,15 @@ class JMeterAgent:
 
         self._heartbeat_loop()
 
-    def _on_command(self, message):
-        """Redis 命令消息回调。解析消息并分发到对应的处理方法。"""
+    def _on_command_message(self, data):
+        """处理从 Redis Stream 收到的命令消息数据。
+
+        支持的命令类型：
+        - EXECUTE: 执行 JMeter 压测任务
+        - STOP: 停止正在运行的任务
+        - ADJUST_LOAD: 动态调整压力（加压/减压）
+        """
         try:
-            data = message["data"]
             command = TaskCommand.from_json(data)
             if command.target_agent_id and command.target_agent_id != self.agent_id:
                 return
@@ -203,7 +270,7 @@ class JMeterAgent:
                 avg_connect_time=raw.get("avg_connect_time", 0),
                 segment_id=segment_id,
             )
-            self.redis.publish(REDIS_CHANNEL_PROGRESS, update.to_json())
+            self._stream_publish(REDIS_CHANNEL_PROGRESS, update.to_json())
 
         return on_progress
 
@@ -234,7 +301,7 @@ class JMeterAgent:
             avg_connect_time=float((summary or {}).get("avg_connect_time", 0) or 0),
             segment_id=segment_id,
         )
-        self.redis.publish(REDIS_CHANNEL_PROGRESS, update.to_json())
+        self._stream_publish(REDIS_CHANNEL_PROGRESS, update.to_json())
 
     def _run_execute(self, command: TaskCommand):
         """执行基础任务，并在结束前等待动态压力段归并到同一个逻辑任务。"""
@@ -584,9 +651,31 @@ class JMeterAgent:
 
         return script_path
 
+    def _stream_publish(self, stream_key: str, payload: str):
+        """通过 Redis Stream 发送消息，带重试机制。
+
+        替代原来的 redis.publish()，提供消息持久化能力。
+        用于上报任务结果、进度更新和心跳信息。
+
+        Args:
+            stream_key: Stream 频道名（如 jmeter:result、jmeter:progress）
+            payload: JSON 序列化的消息内容
+        """
+        for attempt in range(3):
+            try:
+                self.redis.xadd(
+                    stream_key, {"data": payload},
+                    maxlen=REDIS_STREAM_MAX_LEN,
+                )
+                return
+            except Exception as e:
+                self.logger.warning("Redis XADD attempt %d failed: %s", attempt + 1, e)
+                time.sleep(0.5 * (attempt + 1))
+        self.logger.error("Redis XADD failed after 3 attempts for stream %s", stream_key)
+
     def _send_result(self, result: TaskResult):
-        """发送测试结果。通过 Redis 发布并存储到 Hash 中。"""
-        self.redis.publish(REDIS_CHANNEL_RESULT, result.to_json())
+        """发送测试结果。通过 Redis Stream 发送并存储到 Hash 中。"""
+        self._stream_publish(REDIS_CHANNEL_RESULT, result.to_json())
         self.redis.hset(
             f"jmeter:task:{result.task_id}:result:{self.agent_id}",
             mapping={"data": result.to_json()},
@@ -594,30 +683,65 @@ class JMeterAgent:
         self.logger.debug(f"结果已发送: task={result.task_id}, status={result.status}")
 
     def _heartbeat_loop(self):
-        """心跳循环。周期性上报 CPU/内存使用率和 Agent 状态，直到收到关闭信号。"""
-        thread = self.pubsub.run_in_thread(sleep_time=0.1)
+        """心跳循环 - Agent 的主运行循环。
+
+        同时承担两个职责：
+        1. 心跳上报：定时向 Redis Stream 发送 CPU/内存使用率和状态信息
+        2. 命令消费：从 Redis Stream 读取 Manager 下发的命令（执行/停止/调压）
+
+        使用 XREADGROUP 消费者组模式读取命令，确保：
+        - 命令持久化：Agent 重启后未处理的命令不会丢失
+        - 可靠消费：处理完成后 XACK 确认
+        - 断线重连：Redis 连接断开时自动重试
+
+        心跳频率：每 AGENT_HEARTBEAT_INTERVAL 秒上报一次
+        命令轮询：每 0.1 秒检查一次新命令
+        """
         self.logger.info("心跳循环已启动")
+        last_command_id = "0"
+        poll_interval = 0.1
 
         while self._running:
-            self.info.cpu_usage = psutil.cpu_percent(interval=None)
-            self.info.memory_usage = psutil.virtual_memory().percent
-            self.info.last_heartbeat = time.time()
-            self._update_info()
+            if not self._ensure_redis_connection():
+                self.logger.error("Redis 不可用，Agent 将停止")
+                break
 
-            for _ in range(AGENT_HEARTBEAT_INTERVAL * 10):
-                if not self._running:
-                    break
-                time.sleep(0.1)
+            try:
+                self.info.cpu_usage = psutil.cpu_percent(interval=None)
+                self.info.memory_usage = psutil.virtual_memory().percent
+                self.info.last_heartbeat = time.time()
+                self._update_info()
+            except Exception as e:
+                self.logger.warning("心跳上报失败: %s", e)
 
-        thread.stop()
+            try:
+                results = self.redis.xreadgroup(
+                    self.agent_id, self.agent_id,
+                    {REDIS_CHANNEL_COMMAND: ">"},
+                    count=10,
+                    block=int(poll_interval * 1000),
+                )
+                for stream_name, messages in results:
+                    for msg_id, fields in messages:
+                        data = fields.get("data", "")
+                        self._on_command_message(data)
+                        self.redis.xack(REDIS_CHANNEL_COMMAND, self.agent_id, msg_id)
+                        last_command_id = msg_id
+            except redis.exceptions.ConnectionError:
+                self.logger.warning("Redis Stream 读取连接断开")
+                time.sleep(AGENT_REDIS_RETRY_DELAY)
+            except Exception as e:
+                self.logger.warning("Redis Stream 读取异常: %s", e)
+                time.sleep(poll_interval)
+
         self.redis.srem("jmeter:agents", self.agent_id)
         self.redis.delete(f"jmeter:agent:{self.agent_id}")
         self.logger.info("Agent 已停止")
 
     def _update_info(self):
-        """更新 Agent 状态信息到 Redis 并发布心跳消息。"""
+        """更新 Agent 状态信息到 Redis 并通过 Stream 发布心跳消息。"""
         self.redis.hset(f"jmeter:agent:{self.agent_id}", mapping=self.info.to_dict())
-        self.redis.publish(REDIS_CHANNEL_HEARTBEAT, self.info.to_json())
+        self._stream_publish(REDIS_CHANNEL_HEARTBEAT, self.info.to_json())
 
     def _get_local_ip(self) -> str:
         """获取本机局域网 IP 地址。"""

@@ -1,7 +1,12 @@
 """
 任务调度器模块 - 管理测试任务的生命周期
 负责任务的创建、启动、停止、结果处理等
-使用 PostgreSQL 持久化任务数据，Redis 仅用于 Pub/Sub 消息
+使用 PostgreSQL 持久化任务数据，Redis Stream 用于 Manager ↔ Agent 通信
+
+消息流：
+- 命令下发：Manager XADD → jmeter:command Stream → Agent XREADGROUP 消费
+- 结果回传：Agent XADD → jmeter:result Stream → Manager XREADGROUP 消费
+- 进度上报：Agent XADD → jmeter:progress Stream → Manager XREADGROUP 消费
 """
 import sys
 import os
@@ -9,6 +14,7 @@ import time
 import json
 import re
 import uuid
+import logging
 import redis
 from typing import Optional
 
@@ -19,6 +25,7 @@ from common.config import (
     SCRIPTS_DIR, REPORTS_DIR,
     REDIS_CHANNEL_COMMAND, REDIS_CHANNEL_RESULT,
     REDIS_CHANNEL_PROGRESS, MAX_CONCURRENT_TASKS, TASK_TIMEOUT,
+    REDIS_STREAM_MAX_LEN,
 )
 from common.protocol import (
     TaskCommand, TaskResult, ProgressUpdate,
@@ -30,13 +37,35 @@ from manager.core.db_sync import (
     db_delete_task, db_add_task_result, db_update_task_result,
     db_get_notification_config,
 )
+from manager.core.variables import get_vars_dict
+
+logger = logging.getLogger("scheduler")
+
+
+# 这些参数控制平台的执行方式，必须由单个任务决定，不能继承全局 JMeter 属性。
+_GLOBAL_VARIABLE_EXCLUDED_KEYS = {
+    "threads", "ramp_time", "duration", "scenario",
+    "jvm_heap_mb", "capture_error_log", "enforce_single_agent_task",
+    "result_format", "debug_result_xml",
+    "error_log_sample_limit", "error_log_max_body_chars",
+}
 
 
 class TaskScheduler:
     """
     任务调度器
     管理所有测试任务的状态和执行
+
+    核心职责：
+    1. 任务生命周期管理（创建、启动、停止、删除）
+    2. 通过 Redis Stream 与 Agent 通信
+    3. 收集和聚合多 Agent 的进度数据
+    4. 并发任务数控制和资源冲突检测
     """
+
+    # 进度历史上限，防止长时间任务内存无限增长
+    # 例如 7200 条 ≈ 2 小时的逐秒进度数据
+    PROGRESS_HISTORY_MAX = 7200
 
     def __init__(self, node_manager=None):
         self.redis = redis.Redis(
@@ -49,33 +78,35 @@ class TaskScheduler:
         self._node_manager = node_manager
 
     def _generate_task_id(self, db=None) -> str:
-        """生成按日期递增的任务 ID，例如 task-20260704-001。"""
+        """生成按日期递增的任务 ID，例如 task-20260704-001。使用 Redis INCR 保证原子性。"""
         date_str = time.strftime("%Y%m%d", time.localtime())
         prefix = f"task-{date_str}-"
-        pattern = re.compile(rf"^{re.escape(prefix)}(\d+)$")
-        max_seq = 0
+        redis_key = f"jmeter:task_seq:{date_str}"
 
-        if db is not None:
-            try:
-                for task in db_get_all_tasks(db):
-                    match = pattern.match(str(task.get("task_id", "")))
+        try:
+            seq = self.redis.incr(redis_key)
+            if seq == 1:
+                self.redis.expire(redis_key, 86400 * 2)
+        except Exception:
+            pattern = re.compile(rf"^{re.escape(prefix)}(\d+)$")
+            max_seq = 0
+            if db is not None:
+                try:
+                    for task in db_get_all_tasks(db):
+                        match = pattern.match(str(task.get("task_id", "")))
+                        if match:
+                            max_seq = max(max_seq, int(match.group(1)))
+                except Exception:
+                    pass
+            if os.path.isdir(REPORTS_DIR):
+                for name in os.listdir(REPORTS_DIR):
+                    match = pattern.match(name)
                     if match:
                         max_seq = max(max_seq, int(match.group(1)))
-            except Exception:
-                pass
+            seq = max_seq + 1
 
-        if os.path.isdir(REPORTS_DIR):
-            for name in os.listdir(REPORTS_DIR):
-                match = pattern.match(name)
-                if match:
-                    max_seq = max(max_seq, int(match.group(1)))
-
-        for seq in range(max_seq + 1, max_seq + 10000):
-            task_id = f"{prefix}{seq:03d}"
-            if not os.path.exists(os.path.join(REPORTS_DIR, task_id)):
-                return task_id
-
-        raise RuntimeError("当日任务编号已用完，请清理历史任务或调整编号规则")
+        task_id = f"{prefix}{seq:03d}"
+        return task_id
 
     def _cleanup_stuck_tasks(self):
         """检测并清理卡住的任务"""
@@ -109,9 +140,9 @@ class TaskScheduler:
         jmeter_args: dict,
         timeout: int = TASK_TIMEOUT,
         distributed: bool = False,
-        remote_hosts: str = None,
-        csv_file: str = None,
-        csv_variable_names: str = None,
+        remote_hosts: Optional[str] = None,
+        csv_file: Optional[str] = None,
+        csv_variable_names: Optional[str] = None,
         csv_delimiter: str = ",",
         csv_recycle: bool = True,
         csv_stop_on_eof: bool = False,
@@ -145,6 +176,15 @@ class TaskScheduler:
             task_id = self._generate_task_id(db)
         finally:
             db.close()
+
+        # 创建时快照全局变量，并以 -Jkey=value 传给 JMeter。
+        # 同名任务参数优先，确保单次压测可按需覆盖公共配置。
+        global_jmeter_args = {
+            key: value
+            for key, value in get_vars_dict().items()
+            if key not in _GLOBAL_VARIABLE_EXCLUDED_KEYS
+        }
+        jmeter_args = {**global_jmeter_args, **(jmeter_args or {})}
 
         task_data = {
             "task_id": task_id,
@@ -237,6 +277,69 @@ class TaskScheduler:
         finally:
             db.close()
 
+    def get_available_agent(self) -> Optional[str]:
+        """返回一个可用的 Agent ID，无可用 Agent 时返回 None。
+
+        公开方法，供 API 层调用，避免直接访问 _node_manager 私有属性。
+        """
+        if not self._node_manager:
+            return None
+        try:
+            agents = self._node_manager.get_available_agents()
+            if agents:
+                return agents[0].agent_id
+        except Exception:
+            pass
+        return None
+
+    def get_agent_status_summary(self) -> dict:
+        """返回 Agent 状态摘要，供 API 层使用。
+
+        返回格式：
+        {
+            "available": int,   # 在线可用的 Agent 数量
+            "busy": int,        # 正在执行任务的 Agent 数量
+            "offline": int,     # 离线的 Agent 数量
+            "agents": list      # 所有 Agent 信息列表
+        }
+        """
+        if not self._node_manager:
+            return {"available": 0, "busy": 0, "offline": 0}
+        try:
+            all_agents = self._node_manager.get_agents()
+        except Exception:
+            return {"available": 0, "busy": 0, "offline": 0}
+        available = sum(1 for a in all_agents if a.status == "online")
+        busy = sum(1 for a in all_agents if a.status == "busy")
+        offline = sum(1 for a in all_agents if a.status not in ("online", "busy"))
+        return {"available": available, "busy": busy, "offline": offline, "agents": all_agents}
+
+    def _stream_publish(self, stream_key: str, payload: str) -> bool:
+        """通过 Redis Stream 发送消息，带重试机制。
+
+        替代原来的 redis.publish()，提供消息持久化能力。
+        即使 Manager 重启，未消费的消息也不会丢失。
+
+        Args:
+            stream_key: Stream 频道名（如 jmeter:command）
+            payload: JSON 序列化的消息内容
+
+        Returns:
+            发送成功返回 True，全部重试失败返回 False
+        """
+        for attempt in range(3):
+            try:
+                self.redis.xadd(
+                    stream_key, {"data": payload},
+                    maxlen=REDIS_STREAM_MAX_LEN,
+                )
+                return True
+            except Exception as e:
+                logger.warning("Redis XADD attempt %d failed for %s: %s", attempt + 1, stream_key, e)
+                time.sleep(0.5 * (attempt + 1))
+        logger.error("Redis XADD failed after 3 attempts for stream %s", stream_key)
+        return False
+
     def start_task(self, task_id: str) -> bool:
         task = self.get_task(task_id)
         if not task:
@@ -299,7 +402,11 @@ class TaskScheduler:
                 csv_recycle=task.get("csv_recycle", True),
                 csv_stop_on_eof=task.get("csv_stop_on_eof", False),
             )
-            self.redis.publish(REDIS_CHANNEL_COMMAND, command.to_json())
+            published = self._stream_publish(REDIS_CHANNEL_COMMAND, command.to_json())
+            if not published:
+                logger.error("Failed to send command to agent %s for task %s", agent_id, task_id)
+                self._fail_task_start(task_id, "Redis Stream 通信失败，无法下发任务命令")
+                return False
 
         return True
 
@@ -315,7 +422,7 @@ class TaskScheduler:
                 script_path="",
                 target_agent_id=agent_id,
             )
-            self.redis.publish(REDIS_CHANNEL_COMMAND, command.to_json())
+            self._stream_publish(REDIS_CHANNEL_COMMAND, command.to_json())
 
         return True
 
@@ -350,7 +457,7 @@ class TaskScheduler:
             return None
         return new_task_id
 
-    def stop_and_rerun(self, task_id: str, overrides: dict = None) -> Optional[str]:
+    def stop_and_rerun(self, task_id: str, overrides: Optional[dict] = None) -> Optional[str]:
         """停止当前任务并用新参数重启"""
         task = self.get_task(task_id)
         if not task:
@@ -462,7 +569,7 @@ class TaskScheduler:
                 csv_stop_on_eof=task.get("csv_stop_on_eof", False),
                 segment_id=segment_id,
             )
-            self.redis.publish(REDIS_CHANNEL_COMMAND, command.to_json())
+            self._stream_publish(REDIS_CHANNEL_COMMAND, command.to_json())
 
         return {
             "task_id": task_id,
@@ -474,8 +581,8 @@ class TaskScheduler:
             "target_agents": target_agents,
         }
 
-    def batch_create_tasks(self, tasks_config: list[dict]) -> list[str]:
-        task_ids = []
+    def batch_create_tasks(self, tasks_config: list[dict]) -> list[dict]:
+        results = []
         for cfg in tasks_config:
             try:
                 task_id = self.create_task(
@@ -491,12 +598,12 @@ class TaskScheduler:
                     csv_recycle=cfg.get("csv_recycle", True),
                     csv_stop_on_eof=cfg.get("csv_stop_on_eof", False),
                 )
-                task_ids.append(task_id)
                 if cfg.get("auto_start", False):
                     self.start_task(task_id)
+                results.append({"task_id": task_id, "error": None})
             except Exception as e:
-                task_ids.append(f"error:{str(e)}")
-        return task_ids
+                results.append({"task_id": None, "error": str(e)})
+        return results
 
     def get_task(self, task_id: str) -> Optional[dict]:
         db = get_sync_db()
@@ -505,7 +612,7 @@ class TaskScheduler:
         finally:
             db.close()
 
-    def get_all_tasks(self, offset: int = None, limit: int = None, status: str = None):
+    def get_all_tasks(self, offset: Optional[int] = None, limit: Optional[int] = None, status: Optional[str] = None):
         db = get_sync_db()
         try:
             if offset is not None or limit is not None or status:
@@ -666,8 +773,8 @@ class TaskScheduler:
             "avg_connect_time": aggregate.avg_connect_time,
             "segment_id": aggregate.segment_id,
         })
-        if len(history) > 3600:
-            self._progress_history[aggregate.task_id] = history[-3600:]
+        if len(history) > self.PROGRESS_HISTORY_MAX:
+            self._progress_history[aggregate.task_id] = history[-self.PROGRESS_HISTORY_MAX:]
 
     def get_progress(self, task_id: str) -> Optional[ProgressUpdate]:
         return self._progress.get(task_id)

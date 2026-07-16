@@ -6,6 +6,7 @@ import json
 import time
 import csv
 import io
+import re
 from typing import Optional
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -22,6 +23,7 @@ CSV_DIR = os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
     "config", "csv",
 )
+VARIABLE_NAME_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_.-]*$")
 
 
 def _ensure_dirs():
@@ -39,6 +41,12 @@ def get_all_vars() -> list:
 
 
 def add_var(name: str, value: str, description: str = "", scope: str = "global") -> dict:
+    name = (name or "").strip()
+    if not VARIABLE_NAME_PATTERN.fullmatch(name):
+        return {
+            "status": "error",
+            "message": "变量名只能包含字母、数字、下划线、点或连字符，且不能以数字开头",
+        }
     db = get_sync_db()
     try:
         vars_list = db_get_all_vars(db)
@@ -66,6 +74,12 @@ def update_var(var_id: str, name: str = None, value: str = None, description: st
     try:
         update_data = {}
         if name is not None:
+            name = name.strip()
+            if not VARIABLE_NAME_PATTERN.fullmatch(name):
+                return {
+                    "status": "error",
+                    "message": "变量名只能包含字母、数字、下划线、点或连字符，且不能以数字开头",
+                }
             update_data["name"] = name
         if value is not None:
             update_data["value"] = value

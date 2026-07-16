@@ -49,6 +49,12 @@ REDIS_CHANNEL_HEARTBEAT = "jmeter:heartbeat"  # Agent 心跳频道
 REDIS_CHANNEL_COMMAND = "jmeter:command"       # 命令下发频道
 REDIS_CHANNEL_PROGRESS = "jmeter:progress"     # 进度更新频道
 
+# Redis Stream 配置（用于替代 PubSub，提供消息持久化和消费者组支持）
+REDIS_STREAM_MAX_LEN = 10000       # Stream 最大消息数，超出自动裁剪
+REDIS_STREAM_READ_BLOCK_MS = 1000  # Stream 读取阻塞时间(ms)，兼顾实时性和 CPU 占用
+AGENT_REDIS_RETRY_DELAY = 3        # Agent Redis 重连延迟(秒)
+AGENT_REDIS_MAX_RETRIES = 5        # Agent Redis 最大重试次数
+
 # JMeter Slave 配置
 JMETER_SLAVE_HOME = os.getenv(
     "JMETER_SLAVE_HOME",

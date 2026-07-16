@@ -1,6 +1,9 @@
 """
 通信协议模块 - 定义 Manager 和 Agent 之间的数据结构
 包括任务状态、命令类型、Agent信息、任务结果等
+
+所有数据结构通过 JSON 序列化/反序列化进行网络传输。
+from_json 方法支持向前兼容：新增字段不影响旧版本解析。
 """
 from enum import Enum
 from dataclasses import dataclass, field, asdict
@@ -8,6 +11,9 @@ from typing import Optional
 import json
 import time
 import uuid
+
+# 协议版本号，用于未来兼容性检查
+PROTOCOL_VERSION = 1
 
 
 class TaskStatus(str, Enum):
@@ -78,7 +84,16 @@ class TaskCommand:
 
     @classmethod
     def from_json(cls, data: str):
-        return cls(**json.loads(data))
+        """从 JSON 字符串反序列化为 TaskCommand 实例。
+
+        支持向前兼容：JSON 中的未知字段会被忽略，不会导致解析失败。
+        这样新版本 Agent 发送的额外字段不会影响旧版本 Manager 的解析。
+        """
+        loaded = json.loads(data)
+        # 过滤掉当前类不识别的字段，实现向前兼容
+        known = {f.name for f in cls.__dataclass_fields__.values()}
+        filtered = {k: v for k, v in loaded.items() if k in known}
+        return cls(**filtered)
 
 
 @dataclass
@@ -101,7 +116,11 @@ class TaskResult:
 
     @classmethod
     def from_json(cls, data: str):
-        return cls(**json.loads(data))
+        """从 JSON 字符串反序列化为 TaskResult 实例（向前兼容）。"""
+        loaded = json.loads(data)
+        known = {f.name for f in cls.__dataclass_fields__.values()}
+        filtered = {k: v for k, v in loaded.items() if k in known}
+        return cls(**filtered)
 
 
 @dataclass
@@ -131,4 +150,8 @@ class ProgressUpdate:
 
     @classmethod
     def from_json(cls, data: str):
-        return cls(**json.loads(data))
+        """从 JSON 字符串反序列化为 ProgressUpdate 实例（向前兼容）。"""
+        loaded = json.loads(data)
+        known = {f.name for f in cls.__dataclass_fields__.values()}
+        filtered = {k: v for k, v in loaded.items() if k in known}
+        return cls(**filtered)

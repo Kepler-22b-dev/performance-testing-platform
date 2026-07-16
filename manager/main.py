@@ -18,11 +18,12 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import asyncio
 import json
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from common.protocol import TaskResult, ProgressUpdate
-from common.config import REDIS_HOST, REDIS_PORT, REDIS_DB, REDIS_CHANNEL_RESULT, REDIS_CHANNEL_PROGRESS
+from common.config import REDIS_HOST, REDIS_PORT, REDIS_DB, REDIS_CHANNEL_RESULT, REDIS_CHANNEL_PROGRESS, REDIS_STREAM_READ_BLOCK_MS
 from common.logger import get_logger, get_api_logger, get_task_logger, log_error, log_task_event
 from common.database import init_db
 from common.async_worker import async_worker
@@ -71,42 +72,97 @@ ws_manager = ConnectionManager()
 logger.info(f"Redis 连接: {REDIS_HOST}:{REDIS_PORT}")
 
 
+def _log_task_exception(task):
+    """记录后台任务异常，防止静默失败。
+
+    作为 asyncio.Task.add_done_callback 的回调函数使用。
+    如果后台任务（如 Redis Stream 监听器）抛出异常但未被处理，
+    异常会被静默吞掉，导致功能失效但无任何日志。
+    通过此回调确保异常被记录到日志中。
+    """
+    if task.cancelled():
+        return
+    exc = task.exception()
+    if exc:
+        logger.error("后台任务异常: %s: %s", type(exc).__name__, exc, exc_info=exc)
+
+
 async def redis_listener():
-    """Redis 监听器 - 订阅任务结果和进度更新"""
+    """Redis Stream 监听器 - 从 Stream 读取任务结果和进度更新。
+
+    使用消费者组（Consumer Group）模式消费消息，确保：
+    1. 消息持久化：Manager 重启后未消费的消息不会丢失
+    2. 可靠消费：处理完成后 XACK 确认，避免重复消费
+    3. 负载均衡：多实例部署时消息自动分配到不同消费者
+
+    消费的 Stream 频道：
+    - jmeter:result: Agent 上报的任务执行结果
+    - jmeter:progress: Agent 上报的实时进度数据
+    """
     import redis.asyncio as aioredis
     r = aioredis.Redis(
         host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB,
         decode_responses=True,
     )
-    pubsub = r.pubsub()
-    await pubsub.subscribe(REDIS_CHANNEL_RESULT, REDIS_CHANNEL_PROGRESS)
-    logger.info("Redis 监听器已启动，订阅结果和进度频道")
+    consumer_group = "manager"
+    consumer_name = f"manager-{os.getpid()}"
+
+    # 为每个 Stream 创建消费者组（如果不存在）
+    # mkstream=True 表示 Stream 不存在时自动创建
+    # id="0" 表示从 Stream 起始位置开始消费
+    # BUSYGROUP 错误表示消费者组已存在，属于正常情况
+    for stream_key in [REDIS_CHANNEL_RESULT, REDIS_CHANNEL_PROGRESS]:
+        try:
+            await r.xgroup_create(stream_key, consumer_group, id="0", mkstream=True)
+        except Exception:
+            pass
+
+    logger.info("Redis Stream 监听器已启动，订阅结果和进度频道")
 
     try:
-        async for message in pubsub.listen():
-            if message["type"] == "message":
-                channel = message["channel"]
-                data = message["data"]
+        while True:
+            try:
+                # 使用 ">" 表示只读取未被消费的新消息
+                # count=10 表示每次最多读取 10 条
+                # block=1000 表示无消息时阻塞等待 1 秒
+                streams = {REDIS_CHANNEL_RESULT: ">", REDIS_CHANNEL_PROGRESS: ">"}
+                results = await r.xreadgroup(
+                    consumer_group, consumer_name,
+                    streams,
+                    count=10,
+                    block=REDIS_STREAM_READ_BLOCK_MS,
+                )
+                for stream_name, messages in results:
+                    for msg_id, fields in messages:
+                        data = fields.get("data", "")
+                        try:
+                            payload = json.loads(data)
+                        except Exception:
+                            # 消息格式异常，跳过并确认消费
+                            await r.xack(stream_name, consumer_group, msg_id)
+                            continue
 
-                try:
-                    payload = json.loads(data)
-                except Exception:
-                    continue
+                        if stream_name == REDIS_CHANNEL_RESULT:
+                            # 处理任务结果：更新数据库状态、通知前端
+                            result = TaskResult.from_json(data)
+                            log_task_event(task_logger, result.task_id, "结果收到",
+                                           {"agent": result.agent_id, "status": result.status})
+                            loop = asyncio.get_event_loop()
+                            await loop.run_in_executor(None, scheduler.handle_result, result)
+                            await ws_manager.broadcast({"channel": "result", "data": payload})
+                        elif stream_name == REDIS_CHANNEL_PROGRESS:
+                            update = ProgressUpdate.from_json(data)
+                            scheduler.handle_progress(update)
+                            await ws_manager.broadcast({"channel": "progress", "data": payload})
 
-                if channel == REDIS_CHANNEL_RESULT:
-                    result = TaskResult.from_json(data)
-                    log_task_event(task_logger, result.task_id, "结果收到",
-                                   {"agent": result.agent_id, "status": result.status})
-                    loop = asyncio.get_event_loop()
-                    await loop.run_in_executor(None, scheduler.handle_result, result)
-                    await ws_manager.broadcast({"channel": "result", "data": payload})
-                elif channel == REDIS_CHANNEL_PROGRESS:
-                    update = ProgressUpdate.from_json(data)
-                    scheduler.handle_progress(update)
-                    await ws_manager.broadcast({"channel": "progress", "data": payload})
-    except asyncio.CancelledError:
-        logger.info("Redis 监听器已停止")
-        await pubsub.unsubscribe()
+                        await r.xack(stream_name, consumer_group, msg_id)
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                logger.warning("Redis Stream 读取异常: %s", e)
+                await asyncio.sleep(1)
+    finally:
+        logger.info("Redis Stream 监听器已停止")
         await r.close()
 
 
@@ -139,7 +195,9 @@ async def lifespan(app: FastAPI):
     heartbeat_thread = node_manager.start_heartbeat_listener()
     logger.info("心跳监听器已启动")
     listener_task = asyncio.create_task(redis_listener())
+    listener_task.add_done_callback(_log_task_exception)
     cleanup_task = asyncio.create_task(log_cleanup_loop())
+    cleanup_task.add_done_callback(_log_task_exception)
     init_scheduler_loop()
     logger.info("定时调度器已启动")
 
@@ -187,6 +245,23 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """全局异常处理器，捕获所有未处理的异常。
+
+    作用：
+    1. 防止未处理异常导致 500 错误时无日志
+    2. 返回结构化 JSON 错误响应，便于前端处理
+    3. 记录请求路径和异常类型，便于问题定位
+    """
+    api_logger.error(f"Unhandled exception: {type(exc).__name__}: {exc} | {request.method} {request.url.path}")
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "服务器内部错误", "error": type(exc).__name__},
+    )
+
 
 # 添加 API 请求日志中间件
 @app.middleware("http")
@@ -244,13 +319,26 @@ def health():
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
-    """WebSocket 端点。前端通过此连接接收实时测试进度和结果推送。"""
+    """WebSocket 端点 - 实时推送测试进度和结果。
+
+    前端通过此连接接收：
+    - 实时进度数据（TPS、响应时间、错误率）
+    - 任务完成通知
+    - Agent 状态变更
+
+    心跳机制：前端定期发送 "ping"，服务端回复 "pong"
+    用于检测连接是否存活，防止代理服务器/防火墙断开空闲连接
+    """
     await websocket.accept()
     ws_manager.add_connection(websocket)
     try:
         while True:
-            await websocket.receive_text()
+            data = await websocket.receive_text()
+            if data == "ping":
+                await websocket.send_text("pong")
     except WebSocketDisconnect:
+        ws_manager.remove_connection(websocket)
+    except Exception:
         ws_manager.remove_connection(websocket)
 
 

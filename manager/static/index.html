@@ -14,10 +14,15 @@
         .header .brand { display: flex; align-items: center; gap: 8px; min-width: 0; }
         .header .brand-logo { width: 26px; height: 26px; object-fit: contain; flex: 0 0 26px; display: block; }
         .header h1 { font-size: 22px; font-weight: 800; color: #000000; white-space: nowrap; letter-spacing: 0.5px; }
-        .header .nav { display: flex; gap: 6px; flex: 1 1 auto; justify-content: stretch; min-width: 0; overflow-x: auto; padding: 4px 0; scrollbar-width: thin; }
-        .header .nav button { flex: 1 1 0; min-width: 72px; background: transparent; border: 1px solid #d0d0d0; color: #444; padding: 8px 8px; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 600; line-height: 1.2; text-align: center; white-space: nowrap; transition: all 0.2s; }
+        .header .nav { display: flex; gap: 10px; flex: 1 1 auto; justify-content: flex-end; min-width: 0; overflow-x: auto; padding: 4px 0; scrollbar-width: thin; }
+        .header .nav-group { display: flex; gap: 6px; padding-right: 10px; border-right: 1px solid #e5e7eb; flex: 0 0 auto; }
+        .header .nav-group:last-of-type { padding-right: 0; border-right: none; }
+        .header .nav button { min-width: 72px; background: transparent; border: 1px solid #d0d0d0; color: #444; padding: 8px 8px; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 600; line-height: 1.2; text-align: center; white-space: nowrap; transition: all 0.2s; }
+        .header .nav .nav-group-primary button { border-color: #93c5fd; color: #1d4ed8; background: #eff6ff; }
+        .header .nav .nav-group-primary button:hover { background: #dbeafe; }
         .header .nav button:hover { background: #f0f0f0; }
         .header .nav button.active { background: #1a1a1a; border-color: #1a1a1a; color: #fff; }
+        .header .nav-docs { flex: 0 0 auto; background: transparent; border: 1px solid #d0d0d0; color: #555; padding: 6px 12px; border-radius: 4px; text-decoration: none; font-size: 13px; cursor: pointer; white-space: nowrap; }
         .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
         .summary-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 16px; }
         .card { background: #fff; border-radius: 6px; padding: 16px; border: 1px solid #e0e0e0; }
@@ -430,22 +435,31 @@
             <h1>性能工程平台</h1>
         </div>
         <div class="nav" style="align-items:center">
-            <button class="active" onclick="showPage('home')">首页</button>
-            <button onclick="showPage('tasks')">任务管理</button>
-            <button onclick="showPage('create')">创建任务</button>
-            <button onclick="showPage('data')">配置管理</button>
-            <button onclick="showPage('nodes')">施压节点</button>
-            <button onclick="showPage('compare')">任务对比</button>
-            <button onclick="showPage('jtl')">JTL 导入</button>
-            <button onclick="showPage('templates')">模板管理</button>
-            <button onclick="showPage('schedule')">定时调度</button>
-            <button onclick="showPage('notify')">通知设置</button>
-            <button onclick="showPage('trend')">性能趋势</button>
-            <button onclick="showPage('alerts')">告警规则</button>
-            <button onclick="showPage('tool-logs')">工具日志</button>
-            <button onclick="showPage('mobile')">移动端监控</button>
-            <button onclick="showPage('scripts')">脚本管理</button>
-            <a href="/docs" target="_blank" style="background:transparent;border:1px solid #d0d0d0;color:#555;padding:6px 12px;border-radius:4px;text-decoration:none;font-size:13px;cursor:pointer">API 文档</a>
+            <div class="nav-group nav-group-primary" aria-label="压测执行">
+                <button class="active" data-page="home" onclick="showPage('home')">首页</button>
+                <button data-page="create" onclick="showPage('create')">创建任务</button>
+                <button data-page="tasks" onclick="showPage('tasks')">任务管理</button>
+            </div>
+            <div class="nav-group" aria-label="压测准备">
+                <button data-page="scripts" onclick="showPage('scripts')">脚本管理</button>
+                <button data-page="data" onclick="showPage('data')">配置管理</button>
+                <button data-page="nodes" onclick="showPage('nodes')">施压节点</button>
+            </div>
+            <div class="nav-group" aria-label="结果分析">
+                <button data-page="trend" onclick="showPage('trend')">性能趋势</button>
+                <button data-page="compare" onclick="showPage('compare')">任务对比</button>
+                <button data-page="jtl" onclick="showPage('jtl')">JTL 导入</button>
+            </div>
+            <div class="nav-group" aria-label="自动化">
+                <button data-page="schedule" onclick="showPage('schedule')">定时调度</button>
+                <button data-page="alerts" onclick="showPage('alerts')">告警规则</button>
+                <button data-page="notify" onclick="showPage('notify')">通知设置</button>
+            </div>
+            <div class="nav-group" aria-label="运维支持">
+                <button data-page="mobile" onclick="showPage('mobile')">移动端监控</button>
+                <button data-page="tool-logs" onclick="showPage('tool-logs')">工具日志</button>
+            </div>
+            <a class="nav-docs" href="/docs" target="_blank">API 文档</a>
         </div>
     </div>
 
@@ -727,13 +741,13 @@
             </div>
 
             <div id="task-detail-view" class="hidden">
-                <button class="back-btn" onclick="showTaskList()">&larr; 返回列表</button>
+                <button class="back-btn" onclick="backToTaskList()">&larr; 返回列表</button>
                 <div class="page-header" style="margin-bottom:16px;">
                     <h2 style="font-size:16px;font-weight:600;">测试报告：<span id="detail-task-id" style="color:#555"></span></h2>
                     <div class="toolbar-actions">
                         <a id="export-report-btn" class="btn-primary" style="display:none;text-decoration:none" target="_blank">导出 HTML</a>
                         <a id="export-pdf-btn" class="btn-success" style="display:none;text-decoration:none" target="_blank">导出 PDF</a>
-                        <button class="filter-btn" onclick="showTaskList()">关闭</button>
+                        <button class="filter-btn" onclick="backToTaskList()">关闭</button>
                     </div>
                 </div>
                 <div id="live-monitor" class="hidden"></div>
@@ -1310,6 +1324,9 @@
                     </div>
                     <button class="btn-primary" onclick="addVar()">添加</button>
                 </div>
+                <div style="margin:-4px 0 12px;color:#64748b;font-size:12px;line-height:1.5;">
+                    新建任务时会将这些变量固化为 JMeter 属性（<code>-J变量名=变量值</code>）。脚本中使用 <code>${__P(变量名,默认值)}</code> 读取；任务页的同名附加参数优先级更高。请勿保存密码、Token 等敏感信息。
+                </div>
                 <table>
                     <thead><tr><th>变量名</th><th>变量值</th><th>说明</th><th>更新时间</th><th>操作</th></tr></thead>
                     <tbody id="vars-tbody"></tbody>
@@ -1373,32 +1390,11 @@
                     </div>
                 </div>
             </div>
-        </div>
 
-        <!-- CSV 预览弹窗 -->
-        <div id="csv-preview-modal" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:none;z-index:1000;justify-content:center;align-items:center;">
-            <div class="csv-modal-shell">
-                <div class="csv-modal-head">
-                    <h3 id="csv-preview-title"></h3>
-                    <button class="filter-btn" onclick="closeCsvPreview()">关闭</button>
-                </div>
-                <div id="csv-preview-modal-content" class="csv-modal-table-wrap"></div>
-                <div class="csv-modal-footer">
-                    <div id="csv-preview-modal-info" style="font-size:12px;color:#888;"></div>
-                    <div style="display:flex;gap:6px;align-items:center;">
-                        <button class="filter-btn btn-sm" id="csv-modal-prev" onclick="csvModalPrev()" disabled>上一页</button>
-                        <span id="csv-modal-page" style="font-size:12px;color:#888;"></span>
-                        <button class="filter-btn btn-sm" id="csv-modal-next" onclick="csvModalNext()" disabled>下一页</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- 模板管理 -->
-        <div id="page-templates" class="hidden">
-            <div class="task-list">
+            <!-- 测试模板 -->
+            <div class="task-list" style="margin-bottom:12px;">
                 <div class="toolbar">
-                    <h3>测试计划模板</h3>
+                    <h3>测试模板</h3>
                     <div class="toolbar-actions">
                         <button class="btn-success" onclick="showCreateTemplate()">新建模板</button>
                     </div>
@@ -1425,6 +1421,25 @@
                     <div style="display:flex;gap:8px;justify-content:flex-end;">
                         <button class="filter-btn" onclick="closeCreateTemplate()">取消</button>
                         <button class="btn-primary" onclick="submitTemplate()">创建</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- CSV 预览弹窗 -->
+        <div id="csv-preview-modal" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:none;z-index:1000;justify-content:center;align-items:center;">
+            <div class="csv-modal-shell">
+                <div class="csv-modal-head">
+                    <h3 id="csv-preview-title"></h3>
+                    <button class="filter-btn" onclick="closeCsvPreview()">关闭</button>
+                </div>
+                <div id="csv-preview-modal-content" class="csv-modal-table-wrap"></div>
+                <div class="csv-modal-footer">
+                    <div id="csv-preview-modal-info" style="font-size:12px;color:#888;"></div>
+                    <div style="display:flex;gap:6px;align-items:center;">
+                        <button class="filter-btn btn-sm" id="csv-modal-prev" onclick="csvModalPrev()" disabled>上一页</button>
+                        <span id="csv-modal-page" style="font-size:12px;color:#888;"></span>
+                        <button class="filter-btn btn-sm" id="csv-modal-next" onclick="csvModalNext()" disabled>下一页</button>
                     </div>
                 </div>
             </div>
@@ -1755,7 +1770,7 @@
             <div id="scripts-editor-view" class="hidden">
                 <div class="page-header">
                     <div class="page-title-group">
-                        <button class="back-btn" onclick="closeEditor()">&larr; 返回列表</button>
+                        <button class="back-btn" onclick="backToScripts()">&larr; 返回列表</button>
                         <h2 style="font-size:16px;font-weight:600" id="editor-script-name"></h2>
                     </div>
                     <div class="toolbar-actions">
@@ -1941,6 +1956,35 @@
             jtlCompareLabels: 10,
         };
         const paginationSizeOptions = [5, 10, 20, 50, 100];
+
+        // 单页应用切换视图时也要同步浏览器历史，避免浏览器“返回”直接离开系统。
+        const defaultNavigationState = { page: 'home', view: 'list' };
+
+        function saveNavigationState(state, replace = false) {
+            const method = replace ? 'replaceState' : 'pushState';
+            history[method](state, '', location.href);
+        }
+
+        function restoreNavigationState(state) {
+            const target = state && state.page ? state : defaultNavigationState;
+            showPage(target.page, { history: false });
+
+            if (target.page === 'tasks' && target.view === 'detail' && target.taskId) {
+                viewTask(target.taskId, { history: false });
+            }
+            if (target.page === 'scripts' && target.view === 'editor' && target.scriptId) {
+                openEditor(target.scriptId, { history: false });
+            }
+        }
+
+        window.addEventListener('popstate', function(event) {
+            restoreNavigationState(event.state);
+        });
+
+        // 为首次打开的首页建立应用内历史起点，后续返回可停留在上一模块。
+        if (!history.state || !history.state.page) {
+            saveNavigationState(defaultNavigationState, true);
+        }
 
         function showModalElement(id, display = 'flex') {
             const el = document.getElementById(id);
@@ -2487,7 +2531,7 @@
                 const res = await fetch(`${API}/api/tasks/quick-run`, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({script_id: String(scriptId), threads: 5, duration: 60, ramp_up: 5})
+                    body: JSON.stringify({script_id: String(scriptId), threads: 5, duration: 60, ramp_time: 5})
                 });
                 const data = await res.json();
                 if (data.task_id) { alert('冒烟测试已启动'); loadHomePage(); }
@@ -2691,27 +2735,12 @@
         }
 
         // ===== 页面切换 =====
-        function showPage(page) {
+        function showPage(page, options = {}) {
+            if (options.history !== false) {
+                saveNavigationState({ page, view: 'list' });
+            }
             document.querySelectorAll('.nav button').forEach(b => b.classList.remove('active'));
-            document.querySelectorAll('.nav button').forEach(b => {
-                if ((page === 'home' && b.textContent === '首页') ||
-                    (page === 'tasks' && b.textContent === '任务管理') ||
-                    (page === 'create' && b.textContent === '创建任务') ||
-                    (page === 'data' && b.textContent === '配置管理') ||
-                    (page === 'nodes' && b.textContent === '施压节点') ||
-                    (page === 'compare' && b.textContent === '任务对比') ||
-                    (page === 'jtl' && b.textContent === 'JTL 导入') ||
-                    (page === 'templates' && b.textContent === '模板管理') ||
-                    (page === 'schedule' && b.textContent === '定时调度') ||
-                    (page === 'notify' && b.textContent === '通知设置') ||
-                    (page === 'trend' && b.textContent === '性能趋势') ||
-                    (page === 'alerts' && b.textContent === '告警规则') ||
-                    (page === 'tool-logs' && b.textContent === '工具日志') ||
-                    (page === 'mobile' && b.textContent === '移动端监控') ||
-                    (page === 'scripts' && b.textContent === '脚本管理')) {
-                    b.classList.add('active');
-                }
-            });
+            document.querySelector(`.nav button[data-page="${page}"]`)?.classList.add('active');
             document.querySelectorAll('[id^="page-"]').forEach(p => p.classList.add('hidden'));
             document.getElementById(`page-${page}`).classList.remove('hidden');
 
@@ -2721,9 +2750,8 @@
             if (page === 'home' && charts.homeTrend) setTimeout(() => charts.homeTrend.resize(), 100);
             if (page === 'tasks') { showTaskList(); loadTasks(); loadAgentMap(); startAutoRefresh(); }
             if (page === 'create') loadCreateForm();
-            if (page === 'data') { loadVars(); loadCsvs(); loadEnvs(); }
+            if (page === 'data') { loadVars(); loadCsvs(); loadEnvs(); loadTemplates(); }
             if (page === 'nodes') { loadNodes(); startMonitorAutoRefresh(); }
-            if (page === 'templates') loadTemplates();
             if (page === 'schedule') loadSchedules();
             if (page === 'notify') loadNotifyConfig();
             if (page === 'compare') loadCompareForm();
@@ -3559,7 +3587,10 @@
             return encodeURIComponent(String(value || ''));
         }
 
-        async function viewTask(taskId) {
+        async function viewTask(taskId, options = {}) {
+            if (options.history !== false) {
+                saveNavigationState({ page: 'tasks', view: 'detail', taskId });
+            }
             document.getElementById('tasks-list-view').classList.add('hidden');
             document.getElementById('task-detail-view').classList.remove('hidden');
             currentTaskId = taskId;
@@ -3613,6 +3644,14 @@
             clearAutoRefresh();
             document.getElementById('tasks-list-view').classList.remove('hidden');
             document.getElementById('task-detail-view').classList.add('hidden');
+        }
+
+        function backToTaskList() {
+            if (history.state && history.state.page === 'tasks' && history.state.view === 'detail') {
+                history.back();
+                return;
+            }
+            showTaskList();
         }
 
         async function loadTaskDetail(taskId) {
@@ -6652,7 +6691,7 @@
         }
 
         // ===== 脚本编辑器 =====
-        async function openEditor(scriptId) {
+        async function openEditor(scriptId, options = {}) {
             currentScriptId = scriptId;
             try {
                 const res = await fetch(`${API}/api/scripts/${scriptId}`);
@@ -6668,6 +6707,9 @@
 
                 switchEditorView('tree');
                 loadScriptTree(scriptId);
+                if (options.history !== false) {
+                    saveNavigationState({ page: 'scripts', view: 'editor', scriptId });
+                }
             } catch (e) { alert('加载脚本失败: ' + e.message); }
         }
 
@@ -6675,6 +6717,14 @@
             document.getElementById('scripts-list-view').classList.remove('hidden');
             document.getElementById('scripts-editor-view').classList.add('hidden');
             currentScriptId = null;
+        }
+
+        function backToScripts() {
+            if (history.state && history.state.page === 'scripts' && history.state.view === 'editor') {
+                history.back();
+                return;
+            }
+            closeEditor();
         }
 
         async function saveScript() {
