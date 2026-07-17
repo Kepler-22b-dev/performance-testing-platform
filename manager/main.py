@@ -17,13 +17,18 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import asyncio
 import json
+from urllib.parse import urlsplit
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from common.protocol import TaskResult, ProgressUpdate
-from common.config import REDIS_HOST, REDIS_PORT, REDIS_DB, REDIS_CHANNEL_RESULT, REDIS_CHANNEL_PROGRESS, REDIS_STREAM_READ_BLOCK_MS
+from common.config import (
+    REDIS_HOST, REDIS_PORT,
+    REDIS_CHANNEL_RESULT, REDIS_CHANNEL_PROGRESS, REDIS_STREAM_READ_BLOCK_MS,
+    COMMAND_CLAIM_IDLE_MS, CORS_ALLOWED_ORIGINS, get_redis_connection_kwargs,
+)
 from common.logger import get_logger, get_api_logger, get_task_logger, log_error, log_task_event
 from common.database import init_db
 from common.async_worker import async_worker
@@ -100,10 +105,7 @@ async def redis_listener():
     - jmeter:progress: Agent 上报的实时进度数据
     """
     import redis.asyncio as aioredis
-    r = aioredis.Redis(
-        host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB,
-        decode_responses=True,
-    )
+    r = aioredis.Redis(**get_redis_connection_kwargs())
     consumer_group = "manager"
     consumer_name = f"manager-{os.getpid()}"
 
@@ -119,9 +121,48 @@ async def redis_listener():
 
     logger.info("Redis Stream 监听器已启动，订阅结果和进度频道")
 
+    async def process_message(stream_name, msg_id, fields):
+        data = fields.get("data", "")
+        try:
+            payload = json.loads(data)
+        except Exception:
+            await r.xack(stream_name, consumer_group, msg_id)
+            return
+
+        if stream_name == REDIS_CHANNEL_RESULT:
+            result = TaskResult.from_json(data)
+            log_task_event(task_logger, result.task_id, "结果收到",
+                           {"agent": result.agent_id, "status": result.status})
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(None, scheduler.handle_result, result)
+            await ws_manager.broadcast({"channel": "result", "data": payload})
+        elif stream_name == REDIS_CHANNEL_PROGRESS:
+            update = ProgressUpdate.from_json(data)
+            scheduler.handle_progress(update)
+            await ws_manager.broadcast({"channel": "progress", "data": payload})
+
+        await r.xack(stream_name, consumer_group, msg_id)
+
     try:
+        last_claim_at = 0.0
         while True:
             try:
+                now = asyncio.get_running_loop().time()
+                if now - last_claim_at >= max(1, COMMAND_CLAIM_IDLE_MS / 1000):
+                    for stream_key in [REDIS_CHANNEL_RESULT, REDIS_CHANNEL_PROGRESS]:
+                        claimed = await r.xautoclaim(
+                            stream_key,
+                            consumer_group,
+                            consumer_name,
+                            min_idle_time=COMMAND_CLAIM_IDLE_MS,
+                            start_id="0-0",
+                            count=10,
+                        )
+                        claimed_messages = claimed[1] if claimed and len(claimed) > 1 else []
+                        for msg_id, fields in claimed_messages:
+                            await process_message(stream_key, msg_id, fields)
+                    last_claim_at = now
+
                 # 使用 ">" 表示只读取未被消费的新消息
                 # count=10 表示每次最多读取 10 条
                 # block=1000 表示无消息时阻塞等待 1 秒
@@ -134,28 +175,7 @@ async def redis_listener():
                 )
                 for stream_name, messages in results:
                     for msg_id, fields in messages:
-                        data = fields.get("data", "")
-                        try:
-                            payload = json.loads(data)
-                        except Exception:
-                            # 消息格式异常，跳过并确认消费
-                            await r.xack(stream_name, consumer_group, msg_id)
-                            continue
-
-                        if stream_name == REDIS_CHANNEL_RESULT:
-                            # 处理任务结果：更新数据库状态、通知前端
-                            result = TaskResult.from_json(data)
-                            log_task_event(task_logger, result.task_id, "结果收到",
-                                           {"agent": result.agent_id, "status": result.status})
-                            loop = asyncio.get_event_loop()
-                            await loop.run_in_executor(None, scheduler.handle_result, result)
-                            await ws_manager.broadcast({"channel": "result", "data": payload})
-                        elif stream_name == REDIS_CHANNEL_PROGRESS:
-                            update = ProgressUpdate.from_json(data)
-                            scheduler.handle_progress(update)
-                            await ws_manager.broadcast({"channel": "progress", "data": payload})
-
-                        await r.xack(stream_name, consumer_group, msg_id)
+                        await process_message(stream_name, msg_id, fields)
             except asyncio.CancelledError:
                 raise
             except Exception as e:
@@ -240,7 +260,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=CORS_ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -329,6 +349,13 @@ async def websocket_endpoint(websocket: WebSocket):
     心跳机制：前端定期发送 "ping"，服务端回复 "pong"
     用于检测连接是否存活，防止代理服务器/防火墙断开空闲连接
     """
+    origin = websocket.headers.get("origin")
+    request_host = websocket.headers.get("host")
+    origin_host = urlsplit(origin).netloc if origin else ""
+    if origin and origin not in CORS_ALLOWED_ORIGINS and origin_host != request_host:
+        await websocket.close(code=1008, reason="WebSocket Origin 不受信任")
+        return
+
     await websocket.accept()
     ws_manager.add_connection(websocket)
     try:

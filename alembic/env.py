@@ -10,8 +10,10 @@ from alembic import context
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from manager.models.db_models import Base
+from common.database import SYNC_DATABASE_URL
 
 config = context.config
+config.set_main_option("sqlalchemy.url", SYNC_DATABASE_URL.replace("%", "%%"))
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)

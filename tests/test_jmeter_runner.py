@@ -45,6 +45,30 @@ def _run_with_patches(runner, script_path, result_dir, args):
     return inject, parse, report, popen
 
 
+def test_csv_injection_skips_header_and_supports_quoted_fields(tmp_path):
+    script_path = tmp_path / "test.jmx"
+    script_path.write_text(
+        "<jmeterTestPlan><hashTree /></jmeterTestPlan>",
+        encoding="utf-8",
+    )
+    runner = JMeterRunner("/opt/jmeter")
+
+    modified = runner.inject_csv_config(
+        str(script_path),
+        str(tmp_path / "users.csv"),
+        variable_names="username,city",
+    )
+
+    csv_config = ET.parse(modified).getroot().find("hashTree/CSVDataSet")
+    properties = {
+        prop.attrib["name"]: prop.text
+        for prop in csv_config
+        if prop.tag in {"boolProp", "stringProp"}
+    }
+    assert properties["ignoreFirstLine"] == "true"
+    assert properties["quotedData"] == "true"
+
+
 def test_jmeter_heap_uses_heap_env_and_skips_internal_args(tmp_path):
     script_path = tmp_path / "test.jmx"
     script_path.write_text("<jmeterTestPlan></jmeterTestPlan>", encoding="utf-8")

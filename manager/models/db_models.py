@@ -2,7 +2,10 @@
 ORM 模型 - PostgreSQL 数据库表定义
 """
 import time
-from sqlalchemy import Column, String, Integer, Float, Boolean, Text, JSON, Index
+from sqlalchemy import (
+    Column, String, Integer, Float, Boolean, Text, JSON, Index,
+    ForeignKey, UniqueConstraint,
+)
 from common.database import Base
 
 
@@ -35,6 +38,7 @@ class Task(Base):
     csv_delimiter = Column(String(8), default=",")
     csv_recycle = Column(Boolean, default=True)
     csv_stop_on_eof = Column(Boolean, default=False)
+    csv_distribution = Column(String(16), default="replicate")
     status = Column(String(20), default="pending")
     created_at = Column(Float, default=time.time)
     start_time = Column(Float, nullable=True)
@@ -52,7 +56,15 @@ class TaskResult(Base):
     __tablename__ = "task_results"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    task_id = Column(String(64), nullable=False)
+    task_id = Column(
+        String(64),
+        ForeignKey(
+            "tasks.task_id",
+            name="fk_task_results_task_id_tasks",
+            ondelete="CASCADE",
+        ),
+        nullable=False,
+    )
     agent_id = Column(String(64), nullable=False)
     status = Column(String(20), nullable=False)
     start_time = Column(Float, nullable=True)
@@ -63,6 +75,7 @@ class TaskResult(Base):
 
     __table_args__ = (
         Index("idx_task_results_task_id", "task_id"),
+        UniqueConstraint("task_id", "agent_id", name="uq_task_results_task_agent"),
     )
 
 
@@ -86,6 +99,12 @@ class CsvFile(Base):
     csv_id = Column(String(64), primary_key=True)
     filename = Column(String(255), nullable=False)
     filepath = Column(String(512), nullable=False)
+    artifact_id = Column(String(64), nullable=True)
+    artifact_version = Column(String(64), nullable=True)
+    storage_key = Column(String(1024), nullable=True)
+    sha256 = Column(String(64), nullable=True)
+    encoding = Column(String(32), nullable=True)
+    delimiter = Column(String(8), nullable=True)
     headers = Column(JSON, default=list)
     row_count = Column(Integer, default=0)
     preview = Column(JSON, default=list)

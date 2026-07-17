@@ -5,6 +5,7 @@
 import time
 from typing import Optional
 from sqlalchemy import select, update, delete, func
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
 from manager.models.db_models import (
@@ -12,6 +13,7 @@ from manager.models.db_models import (
     Template, Environment, AlertRule, Schedule,
     Notification, NodeRegistry, ScriptCounter,
 )
+from common.protocol import validate_task_status_transition
 
 
 def _to_dict(obj) -> dict:
@@ -202,6 +204,24 @@ def db_update_task(db: Session, task_id: str, **kwargs) -> bool:
     return result.rowcount > 0
 
 
+def db_transition_task_status(
+    db: Session,
+    task_id: str,
+    from_statuses: list[str] | tuple[str, ...],
+    to_status: str,
+    **kwargs,
+) -> bool:
+    """以单条条件更新原子完成任务状态转换。"""
+    validate_task_status_transition(from_statuses, to_status)
+    result = db.execute(
+        update(Task)
+        .where(Task.task_id == task_id, Task.status.in_(from_statuses))
+        .values(status=to_status, **kwargs)
+    )
+    db.commit()
+    return result.rowcount == 1
+
+
 def db_delete_task(db: Session, task_id: str) -> bool:
     db.execute(delete(TaskResult).where(TaskResult.task_id == task_id))
     result = db.execute(delete(Task).where(Task.task_id == task_id))
@@ -215,13 +235,22 @@ def db_add_task_result(db: Session, task_id: str, agent_id: str,
                         status: str, start_time: Optional[float] = None,
                         end_time: Optional[float] = None, report_path: Optional[str] = None,
                         error_message: Optional[str] = None, summary: Optional[dict] = None) -> None:
-    result = TaskResult(
-        task_id=task_id, agent_id=agent_id, status=status,
-        start_time=start_time, end_time=end_time,
-        report_path=report_path, error_message=error_message,
-        summary=summary or {},
+    values = {
+        "task_id": task_id,
+        "agent_id": agent_id,
+        "status": status,
+        "start_time": start_time,
+        "end_time": end_time,
+        "report_path": report_path,
+        "error_message": error_message,
+        "summary": summary or {},
+    }
+    statement = pg_insert(TaskResult).values(**values)
+    statement = statement.on_conflict_do_update(
+        constraint="uq_task_results_task_agent",
+        set_={key: value for key, value in values.items() if key not in {"task_id", "agent_id"}},
     )
-    db.add(result)
+    db.execute(statement)
     db.commit()
 
 
@@ -297,6 +326,14 @@ def db_create_csv(db: Session, csv_data: dict) -> dict:
     db.add(csv)
     db.commit()
     return _to_dict(csv)
+
+
+def db_update_csv_artifact(db: Session, csv_id: str, artifact_data: dict) -> bool:
+    result = db.execute(
+        update(CsvFile).where(CsvFile.csv_id == csv_id).values(**artifact_data)
+    )
+    db.commit()
+    return result.rowcount > 0
 
 
 def db_delete_csv(db: Session, csv_id: str) -> bool:

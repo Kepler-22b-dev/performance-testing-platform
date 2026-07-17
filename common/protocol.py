@@ -25,6 +25,24 @@ class TaskStatus(str, Enum):
     STOPPED = "stopped"      # 已停止
 
 
+TASK_STATUS_TRANSITIONS = {
+    TaskStatus.PENDING: {TaskStatus.RUNNING, TaskStatus.FAILED, TaskStatus.STOPPED},
+    TaskStatus.RUNNING: {TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.STOPPED},
+    TaskStatus.COMPLETED: set(),
+    TaskStatus.FAILED: set(),
+    TaskStatus.STOPPED: set(),
+}
+
+
+def validate_task_status_transition(from_statuses, to_status) -> None:
+    """校验任务状态转换，阻止终态回退或其他非法转换。"""
+    target = TaskStatus(to_status)
+    for source_value in from_statuses:
+        source = TaskStatus(source_value)
+        if target not in TASK_STATUS_TRANSITIONS[source]:
+            raise ValueError(f"非法任务状态转换: {source.value} -> {target.value}")
+
+
 class CommandType(str, Enum):
     """命令类型枚举"""
     EXECUTE = "execute"  # 执行任务
@@ -66,18 +84,31 @@ class TaskCommand:
     command: CommandType          # 命令类型
     task_id: str                  # 任务ID
     script_path: str              # 脚本路径
+    command_id: str = field(default_factory=lambda: f"cmd-{uuid.uuid4().hex}")
+    protocol_version: int = PROTOCOL_VERSION
+    created_at: float = field(default_factory=time.time)
+    expires_at: Optional[float] = None
+    attempt: int = 1
     target_agent_id: Optional[str] = None  # 目标 Agent；为空表示广播兼容旧命令
     script_content: Optional[str] = None  # 脚本内容(可选)
+    script_artifact: Optional[dict] = None  # 内容寻址脚本制品引用
     jmeter_args: dict = field(default_factory=dict)  # JMeter 参数
     timeout: int = 3600           # 超时时间(秒)
     distributed: bool = False     # 是否分布式模式
     remote_hosts: Optional[str] = None  # 远程主机列表
     csv_file: Optional[str] = None       # CSV 数据文件路径
+    csv_artifact: Optional[dict] = None  # CSV 制品引用，Agent 下载后转为本地路径
     csv_variable_names: Optional[str] = None  # CSV 变量名
     csv_delimiter: str = ","      # CSV 分隔符
     csv_recycle: bool = True      # 是否循环读取 CSV
     csv_stop_on_eof: bool = False # CSV 读完是否停止
+    csv_distribution: str = "replicate"  # replicate 复制 / shard 按 Agent 分片
+    csv_partition: Optional[dict] = None  # 当前 Agent 的分片范围和行数
     segment_id: Optional[str] = None  # 动态调压压力段 ID
+
+    def is_expired(self, now: Optional[float] = None) -> bool:
+        current_time = time.time() if now is None else now
+        return self.expires_at is not None and current_time > self.expires_at
 
     def to_json(self):
         return json.dumps(asdict(self), ensure_ascii=False)

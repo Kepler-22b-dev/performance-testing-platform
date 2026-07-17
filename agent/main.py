@@ -27,18 +27,20 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, os.path.dirname(__file__))
 
 from common.config import (
-    REDIS_HOST, REDIS_PORT, REDIS_DB,
     JMETER_HOME, SCRIPTS_DIR, REPORTS_DIR,
-    REDIS_CHANNEL_COMMAND, REDIS_CHANNEL_RESULT,
+    REDIS_CHANNEL_RESULT,
     REDIS_CHANNEL_HEARTBEAT, REDIS_CHANNEL_PROGRESS,
     AGENT_HEARTBEAT_INTERVAL,
     AGENT_REDIS_RETRY_DELAY, AGENT_REDIS_MAX_RETRIES,
     REDIS_STREAM_MAX_LEN, REDIS_STREAM_READ_BLOCK_MS,
+    COMMAND_CLAIM_IDLE_MS, COMMAND_DEDUP_TTL_SECONDS,
+    get_agent_command_stream, get_redis_connection_kwargs,
 )
 from common.protocol import (
     AgentInfo, TaskCommand, TaskResult, ProgressUpdate,
-    CommandType, TaskStatus,
+    CommandType, TaskStatus, PROTOCOL_VERSION,
 )
+from common.artifacts import ArtifactRef, get_artifact_store
 from common.logger import get_agent_logger, get_task_logger, log_task_event, log_error
 from common.utils import fmt_pct
 from jmeter_runner import JMeterRunner
@@ -60,11 +62,10 @@ class JMeterAgent:
         self.logger = get_agent_logger()
         self.task_logger = get_task_logger()
 
-        self.redis = redis.Redis(
-            host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB,
-            decode_responses=True,
-        )
-        self.pubsub = self.redis.pubsub()
+        self.redis = redis.Redis(**get_redis_connection_kwargs())
+        self.command_stream = get_agent_command_stream(self.agent_id)
+        self.command_group = "agent"
+        self.command_consumer = f"{self.agent_id}-{os.getpid()}"
 
         self.runner = JMeterRunner(JMETER_HOME)
         self.current_task: TaskCommand = None
@@ -82,6 +83,8 @@ class JMeterAgent:
         )
 
         self._running = True
+        self._stop_event = threading.Event()
+        self._heartbeat_thread = None
         self._stopping_task_id = None
         signal.signal(signal.SIGINT, self._shutdown)
         signal.signal(signal.SIGTERM, self._shutdown)
@@ -141,12 +144,16 @@ class JMeterAgent:
         mkstream=True 表示 Stream 不存在时自动创建。
         BUSYGROUP 错误表示消费者组已存在，属于正常情况。
         """
-        for stream_key in [REDIS_CHANNEL_COMMAND]:
-            try:
-                self.redis.xgroup_create(stream_key, self.agent_id, id="0", mkstream=True)
-            except redis.exceptions.ResponseError as e:
-                if "BUSYGROUP" not in str(e):
-                    self.logger.warning("创建消费者组失败: %s", e)
+        try:
+            self.redis.xgroup_create(
+                self.command_stream,
+                self.command_group,
+                id="0-0",
+                mkstream=True,
+            )
+        except redis.exceptions.ResponseError as e:
+            if "BUSYGROUP" not in str(e):
+                self.logger.warning("创建消费者组失败: %s", e)
 
     def start(self):
         """启动 Agent。订阅 Redis Stream 命令通道、注册到 Agent 列表并进入心跳循环。"""
@@ -161,9 +168,56 @@ class JMeterAgent:
         self.redis.hset(f"jmeter:agent:{self.agent_id}", mapping=self.info.to_dict())
         self.logger.info(f"Agent 已注册到 Redis，ID: {self.agent_id}")
 
-        self._heartbeat_loop()
+        self._heartbeat_thread = threading.Thread(
+            target=self._heartbeat_loop,
+            name=f"heartbeat-{self.agent_id}",
+            daemon=True,
+        )
+        self._heartbeat_thread.start()
 
-    def _on_command_message(self, data):
+        try:
+            self._command_loop()
+        finally:
+            self._running = False
+            self._stop_event.set()
+            if self._heartbeat_thread:
+                self._heartbeat_thread.join(timeout=AGENT_HEARTBEAT_INTERVAL + 1)
+            self.redis.srem("jmeter:agents", self.agent_id)
+            self.redis.delete(f"jmeter:agent:{self.agent_id}")
+            self.logger.info("Agent 已停止")
+
+    def _command_state_key(self, command_id: str) -> str:
+        return f"jmeter:agent:{self.agent_id}:command:{command_id}"
+
+    def _reserve_command(self, command: TaskCommand) -> bool:
+        """为命令建立带过期时间的幂等执行记录。"""
+        key = self._command_state_key(command.command_id)
+        now = time.time()
+        state = json.dumps({"status": "processing", "updated_at": now})
+        if self.redis.set(key, state, nx=True, ex=COMMAND_DEDUP_TTL_SECONDS):
+            return True
+
+        existing = self.redis.get(key)
+        try:
+            parsed = json.loads(existing or "{}")
+        except (TypeError, ValueError):
+            parsed = {}
+        if (
+            parsed.get("status") == "processing"
+            and now - float(parsed.get("updated_at", 0) or 0) >= COMMAND_CLAIM_IDLE_MS / 1000
+        ):
+            self.redis.set(key, state, ex=COMMAND_DEDUP_TTL_SECONDS)
+            return True
+        return False
+
+    def _complete_command(self, command: TaskCommand, status: str) -> None:
+        self.redis.set(
+            self._command_state_key(command.command_id),
+            json.dumps({"status": status, "updated_at": time.time()}),
+            ex=COMMAND_DEDUP_TTL_SECONDS,
+        )
+
+    def _on_command_message(self, data) -> bool:
         """处理从 Redis Stream 收到的命令消息数据。
 
         支持的命令类型：
@@ -173,8 +227,42 @@ class JMeterAgent:
         """
         try:
             command = TaskCommand.from_json(data)
+        except Exception as e:
+            log_error(self.logger, e, "命令反序列化")
+            # 无法解析的毒消息无法通过重试恢复，直接确认以免永久阻塞 Pending。
+            return True
+
+        try:
+            protocol_version = int(command.protocol_version)
+        except (TypeError, ValueError):
+            self.logger.error("拒绝无效协议版本命令: %s", command.command_id)
+            return True
+
+        try:
+            if protocol_version > PROTOCOL_VERSION:
+                self.logger.error(
+                    "拒绝不兼容命令: command=%s protocol=%s supported=%s",
+                    command.command_id, protocol_version, PROTOCOL_VERSION,
+                )
+                return True
+            if command.is_expired():
+                self.logger.warning("忽略已过期命令: %s", command.command_id)
+                if (
+                    command.command == CommandType.EXECUTE
+                    and (not command.target_agent_id or command.target_agent_id == self.agent_id)
+                ):
+                    self._send_result(TaskResult(
+                        task_id=command.task_id,
+                        agent_id=self.agent_id,
+                        status=TaskStatus.FAILED,
+                        error_message="任务命令在 Agent 接收前已过期",
+                    ))
+                return True
             if command.target_agent_id and command.target_agent_id != self.agent_id:
-                return
+                return True
+            if not self._reserve_command(command):
+                self.logger.info("忽略已处理或正在处理的重复命令: %s", command.command_id)
+                return True
             self.logger.debug(f"收到命令: {command.command} for task {command.task_id}")
 
             if command.command == CommandType.EXECUTE:
@@ -183,8 +271,21 @@ class JMeterAgent:
                 self._handle_stop(command)
             elif command.command == CommandType.ADJUST_LOAD:
                 self._handle_adjust_load(command)
+            else:
+                self.logger.warning("忽略未知命令类型: %s", command.command)
+            try:
+                self._complete_command(command, "accepted")
+            except Exception as exc:
+                # 命令已经被业务处理，不能因为记录完成状态失败而再次执行。
+                self.logger.warning("保存命令完成状态失败: %s", exc)
+            return True
         except Exception as e:
             log_error(self.logger, e, "命令处理")
+            try:
+                self.redis.delete(self._command_state_key(command.command_id))
+            except Exception:
+                pass
+            return False
 
     def _handle_execute(self, command: TaskCommand):
         """处理任务执行指令。任务在线程中运行，避免阻塞后续调压/停止命令。"""
@@ -309,9 +410,15 @@ class JMeterAgent:
         result = {"status": "failed", "summary": {}, "error": None}
         try:
             log_task_event(self.task_logger, command.task_id, "开始执行",
-                           {"agent": self.agent_id, "script": command.script_path})
+                           {
+                               "agent": self.agent_id,
+                               "script": command.script_path,
+                               "csv_distribution": command.csv_distribution,
+                               "csv_partition": command.csv_partition,
+                           })
 
             script_path = self._prepare_script(command)
+            csv_path = self._prepare_csv(command)
             result_dir = os.path.join(REPORTS_DIR, command.task_id, self.agent_id)
             os.makedirs(result_dir, exist_ok=True)
 
@@ -324,7 +431,7 @@ class JMeterAgent:
                 timeout=command.timeout,
                 distributed=command.distributed,
                 remote_hosts=command.remote_hosts,
-                csv_file=command.csv_file,
+                csv_file=csv_path,
                 csv_variable_names=command.csv_variable_names,
                 csv_delimiter=command.csv_delimiter,
                 csv_recycle=command.csv_recycle,
@@ -470,6 +577,7 @@ class JMeterAgent:
         result = {"status": "failed", "summary": {}}
         try:
             base_script_path = self._prepare_script(base_command)
+            csv_path = self._prepare_csv(base_command)
             safe_segment_id = "".join(
                 ch if ch.isalnum() or ch in {"-", "_"} else "_"
                 for ch in segment_id
@@ -495,7 +603,7 @@ class JMeterAgent:
                 timeout=max(timeout, 120),
                 distributed=base_command.distributed,
                 remote_hosts=base_command.remote_hosts,
-                csv_file=base_command.csv_file,
+                csv_file=csv_path,
                 csv_variable_names=base_command.csv_variable_names,
                 csv_delimiter=base_command.csv_delimiter,
                 csv_recycle=base_command.csv_recycle,
@@ -635,12 +743,23 @@ class JMeterAgent:
             self._stop_adjust_segments(command.task_id)
 
     def _prepare_script(self, command: TaskCommand) -> str:
-        """准备 JMX 脚本文件。根据指令写入脚本内容或复制外部脚本到执行目录。"""
+        """优先下载并校验制品，兼容旧版内联内容和共享路径。"""
         script_path = os.path.join(SCRIPTS_DIR, f"{command.task_id}.jmx")
+
+        artifact_error = None
+        if command.script_artifact:
+            try:
+                artifact = ArtifactRef.from_dict(command.script_artifact)
+                get_artifact_store().materialize(artifact, script_path)
+                self.logger.debug("脚本制品已下载并校验: %s", artifact.artifact_id)
+                return script_path
+            except Exception as exc:
+                artifact_error = exc
+                self.logger.warning("脚本制品下载失败，尝试兼容回退: %s", exc)
 
         if command.script_content:
             os.makedirs(os.path.dirname(script_path), exist_ok=True)
-            with open(script_path, "w") as f:
+            with open(script_path, "w", encoding="utf-8") as f:
                 f.write(command.script_content)
             self.logger.debug(f"脚本已写入: {script_path}")
         elif command.script_path and os.path.exists(command.script_path):
@@ -649,7 +768,36 @@ class JMeterAgent:
             shutil.copy2(command.script_path, script_path)
             self.logger.debug(f"脚本已复制: {command.script_path} -> {script_path}")
 
+        if not os.path.exists(script_path):
+            if artifact_error:
+                raise RuntimeError(f"脚本制品不可用: {artifact_error}") from artifact_error
+            raise FileNotFoundError(f"脚本不可用: {command.task_id}")
+
         return script_path
+
+    def _prepare_csv(self, command: TaskCommand) -> str | None:
+        """下载并校验 CSV 制品，仅在兼容模式下使用旧本地路径。"""
+        if not command.csv_artifact and not command.csv_file:
+            return None
+
+        artifact_error = None
+        if command.csv_artifact:
+            try:
+                artifact = ArtifactRef.from_dict(command.csv_artifact)
+                csv_dir = os.path.join(SCRIPTS_DIR, command.task_id, "data")
+                csv_path = os.path.join(csv_dir, artifact.filename)
+                get_artifact_store().materialize(artifact, csv_path)
+                self.logger.debug("CSV 制品已下载并校验: %s", artifact.artifact_id)
+                return csv_path
+            except Exception as exc:
+                artifact_error = exc
+                self.logger.warning("CSV 制品下载失败，尝试兼容回退: %s", exc)
+
+        if command.csv_file and os.path.isfile(command.csv_file):
+            return command.csv_file
+        if artifact_error:
+            raise RuntimeError(f"CSV 制品不可用: {artifact_error}") from artifact_error
+        raise FileNotFoundError(f"CSV 不可用: {command.csv_file}")
 
     def _stream_publish(self, stream_key: str, payload: str):
         """通过 Redis Stream 发送消息，带重试机制。
@@ -683,28 +831,14 @@ class JMeterAgent:
         self.logger.debug(f"结果已发送: task={result.task_id}, status={result.status}")
 
     def _heartbeat_loop(self):
-        """心跳循环 - Agent 的主运行循环。
-
-        同时承担两个职责：
-        1. 心跳上报：定时向 Redis Stream 发送 CPU/内存使用率和状态信息
-        2. 命令消费：从 Redis Stream 读取 Manager 下发的命令（执行/停止/调压）
-
-        使用 XREADGROUP 消费者组模式读取命令，确保：
-        - 命令持久化：Agent 重启后未处理的命令不会丢失
-        - 可靠消费：处理完成后 XACK 确认
-        - 断线重连：Redis 连接断开时自动重试
-
-        心跳频率：每 AGENT_HEARTBEAT_INTERVAL 秒上报一次
-        命令轮询：每 0.1 秒检查一次新命令
-        """
+        """独立心跳循环，严格按配置间隔上报资源和状态。"""
         self.logger.info("心跳循环已启动")
-        last_command_id = "0"
-        poll_interval = 0.1
-
         while self._running:
             if not self._ensure_redis_connection():
-                self.logger.error("Redis 不可用，Agent 将停止")
-                break
+                self.logger.error("Redis 不可用，等待下一次心跳重试")
+                if self._stop_event.wait(AGENT_HEARTBEAT_INTERVAL):
+                    return
+                continue
 
             try:
                 self.info.cpu_usage = psutil.cpu_percent(interval=None)
@@ -713,30 +847,61 @@ class JMeterAgent:
                 self._update_info()
             except Exception as e:
                 self.logger.warning("心跳上报失败: %s", e)
+            if self._stop_event.wait(AGENT_HEARTBEAT_INTERVAL):
+                return
 
+    def _handle_stream_messages(self, messages) -> None:
+        for msg_id, fields in messages:
+            data = fields.get("data", "")
+            if self._on_command_message(data):
+                self.redis.xack(self.command_stream, self.command_group, msg_id)
+
+    def _claim_pending_commands(self) -> None:
+        """回收因 Agent 异常退出而长时间未确认的命令。"""
+        try:
+            claimed = self.redis.xautoclaim(
+                self.command_stream,
+                self.command_group,
+                self.command_consumer,
+                min_idle_time=COMMAND_CLAIM_IDLE_MS,
+                start_id="0-0",
+                count=10,
+            )
+            messages = claimed[1] if claimed and len(claimed) > 1 else []
+            self._handle_stream_messages(messages)
+        except redis.exceptions.ResponseError as exc:
+            if "unknown command" not in str(exc).lower():
+                self.logger.warning("回收 Pending 命令失败: %s", exc)
+
+    def _command_loop(self):
+        """阻塞读取当前 Agent 的定向命令 Stream。"""
+        self.logger.info("命令循环已启动: %s", self.command_stream)
+        last_claim_at = 0.0
+        while self._running:
+            if not self._ensure_redis_connection():
+                self.logger.error("Redis 不可用，Agent 将停止")
+                self._running = False
+                self._stop_event.set()
+                break
             try:
+                now = time.time()
+                if now - last_claim_at >= max(1, COMMAND_CLAIM_IDLE_MS / 1000):
+                    self._claim_pending_commands()
+                    last_claim_at = now
                 results = self.redis.xreadgroup(
-                    self.agent_id, self.agent_id,
-                    {REDIS_CHANNEL_COMMAND: ">"},
+                    self.command_group, self.command_consumer,
+                    {self.command_stream: ">"},
                     count=10,
-                    block=int(poll_interval * 1000),
+                    block=REDIS_STREAM_READ_BLOCK_MS,
                 )
                 for stream_name, messages in results:
-                    for msg_id, fields in messages:
-                        data = fields.get("data", "")
-                        self._on_command_message(data)
-                        self.redis.xack(REDIS_CHANNEL_COMMAND, self.agent_id, msg_id)
-                        last_command_id = msg_id
+                    self._handle_stream_messages(messages)
             except redis.exceptions.ConnectionError:
                 self.logger.warning("Redis Stream 读取连接断开")
                 time.sleep(AGENT_REDIS_RETRY_DELAY)
             except Exception as e:
                 self.logger.warning("Redis Stream 读取异常: %s", e)
-                time.sleep(poll_interval)
-
-        self.redis.srem("jmeter:agents", self.agent_id)
-        self.redis.delete(f"jmeter:agent:{self.agent_id}")
-        self.logger.info("Agent 已停止")
+                time.sleep(0.5)
 
     def _update_info(self):
         """更新 Agent 状态信息到 Redis 并通过 Stream 发布心跳消息。"""
@@ -766,6 +931,10 @@ class JMeterAgent:
         """信号处理函数。捕获 SIGINT/SIGTERM 信号，优雅关闭 Agent。"""
         self.logger.info("收到关闭信号，正在停止...")
         self._running = False
+        self._stop_event.set()
+        self.runner.stop()
+        if self.current_task:
+            self._stop_adjust_segments(self.current_task.task_id)
 
 
 if __name__ == "__main__":

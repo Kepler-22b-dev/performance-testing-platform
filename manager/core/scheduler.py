@@ -21,23 +21,23 @@ from typing import Optional
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 from common.config import (
-    REDIS_HOST, REDIS_PORT, REDIS_DB,
     SCRIPTS_DIR, REPORTS_DIR,
-    REDIS_CHANNEL_COMMAND, REDIS_CHANNEL_RESULT,
-    REDIS_CHANNEL_PROGRESS, MAX_CONCURRENT_TASKS, TASK_TIMEOUT,
-    REDIS_STREAM_MAX_LEN,
+    MAX_CONCURRENT_TASKS, TASK_TIMEOUT,
+    REDIS_STREAM_MAX_LEN, COMMAND_TTL_SECONDS, ARTIFACT_INLINE_FALLBACK,
+    get_agent_command_stream, get_redis_connection_kwargs,
 )
+from common.artifacts import get_artifact_store
 from common.protocol import (
     TaskCommand, TaskResult, ProgressUpdate,
     CommandType, TaskStatus,
 )
 from common.database import get_sync_db
 from manager.core.db_sync import (
-    db_create_task, db_get_task, db_get_all_tasks, db_get_running_tasks, db_update_task,
-    db_delete_task, db_add_task_result, db_update_task_result,
+    db_create_task, db_get_task, db_get_all_tasks, db_get_running_tasks,
+    db_delete_task, db_add_task_result, db_transition_task_status,
     db_get_notification_config,
 )
-from manager.core.variables import get_vars_dict
+from manager.core.variables import prepare_csv_distribution, get_vars_dict
 
 logger = logging.getLogger("scheduler")
 
@@ -68,10 +68,7 @@ class TaskScheduler:
     PROGRESS_HISTORY_MAX = 7200
 
     def __init__(self, node_manager=None):
-        self.redis = redis.Redis(
-            host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB,
-            decode_responses=True,
-        )
+        self.redis = redis.Redis(**get_redis_connection_kwargs())
         self._progress: dict[str, ProgressUpdate] = {}
         self._progress_segments: dict[str, dict[str, ProgressUpdate]] = {}
         self._progress_history: dict[str, list[dict]] = {}
@@ -126,8 +123,11 @@ class TaskScheduler:
                         completed = sum(1 for r in results.values() if r.get("status") in ("completed", "failed", "stopped"))
                         total = len(results)
                         error_msg = f"任务超时：运行超过 {int(elapsed)}s，{completed}/{total} 个 Agent 已响应"
-                    db_update_task(db, task["task_id"],
-                        status="failed", end_time=now,
+                    db_transition_task_status(
+                        db, task["task_id"],
+                        from_statuses=(TaskStatus.RUNNING,),
+                        to_status=TaskStatus.FAILED,
+                        end_time=now,
                         error_message=error_msg,
                     )
         finally:
@@ -146,6 +146,7 @@ class TaskScheduler:
         csv_delimiter: str = ",",
         csv_recycle: bool = True,
         csv_stop_on_eof: bool = False,
+        csv_distribution: str = "replicate",
         enforce_single_agent_task: bool = True,
     ) -> str:
         if not target_agents:
@@ -153,6 +154,12 @@ class TaskScheduler:
 
         if timeout <= 0:
             raise ValueError("超时时间必须大于 0")
+
+        csv_distribution = str(csv_distribution or "replicate").strip().lower()
+        if csv_distribution not in {"replicate", "shard"}:
+            raise ValueError("CSV 分发策略只支持 replicate 或 shard")
+        if csv_distribution == "shard" and not csv_file:
+            raise ValueError("启用 CSV 分片时必须选择 CSV 文件")
 
         running_tasks = self.get_running_tasks()
         if len(running_tasks) >= MAX_CONCURRENT_TASKS:
@@ -199,6 +206,7 @@ class TaskScheduler:
             "csv_delimiter": csv_delimiter,
             "csv_recycle": csv_recycle,
             "csv_stop_on_eof": csv_stop_on_eof,
+            "csv_distribution": csv_distribution,
             "status": TaskStatus.PENDING,
             "created_at": time.time(),
         }
@@ -270,8 +278,11 @@ class TaskScheduler:
     def _fail_task_start(self, task_id: str, error_message: str):
         db = get_sync_db()
         try:
-            db_update_task(db, task_id,
-                status=TaskStatus.FAILED, end_time=time.time(),
+            db_transition_task_status(
+                db, task_id,
+                from_statuses=(TaskStatus.PENDING, TaskStatus.RUNNING),
+                to_status=TaskStatus.FAILED,
+                end_time=time.time(),
                 error_message=error_message,
             )
         finally:
@@ -340,6 +351,16 @@ class TaskScheduler:
         logger.error("Redis XADD failed after 3 attempts for stream %s", stream_key)
         return False
 
+    def _publish_command(self, command: TaskCommand) -> bool:
+        """将命令投递到目标 Agent 的独立 Stream。"""
+        if not command.target_agent_id:
+            logger.error("Command %s has no target_agent_id", command.command_id)
+            return False
+        return self._stream_publish(
+            get_agent_command_stream(command.target_agent_id),
+            command.to_json(),
+        )
+
     def start_task(self, task_id: str) -> bool:
         task = self.get_task(task_id)
         if not task:
@@ -361,51 +382,116 @@ class TaskScheduler:
         self._progress_history.pop(task_id, None)
 
         script_path = os.path.join(SCRIPTS_DIR, f"{task['script_id']}.jmx")
-        if not task.get("csv_file") and not os.path.exists(script_path):
+        if not os.path.exists(script_path):
             db = get_sync_db()
             try:
-                db_update_task(db, task_id,
-                    status="failed", end_time=time.time(),
+                db_transition_task_status(
+                    db, task_id,
+                    from_statuses=(TaskStatus.PENDING,),
+                    to_status=TaskStatus.FAILED,
+                    end_time=time.time(),
                     error_message=f"脚本文件不存在: {task['script_id']}.jmx",
                 )
             finally:
                 db.close()
             return False
 
+        script_content = None
+        script_artifact = None
+        csv_artifact = None
+        csv_artifacts_by_agent = {}
+        csv_partitions = {}
+        csv_legacy_path = task.get("csv_file")
+        csv_delimiter = task.get("csv_delimiter", ",")
+        csv_distribution = task.get("csv_distribution") or "replicate"
+        try:
+            with open(script_path, "rb") as f:
+                script_bytes = f.read()
+            script_artifact = get_artifact_store().put_bytes(
+                kind="scripts",
+                logical_id=str(task["script_id"]),
+                filename=os.path.basename(script_path),
+                content=script_bytes,
+            ).to_dict()
+            if ARTIFACT_INLINE_FALLBACK:
+                script_content = script_bytes.decode("utf-8", errors="replace")
+
+            if task.get("csv_file"):
+                csv_artifacts_by_agent, csv_partitions, csv_meta = prepare_csv_distribution(
+                    task["csv_file"],
+                    task_id,
+                    task["target_agents"],
+                    csv_distribution,
+                )
+                csv_legacy_path = csv_meta.get("filepath") or task["csv_file"]
+                csv_delimiter = csv_meta.get("delimiter") or csv_delimiter
+        except Exception as exc:
+            logger.exception("Failed to prepare task artifacts for task %s", task_id)
+            db = get_sync_db()
+            try:
+                db_transition_task_status(
+                    db, task_id,
+                    from_statuses=(TaskStatus.PENDING,),
+                    to_status=TaskStatus.FAILED,
+                    end_time=time.time(),
+                    error_message=f"任务制品准备失败: {exc}",
+                )
+            finally:
+                db.close()
+            return False
+
+        start_time = time.time()
         db = get_sync_db()
         try:
-            db_update_task(db, task_id,
-                status=TaskStatus.RUNNING, start_time=time.time(),
+            claimed = db_transition_task_status(
+                db, task_id,
+                from_statuses=(TaskStatus.PENDING,),
+                to_status=TaskStatus.RUNNING,
+                start_time=start_time,
             )
         finally:
             db.close()
-
-        script_content = None
-        if not task.get("csv_file") and os.path.exists(script_path):
-            with open(script_path, "r") as f:
-                script_content = f.read()
+        if not claimed:
+            return False
 
         for agent_id in task["target_agents"]:
+            csv_ref = csv_artifacts_by_agent.get(agent_id)
+            csv_artifact = csv_ref.to_dict() if csv_ref else None
             command = TaskCommand(
                 command=CommandType.EXECUTE,
                 task_id=task_id,
                 script_path=script_path,
+                expires_at=time.time() + COMMAND_TTL_SECONDS,
                 target_agent_id=agent_id,
-                script_content=script_content if not task.get("csv_file") else None,
+                script_content=script_content,
+                script_artifact=script_artifact,
                 jmeter_args=task["jmeter_args"],
                 timeout=task["timeout"],
                 distributed=task.get("distributed", False),
                 remote_hosts=task.get("remote_hosts"),
-                csv_file=task.get("csv_file"),
+                csv_file=csv_legacy_path if csv_distribution == "replicate" else None,
+                csv_artifact=csv_artifact,
                 csv_variable_names=task.get("csv_variable_names"),
-                csv_delimiter=task.get("csv_delimiter", ","),
+                csv_delimiter=csv_delimiter,
                 csv_recycle=task.get("csv_recycle", True),
                 csv_stop_on_eof=task.get("csv_stop_on_eof", False),
+                csv_distribution=csv_distribution,
+                csv_partition=csv_partitions.get(agent_id),
             )
-            published = self._stream_publish(REDIS_CHANNEL_COMMAND, command.to_json())
+            published = self._publish_command(command)
             if not published:
                 logger.error("Failed to send command to agent %s for task %s", agent_id, task_id)
-                self._fail_task_start(task_id, "Redis Stream 通信失败，无法下发任务命令")
+                db = get_sync_db()
+                try:
+                    db_transition_task_status(
+                        db, task_id,
+                        from_statuses=(TaskStatus.RUNNING,),
+                        to_status=TaskStatus.FAILED,
+                        end_time=time.time(),
+                        error_message="Redis Stream 通信失败，无法下发任务命令",
+                    )
+                finally:
+                    db.close()
                 return False
 
         return True
@@ -420,9 +506,10 @@ class TaskScheduler:
                 command=CommandType.STOP,
                 task_id=task_id,
                 script_path="",
+                expires_at=time.time() + COMMAND_TTL_SECONDS,
                 target_agent_id=agent_id,
             )
-            self._stream_publish(REDIS_CHANNEL_COMMAND, command.to_json())
+            self._publish_command(command)
 
         return True
 
@@ -452,6 +539,12 @@ class TaskScheduler:
             timeout=old_task.get("timeout", TASK_TIMEOUT),
             distributed=old_task.get("distributed", False),
             remote_hosts=old_task.get("remote_hosts"),
+            csv_file=old_task.get("csv_file"),
+            csv_variable_names=old_task.get("csv_variable_names"),
+            csv_delimiter=old_task.get("csv_delimiter", ","),
+            csv_recycle=old_task.get("csv_recycle", True),
+            csv_stop_on_eof=old_task.get("csv_stop_on_eof", False),
+            csv_distribution=old_task.get("csv_distribution", "replicate"),
         )
         if not self.start_task(new_task_id):
             return None
@@ -494,11 +587,12 @@ class TaskScheduler:
             timeout=timeout,
             distributed=task.get("distributed", False),
             remote_hosts=task.get("remote_hosts"),
-            csv_file=task.get("csv_file"),
-            csv_variable_names=task.get("csv_variable_names"),
-            csv_delimiter=task.get("csv_delimiter", ","),
-            csv_recycle=task.get("csv_recycle", True),
-            csv_stop_on_eof=task.get("csv_stop_on_eof", False),
+            csv_file=overrides.get("csv_file", task.get("csv_file")) if overrides else task.get("csv_file"),
+            csv_variable_names=overrides.get("csv_variable_names", task.get("csv_variable_names")) if overrides else task.get("csv_variable_names"),
+            csv_delimiter=overrides.get("csv_delimiter", task.get("csv_delimiter", ",")) if overrides else task.get("csv_delimiter", ","),
+            csv_recycle=overrides.get("csv_recycle", task.get("csv_recycle", True)) if overrides else task.get("csv_recycle", True),
+            csv_stop_on_eof=overrides.get("csv_stop_on_eof", task.get("csv_stop_on_eof", False)) if overrides else task.get("csv_stop_on_eof", False),
+            csv_distribution=overrides.get("csv_distribution", task.get("csv_distribution", "replicate")) if overrides else task.get("csv_distribution", "replicate"),
             enforce_single_agent_task=False,
         )
         if not self.start_task(new_task_id):
@@ -557,6 +651,7 @@ class TaskScheduler:
                 command=CommandType.ADJUST_LOAD,
                 task_id=task_id,
                 script_path=script_path,
+                expires_at=time.time() + COMMAND_TTL_SECONDS,
                 target_agent_id=agent_id,
                 jmeter_args=adjust_args,
                 timeout=max(duration + ramp_time + 60, 120),
@@ -569,7 +664,7 @@ class TaskScheduler:
                 csv_stop_on_eof=task.get("csv_stop_on_eof", False),
                 segment_id=segment_id,
             )
-            self._stream_publish(REDIS_CHANNEL_COMMAND, command.to_json())
+            self._publish_command(command)
 
         return {
             "task_id": task_id,
@@ -597,6 +692,7 @@ class TaskScheduler:
                     csv_delimiter=cfg.get("csv_delimiter", ","),
                     csv_recycle=cfg.get("csv_recycle", True),
                     csv_stop_on_eof=cfg.get("csv_stop_on_eof", False),
+                    csv_distribution=cfg.get("csv_distribution", "replicate"),
                 )
                 if cfg.get("auto_start", False):
                     self.start_task(task_id)
@@ -642,21 +738,11 @@ class TaskScheduler:
 
         db = get_sync_db()
         try:
-            existing_results = task.get("results", {})
-            agent_result = existing_results.get(result.agent_id)
-
-            if agent_result:
-                db_update_task_result(db, result.task_id, result.agent_id,
-                    status=result.status, start_time=result.start_time,
-                    end_time=result.end_time, report_path=result.report_path,
-                    error_message=result.error_message, summary=result.summary,
-                )
-            else:
-                db_add_task_result(db, result.task_id, result.agent_id,
-                    status=result.status, start_time=result.start_time,
-                    end_time=result.end_time, report_path=result.report_path,
-                    error_message=result.error_message, summary=result.summary,
-                )
+            db_add_task_result(db, result.task_id, result.agent_id,
+                status=result.status, start_time=result.start_time,
+                end_time=result.end_time, report_path=result.report_path,
+                error_message=result.error_message, summary=result.summary,
+            )
 
             task = db_get_task(db, result.task_id)
             if not task:
@@ -687,13 +773,19 @@ class TaskScheduler:
             )
 
             if all_done:
-                has_failed = any(
-                    r["status"] in (TaskStatus.FAILED, TaskStatus.STOPPED)
-                    for r in task_results.values()
-                )
-                new_status = TaskStatus.FAILED if has_failed else TaskStatus.COMPLETED
-                db_update_task(db, result.task_id,
-                    status=new_status, end_time=time.time(),
+                has_failed = any(r["status"] == TaskStatus.FAILED for r in task_results.values())
+                has_stopped = any(r["status"] == TaskStatus.STOPPED for r in task_results.values())
+                if has_failed:
+                    new_status = TaskStatus.FAILED
+                elif has_stopped:
+                    new_status = TaskStatus.STOPPED
+                else:
+                    new_status = TaskStatus.COMPLETED
+                db_transition_task_status(
+                    db, result.task_id,
+                    from_statuses=(TaskStatus.RUNNING,),
+                    to_status=new_status,
+                    end_time=time.time(),
                 )
                 try:
                     from manager.core.sample_cache import invalidate_cache

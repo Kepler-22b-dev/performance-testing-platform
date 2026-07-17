@@ -317,6 +317,29 @@ pip_install_one_by_one() {
 }
 
 #============================================================
+# 配置 PostgreSQL
+#============================================================
+setup_database() {
+    info "检查 PostgreSQL..."
+
+    if ! python3 -c "from common.database import sync_engine; c=sync_engine.connect(); c.close()" 2>/dev/null; then
+        if [ -z "${DATABASE_URL:-}" ] && command -v createdb >/dev/null 2>&1; then
+            warn "默认数据库 perftest 不可用，尝试创建..."
+            createdb perftest 2>/dev/null || true
+        fi
+    fi
+
+    if ! python3 -c "from common.database import sync_engine; c=sync_engine.connect(); c.close()" 2>/dev/null; then
+        error "PostgreSQL 不可用，请启动 PostgreSQL 并配置 DATABASE_URL（参考 .env.example）"
+    fi
+
+    step "执行数据库迁移..."
+    python3 -m alembic upgrade head >/tmp/perftest-alembic.log 2>&1 || \
+        error "数据库迁移失败，查看 /tmp/perftest-alembic.log"
+    log "PostgreSQL: 连接和迁移正常"
+}
+
+#============================================================
 # 配置 JMeter
 #============================================================
 setup_jmeter() {
@@ -590,6 +613,7 @@ fix_all() {
     
     # 5. 重启服务
     step "重启服务..."
+    setup_database
     stop_all 2>/dev/null
     sleep 2
     
@@ -631,6 +655,7 @@ main() {
         start)
             check_env
             install_deps
+            setup_database
             setup_jmeter
             setup_dirs
             start_manager
@@ -647,6 +672,7 @@ main() {
         restart)
             stop_all
             sleep 1
+            setup_database
             start_manager
             start_agent
             start_slaves

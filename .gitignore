@@ -7,6 +7,7 @@ jmeter.log
 jmeter-server.log
 temp/
 reports/
+artifacts/
 config/csv/
 config/nodes.json
 config/variables.json

@@ -17,6 +17,7 @@ from manager.core.variables import (
     get_all_csvs, upload_csv, get_csv, get_csv_data,
     delete_csv, get_csv_preview, get_csvs_page,
 )
+from common.config import CSV_MAX_UPLOAD_BYTES
 
 router = APIRouter(prefix="/api/data", tags=["data"])
 
@@ -84,12 +85,19 @@ def list_csvs(offset: int = 0, limit: int = 100):
 @router.post("/csv/upload")
 async def upload_csv_endpoint(file: UploadFile = File(...)):
     """上传 CSV 数据文件用于压测参数化。"""
-    if not file.filename.endswith(".csv"):
+    if not (file.filename or "").lower().endswith(".csv"):
         raise HTTPException(status_code=400, detail="只支持 .csv 文件")
 
-    content = await file.read()
-    result = upload_csv(filename=file.filename, content=content)
-    return result
+    content = await file.read(CSV_MAX_UPLOAD_BYTES + 1)
+    if len(content) > CSV_MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"CSV 文件不能超过 {CSV_MAX_UPLOAD_BYTES // 1024 // 1024} MB",
+        )
+    try:
+        return upload_csv(filename=file.filename, content=content)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.get("/csv/{csv_id}")

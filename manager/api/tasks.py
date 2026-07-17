@@ -236,6 +236,7 @@ class TaskCreateRequest(BaseModel):
     csv_delimiter: str = ","
     csv_recycle: bool = True
     csv_stop_on_eof: bool = False
+    csv_distribution: str = "replicate"
 
 
 class QuickRunRequest(BaseModel):
@@ -253,6 +254,7 @@ class QuickRunRequest(BaseModel):
     csv_delimiter: str = ","
     csv_recycle: bool = True
     csv_stop_on_eof: bool = False
+    csv_distribution: str = "replicate"
     scenario: Optional[dict] = None  # 自定义并发场景配置
     jvm_heap_mb: Optional[int] = None
     capture_error_log: bool = True
@@ -277,6 +279,7 @@ class BatchTaskItem(BaseModel):
     csv_delimiter: str = ","
     csv_recycle: bool = True
     csv_stop_on_eof: bool = False
+    csv_distribution: str = "replicate"
 
 
 class BatchTaskRequest(BaseModel):
@@ -393,6 +396,7 @@ def create_task(req: TaskCreateRequest):
             csv_delimiter=req.csv_delimiter,
             csv_recycle=req.csv_recycle,
             csv_stop_on_eof=req.csv_stop_on_eof,
+            csv_distribution=req.csv_distribution,
             enforce_single_agent_task=req.enforce_single_agent_task,
         )
         return {"task_id": task_id, "message": "Task created"}
@@ -514,6 +518,12 @@ def stop_and_restart(task_id: str, req: Optional[TaskCreateRequest] = None):
             "duration": req.jmeter_args.get("duration"),
             "target_agents": req.target_agents,
             "timeout": timeout,
+            "csv_file": req.csv_file,
+            "csv_variable_names": req.csv_variable_names,
+            "csv_delimiter": req.csv_delimiter,
+            "csv_recycle": req.csv_recycle,
+            "csv_stop_on_eof": req.csv_stop_on_eof,
+            "csv_distribution": req.csv_distribution,
         }
     new_id = _get_scheduler().stop_and_rerun(task_id, overrides if overrides else None)
     if not new_id:
@@ -597,6 +607,7 @@ def quick_run(req: QuickRunRequest):
             csv_delimiter=req.csv_delimiter,
             csv_recycle=req.csv_recycle,
             csv_stop_on_eof=req.csv_stop_on_eof,
+            csv_distribution=req.csv_distribution,
             enforce_single_agent_task=req.enforce_single_agent_task,
         )
         if not _get_scheduler().start_task(task_id):

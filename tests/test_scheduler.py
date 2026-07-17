@@ -4,7 +4,10 @@ from unittest.mock import patch, MagicMock
 
 import redis
 
-from common.protocol import CommandType, ProgressUpdate, TaskCommand, TaskResult, TaskStatus
+from common.protocol import (
+    CommandType, ProgressUpdate, TaskCommand, TaskResult, TaskStatus,
+    validate_task_status_transition,
+)
 from manager.core.scheduler import TaskScheduler
 from tests.conftest import make_running_task, make_task, make_completed_result
 
@@ -33,6 +36,16 @@ class FakeNodeManager:
 
 
 class TestCreateTaskValidation:
+    def test_terminal_task_cannot_transition_back_to_running(self):
+        try:
+            validate_task_status_transition(
+                (TaskStatus.COMPLETED,),
+                TaskStatus.RUNNING,
+            )
+            assert False, "Should have rejected terminal state rollback"
+        except ValueError as exc:
+            assert "非法任务状态转换" in str(exc)
+
     def test_generate_task_id_uses_redis_incr(self):
         s = _build_scheduler()
         s.redis.incr.return_value = 42
@@ -83,6 +96,33 @@ class TestCreateTaskValidation:
             assert False, "Should have raised ValueError"
         except ValueError as e:
             assert "超时时间" in str(e)
+
+    def test_invalid_csv_distribution_raises(self):
+        s = _build_scheduler()
+        try:
+            s.create_task(
+                script_id="x",
+                target_agents=["a-1"],
+                jmeter_args={},
+                csv_file="csv-1",
+                csv_distribution="random",
+            )
+            assert False, "Should have rejected invalid CSV distribution"
+        except ValueError as exc:
+            assert "CSV 分发策略" in str(exc)
+
+    def test_csv_shard_requires_csv_file(self):
+        s = _build_scheduler()
+        try:
+            s.create_task(
+                script_id="x",
+                target_agents=["a-1"],
+                jmeter_args={},
+                csv_distribution="shard",
+            )
+            assert False, "Should have required a CSV file"
+        except ValueError as exc:
+            assert "必须选择 CSV" in str(exc)
 
     def test_concurrent_limit_reached(self):
         s = _build_scheduler()
@@ -192,12 +232,12 @@ class TestCleanupStuckTasks:
 
         with patch("manager.core.scheduler.get_sync_db", return_value=mock_db), \
              patch("manager.core.scheduler.db_get_running_tasks", return_value=[task]), \
-             patch("manager.core.scheduler.db_update_task") as mock_update:
+             patch("manager.core.scheduler.db_transition_task_status") as mock_update:
             s._cleanup_stuck_tasks()
             mock_update.assert_called_once()
             args = mock_update.call_args
             assert args[0][1] == "task-test0001"
-            assert args[1]["status"] == "failed"
+            assert args[1]["to_status"] == TaskStatus.FAILED
             assert "未收到任何 Agent 响应" in args[1]["error_message"]
 
     def test_partial_results_timeout_marks_failed(self):
@@ -213,7 +253,7 @@ class TestCleanupStuckTasks:
 
         with patch("manager.core.scheduler.get_sync_db", return_value=mock_db), \
              patch("manager.core.scheduler.db_get_running_tasks", return_value=[task]), \
-             patch("manager.core.scheduler.db_update_task") as mock_update:
+             patch("manager.core.scheduler.db_transition_task_status") as mock_update:
             s._cleanup_stuck_tasks()
             mock_update.assert_called_once()
             args = mock_update.call_args
@@ -226,7 +266,7 @@ class TestCleanupStuckTasks:
 
         with patch("manager.core.scheduler.get_sync_db", return_value=mock_db), \
              patch("manager.core.scheduler.db_get_running_tasks", return_value=[task]), \
-             patch("manager.core.scheduler.db_update_task") as mock_update:
+             patch("manager.core.scheduler.db_transition_task_status") as mock_update:
             s._cleanup_stuck_tasks()
             mock_update.assert_not_called()
 
@@ -237,7 +277,7 @@ class TestCleanupStuckTasks:
 
         with patch("manager.core.scheduler.get_sync_db", return_value=mock_db), \
              patch("manager.core.scheduler.db_get_running_tasks", return_value=[task]), \
-             patch("manager.core.scheduler.db_update_task") as mock_update:
+             patch("manager.core.scheduler.db_transition_task_status") as mock_update:
             s._cleanup_stuck_tasks()
             mock_update.assert_called_once()
 
@@ -249,7 +289,7 @@ class TestCleanupStuckTasks:
 
         with patch("manager.core.scheduler.get_sync_db", return_value=mock_db), \
              patch("manager.core.scheduler.db_get_running_tasks", return_value=[stuck, ok]), \
-             patch("manager.core.scheduler.db_update_task") as mock_update:
+             patch("manager.core.scheduler.db_transition_task_status") as mock_update:
             s._cleanup_stuck_tasks()
             assert mock_update.call_count == 1
             assert mock_update.call_args[0][1] == "task-stuck"
@@ -264,11 +304,32 @@ class TestStartTaskScriptCheck:
         with patch("manager.core.scheduler.get_sync_db", return_value=mock_db), \
              patch("manager.core.scheduler.db_get_task", return_value=task), \
              patch("manager.core.scheduler.os.path.exists", return_value=False), \
-             patch("manager.core.scheduler.db_update_task") as mock_update:
+             patch("manager.core.scheduler.db_transition_task_status") as mock_update:
             result = s.start_task("task-test0001")
             assert result is False
             mock_update.assert_called_once()
             assert "脚本文件不存在" in mock_update.call_args[1]["error_message"]
+
+    def test_artifact_storage_failure_marks_pending_task_failed(self, tmp_path):
+        s = _build_scheduler()
+        task = make_task(status=TaskStatus.PENDING, script_id="load")
+        script_path = tmp_path / "load.jmx"
+        script_path.write_text("<jmeterTestPlan />", encoding="utf-8")
+        broken_store = MagicMock()
+        broken_store.put_bytes.side_effect = RuntimeError("minio unavailable")
+
+        with patch("manager.core.scheduler.SCRIPTS_DIR", str(tmp_path)), \
+             patch("manager.core.scheduler.get_sync_db", return_value=MagicMock()), \
+             patch("manager.core.scheduler.db_get_task", return_value=task), \
+             patch("manager.core.scheduler.get_artifact_store", return_value=broken_store), \
+             patch("manager.core.scheduler.db_transition_task_status") as mock_transition:
+            result = s.start_task(task["task_id"])
+
+        assert result is False
+        assert mock_transition.call_count == 1
+        assert mock_transition.call_args.kwargs["to_status"] == TaskStatus.FAILED
+        assert "任务制品准备失败" in mock_transition.call_args.kwargs["error_message"]
+        s.redis.xadd.assert_not_called()
 
     def test_unavailable_target_agent_marks_failed(self):
         node_manager = FakeNodeManager([
@@ -284,12 +345,12 @@ class TestStartTaskScriptCheck:
 
         with patch("manager.core.scheduler.get_sync_db", return_value=mock_db), \
              patch("manager.core.scheduler.db_get_task", return_value=task), \
-             patch("manager.core.scheduler.db_update_task") as mock_update:
+             patch("manager.core.scheduler.db_transition_task_status") as mock_update:
             result = s.start_task(task["task_id"])
 
         assert result is False
         mock_update.assert_called_once()
-        assert mock_update.call_args.kwargs["status"] == TaskStatus.FAILED
+        assert mock_update.call_args.kwargs["to_status"] == TaskStatus.FAILED
         assert "agent-stale 未在线" in mock_update.call_args.kwargs["error_message"]
         s.redis.xadd.assert_not_called()
 
@@ -319,29 +380,162 @@ class TestTaskCommandTargeting:
         """从 redis.xadd 调用中提取命令 payload。"""
         payloads = []
         for call in scheduler.redis.xadd.call_args_list:
-            if call.args and call.args[0] == "jmeter:command":
+            if call.args and str(call.args[0]).startswith("jmeter:command:"):
                 fields = call.args[1] if len(call.args) > 1 else call.kwargs.get("field_map", {})
                 if "data" in fields:
                     payloads.append(fields["data"])
         return [TaskCommand.from_json(p) for p in payloads]
 
-    def test_start_task_targets_each_agent(self):
+    def test_start_task_targets_each_agent(self, tmp_path):
         s = _build_scheduler()
         task = make_task(
             status=TaskStatus.PENDING,
             target_agents=["agent-001", "agent-002"],
-            csv_file="data.csv",
+        )
+        (tmp_path / f"{task['script_id']}.jmx").write_text(
+            "<jmeterTestPlan />", encoding="utf-8"
         )
         mock_db = MagicMock()
 
-        with patch("manager.core.scheduler.get_sync_db", return_value=mock_db), \
+        with patch("manager.core.scheduler.SCRIPTS_DIR", str(tmp_path)), \
+             patch("manager.core.scheduler.get_sync_db", return_value=mock_db), \
              patch("manager.core.scheduler.db_get_task", return_value=task), \
-             patch("manager.core.scheduler.db_update_task"):
+             patch("manager.core.scheduler.db_transition_task_status", return_value=True):
             result = s.start_task(task["task_id"])
 
         assert result is True
         commands = self._extract_command_payloads(s)
         assert [c.target_agent_id for c in commands] == ["agent-001", "agent-002"]
+        assert all(c.command_id.startswith("cmd-") for c in commands)
+        assert all(c.expires_at and c.expires_at > c.created_at for c in commands)
+        stream_names = [call.args[0] for call in s.redis.xadd.call_args_list]
+        assert stream_names == [
+            "jmeter:command:agent-001",
+            "jmeter:command:agent-002",
+        ]
+
+    def test_start_task_is_not_dispatched_when_atomic_claim_fails(self):
+        s = _build_scheduler()
+        task = make_task(status=TaskStatus.PENDING, csv_file="data.csv")
+
+        with patch("manager.core.scheduler.get_sync_db", return_value=MagicMock()), \
+             patch("manager.core.scheduler.db_get_task", return_value=task), \
+             patch("manager.core.scheduler.db_transition_task_status", return_value=False):
+            result = s.start_task(task["task_id"])
+
+        assert result is False
+        s.redis.xadd.assert_not_called()
+
+    def test_start_task_publishes_script_artifact_manifest(self, tmp_path):
+        s = _build_scheduler()
+        task = make_task(status=TaskStatus.PENDING, script_id="load")
+        (tmp_path / "load.jmx").write_text("<jmeterTestPlan />", encoding="utf-8")
+        artifact = SimpleNamespace(to_dict=lambda: {
+            "artifact_id": "scripts-abc",
+            "kind": "scripts",
+            "version": "abc",
+            "storage_key": "scripts/load/abc/load.jmx",
+            "sha256": "abc",
+            "size": 19,
+            "filename": "load.jmx",
+        })
+        store = MagicMock()
+        store.put_bytes.return_value = artifact
+
+        with patch("manager.core.scheduler.SCRIPTS_DIR", str(tmp_path)), \
+             patch("manager.core.scheduler.ARTIFACT_INLINE_FALLBACK", False), \
+             patch("manager.core.scheduler.get_artifact_store", return_value=store), \
+             patch("manager.core.scheduler.get_sync_db", return_value=MagicMock()), \
+             patch("manager.core.scheduler.db_get_task", return_value=task), \
+             patch("manager.core.scheduler.db_transition_task_status", return_value=True):
+            result = s.start_task(task["task_id"])
+
+        assert result is True
+        command = self._extract_command_payloads(s)[0]
+        assert command.script_artifact["artifact_id"] == "scripts-abc"
+        assert command.script_artifact["sha256"] == "abc"
+        assert command.script_content is None
+
+    def test_start_task_resolves_csv_id_to_artifact(self, tmp_path):
+        s = _build_scheduler()
+        task = make_task(
+            status=TaskStatus.PENDING,
+            script_id="load",
+            csv_file="csv-123",
+        )
+        (tmp_path / "load.jmx").write_text("<jmeterTestPlan />", encoding="utf-8")
+        csv_ref = SimpleNamespace(to_dict=lambda: {
+            "artifact_id": "csv-def",
+            "kind": "csv",
+            "version": "def",
+            "storage_key": "csv/csv-123/def/users.csv",
+            "sha256": "def",
+            "size": 20,
+            "filename": "users.csv",
+        })
+
+        with patch("manager.core.scheduler.SCRIPTS_DIR", str(tmp_path)), \
+             patch("manager.core.scheduler.prepare_csv_distribution", return_value=(
+                 {"agent-001": csv_ref},
+                 {"agent-001": {"mode": "replicate", "row_count": 1}},
+                 {"filepath": "/legacy/users.csv", "delimiter": ";"},
+             )), \
+             patch("manager.core.scheduler.get_sync_db", return_value=MagicMock()), \
+             patch("manager.core.scheduler.db_get_task", return_value=task), \
+             patch("manager.core.scheduler.db_transition_task_status", return_value=True):
+            result = s.start_task(task["task_id"])
+
+        assert result is True
+        command = self._extract_command_payloads(s)[0]
+        assert command.script_artifact is not None
+        assert command.csv_artifact["artifact_id"] == "csv-def"
+        assert command.csv_file == "/legacy/users.csv"
+        assert command.csv_delimiter == ";"
+
+    def test_start_task_sends_distinct_csv_shards_to_each_agent(self, tmp_path):
+        s = _build_scheduler()
+        task = make_task(
+            status=TaskStatus.PENDING,
+            script_id="load",
+            target_agents=["agent-001", "agent-002"],
+            csv_file="csv-123",
+            csv_distribution="shard",
+        )
+        (tmp_path / "load.jmx").write_text("<jmeterTestPlan />", encoding="utf-8")
+        refs = {
+            agent_id: SimpleNamespace(to_dict=lambda agent_id=agent_id: {
+                "artifact_id": f"csv-{agent_id}",
+                "kind": "csv-shards",
+                "version": agent_id,
+                "storage_key": f"csv-shards/{agent_id}.csv",
+                "sha256": agent_id,
+                "size": 20,
+                "filename": f"{agent_id}.csv",
+            })
+            for agent_id in task["target_agents"]
+        }
+        partitions = {
+            "agent-001": {"mode": "shard", "shard_index": 0, "row_start": 1, "row_end": 3, "row_count": 3},
+            "agent-002": {"mode": "shard", "shard_index": 1, "row_start": 4, "row_end": 5, "row_count": 2},
+        }
+
+        with patch("manager.core.scheduler.SCRIPTS_DIR", str(tmp_path)), \
+             patch("manager.core.scheduler.prepare_csv_distribution", return_value=(
+                 refs, partitions, {"filepath": "/legacy/users.csv", "delimiter": ","}
+             )), \
+             patch("manager.core.scheduler.get_sync_db", return_value=MagicMock()), \
+             patch("manager.core.scheduler.db_get_task", return_value=task), \
+             patch("manager.core.scheduler.db_transition_task_status", return_value=True):
+            result = s.start_task(task["task_id"])
+
+        assert result is True
+        commands = self._extract_command_payloads(s)
+        assert [c.csv_artifact["artifact_id"] for c in commands] == [
+            "csv-agent-001", "csv-agent-002"
+        ]
+        assert [c.csv_partition["row_count"] for c in commands] == [3, 2]
+        assert all(c.csv_file is None for c in commands)
+        assert all(c.csv_distribution == "shard" for c in commands)
 
     def test_adjust_load_targets_each_running_agent(self):
         s = _build_scheduler()
@@ -404,7 +598,7 @@ class TestHandleResultFinalization:
         with patch("manager.core.scheduler.get_sync_db", return_value=MagicMock()), \
              patch("manager.core.scheduler.db_get_task", side_effect=[task_before, partial_task]), \
              patch("manager.core.scheduler.db_add_task_result"), \
-             patch("manager.core.scheduler.db_update_task") as mock_update:
+             patch("manager.core.scheduler.db_transition_task_status") as mock_update:
             s.handle_result(TaskResult(
                 task_id=task_id,
                 agent_id="agent-001",
@@ -437,7 +631,7 @@ class TestHandleResultFinalization:
         with patch("manager.core.scheduler.get_sync_db", return_value=MagicMock()), \
              patch("manager.core.scheduler.db_get_task", side_effect=[task_before, completed_task]), \
              patch("manager.core.scheduler.db_add_task_result"), \
-             patch("manager.core.scheduler.db_update_task") as mock_update:
+             patch("manager.core.scheduler.db_transition_task_status") as mock_update:
             s.handle_result(TaskResult(
                 task_id=task_id,
                 agent_id="agent-002",
@@ -448,7 +642,32 @@ class TestHandleResultFinalization:
             ))
 
         mock_update.assert_called_once()
-        assert mock_update.call_args.kwargs["status"] == TaskStatus.COMPLETED
+        assert mock_update.call_args.kwargs["to_status"] == TaskStatus.COMPLETED
+
+    def test_stopped_agent_result_finishes_task_as_stopped(self):
+        s = _build_scheduler()
+        task_id = "task-stopped"
+        stopped_result = make_completed_result("agent-001", status=TaskStatus.STOPPED)
+        task_before = make_task(task_id=task_id, status=TaskStatus.RUNNING, results={})
+        stopped_task = make_task(
+            task_id=task_id,
+            status=TaskStatus.RUNNING,
+            results={"agent-001": stopped_result},
+        )
+
+        with patch("manager.core.scheduler.get_sync_db", return_value=MagicMock()), \
+             patch("manager.core.scheduler.db_get_task", side_effect=[task_before, stopped_task]), \
+             patch("manager.core.scheduler.db_add_task_result"), \
+             patch("manager.core.scheduler.db_transition_task_status") as mock_transition:
+            s.handle_result(TaskResult(
+                task_id=task_id,
+                agent_id="agent-001",
+                status=TaskStatus.STOPPED,
+                start_time=stopped_result["start_time"],
+                end_time=stopped_result["end_time"],
+            ))
+
+        assert mock_transition.call_args.kwargs["to_status"] == TaskStatus.STOPPED
 
 
 class TestProgressAggregation:

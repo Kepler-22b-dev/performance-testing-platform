@@ -1208,6 +1208,14 @@
                             <button class="filter-btn" type="button" onclick="clearCsvSelection()">不使用 CSV</button>
                         </div>
                     </div>
+                    <div class="form-group" style="margin:8px 0 0;">
+                        <label style="font-size:12px;">多 Agent 数据分发</label>
+                        <select id="create-csv-distribution" onchange="updateCreateSummary()" style="width:100%;">
+                            <option value="replicate">完整复制 — 每个 Agent 使用全部数据</option>
+                            <option value="shard">均衡分片 — 每行数据只分配给一个 Agent</option>
+                        </select>
+                        <span class="create-field-help">账号、订单等不可重复数据建议选择均衡分片。</span>
+                    </div>
                 </div>
             </div>
             <div class="create-side-panel">
@@ -4923,6 +4931,9 @@
             const runtime = getCreateRuntimeOptions();
             updateCreateHeapHelp(scenario, runtime);
             const csvText = getSelectedOptionText('create-csv-file') || '不使用 CSV';
+            const csvDistributionEl = document.getElementById('create-csv-distribution');
+            const csvDistribution = csvDistributionEl ? csvDistributionEl.value : 'replicate';
+            const csvDistributionText = csvDistribution === 'shard' ? '均衡分片' : '完整复制';
             const scriptText = getSelectedOptionText('create-script') || '未选择脚本';
             const nodeText = nodePayload.mode === 'auto'
                 ? ((createFormState.availableAgents || []).length > 0 ? '自动选择空闲 Agent' : '无空闲 Agent')
@@ -4962,7 +4973,7 @@
                 ['脚本', scriptText],
                 ['场景', scenarioName],
                 ['节点', nodeText],
-                ['数据', csvText === '不使用 CSV' ? '未使用 CSV' : csvText],
+                ['数据', csvText === '不使用 CSV' ? '未使用 CSV' : `${csvText} / ${csvDistributionText}`],
             ];
             flow.innerHTML = flowItems.map(item => `
                 <div class="create-flow-step">
@@ -4984,6 +4995,7 @@
                 { label: '压力机', value: runtime.enforceSingleAgentTask ? '同节点独占' : '关闭独占校验' },
                 ...(resourceText ? [{ label: '资源', value: resourceText, wide: true }] : []),
                 { label: 'CSV', value: csvText, wide: csvText !== '不使用 CSV' },
+                ...(csvText !== '不使用 CSV' ? [{ label: 'CSV 分发', value: csvDistributionText }] : []),
                 { label: '模式', value: modeText },
             ];
 
@@ -5315,6 +5327,8 @@
                 if (meta) meta.textContent = '不使用 CSV';
                 const varsInput = document.getElementById('create-csv-vars');
                 if (varsInput) varsInput.value = '';
+                const distribution = document.getElementById('create-csv-distribution');
+                if (distribution) distribution.value = 'replicate';
             }
             updateCreateSummary();
         }
@@ -5426,6 +5440,9 @@
 
             const csvFile = document.getElementById('create-csv-file').value || null;
             let csvVars = csvFile ? document.getElementById('create-csv-vars').value.trim() : null;
+            const csvDistribution = csvFile
+                ? document.getElementById('create-csv-distribution').value
+                : 'replicate';
 
             if (csvFile && !csvVars) {
                 const varsInput = document.getElementById('create-csv-vars');
@@ -5452,6 +5469,7 @@
                         remote_hosts: nodePayload.remoteHosts,
                         csv_file: csvFile || null,
                         csv_variable_names: csvVars || null,
+                        csv_distribution: csvDistribution,
                         scenario: scenarioConfig,
                         jvm_heap_mb: runtime.jvmHeapMb,
                         capture_error_log: runtime.captureErrorLog,

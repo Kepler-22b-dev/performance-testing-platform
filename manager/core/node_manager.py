@@ -15,8 +15,8 @@ from typing import Optional, List, Any
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 from common.config import (
-    REDIS_HOST, REDIS_PORT, REDIS_DB,
     REDIS_CHANNEL_HEARTBEAT, AGENT_HEARTBEAT_INTERVAL,
+    get_redis_connection_kwargs,
 )
 from common.protocol import AgentInfo
 
@@ -35,10 +35,7 @@ class NodeManager:
 
     def __init__(self) -> None:
         """初始化节点管理器，建立 Redis 连接并创建消费者组。"""
-        self.redis = redis.Redis(
-            host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB,
-            decode_responses=True,
-        )
+        self.redis = redis.Redis(**get_redis_connection_kwargs())
         # 内存中的 Agent 信息缓存，key 为 agent_id
         self._agents: dict[str, AgentInfo] = {}
         # Redis Stream 消费者组名称，用于心跳消息的可靠消费

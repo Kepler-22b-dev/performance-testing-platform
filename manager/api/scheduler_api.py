@@ -271,9 +271,12 @@ def force_cleanup_task(task_id: str):
         return {"status": "skipped", "message": f"任务状态为 {task['status']}，无需清理"}
     db = get_sync_db()
     try:
-        from manager.core.db_sync import db_update_task
-        db_update_task(db, task_id,
-            status="failed", end_time=time.time(),
+        from manager.core.db_sync import db_transition_task_status
+        db_transition_task_status(
+            db, task_id,
+            from_statuses=("running",),
+            to_status="failed",
+            end_time=time.time(),
             error_message="手动强制清理",
         )
     finally:

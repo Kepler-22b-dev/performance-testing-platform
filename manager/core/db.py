@@ -4,6 +4,7 @@
 import time
 from typing import Optional
 from sqlalchemy import select, update, delete, func
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from manager.models.db_models import (
@@ -11,6 +12,7 @@ from manager.models.db_models import (
     Template, Environment, AlertRule, Schedule,
     Notification, NodeRegistry, ScriptCounter,
 )
+from common.protocol import validate_task_status_transition
 
 
 def _to_dict(obj) -> dict:
@@ -187,6 +189,24 @@ async def db_update_task(db: AsyncSession, task_id: str, **kwargs) -> bool:
     return result.rowcount > 0
 
 
+async def db_transition_task_status(
+    db: AsyncSession,
+    task_id: str,
+    from_statuses: list[str] | tuple[str, ...],
+    to_status: str,
+    **kwargs,
+) -> bool:
+    """以单条条件更新原子完成任务状态转换。"""
+    validate_task_status_transition(from_statuses, to_status)
+    result = await db.execute(
+        update(Task)
+        .where(Task.task_id == task_id, Task.status.in_(from_statuses))
+        .values(status=to_status, **kwargs)
+    )
+    await db.commit()
+    return result.rowcount == 1
+
+
 async def db_delete_task(db: AsyncSession, task_id: str) -> bool:
     await db.execute(delete(TaskResult).where(TaskResult.task_id == task_id))
     result = await db.execute(delete(Task).where(Task.task_id == task_id))
@@ -200,13 +220,22 @@ async def db_add_task_result(db: AsyncSession, task_id: str, agent_id: str,
                               status: str, start_time: float = None,
                               end_time: float = None, report_path: str = None,
                               error_message: str = None, summary: dict = None) -> None:
-    result = TaskResult(
-        task_id=task_id, agent_id=agent_id, status=status,
-        start_time=start_time, end_time=end_time,
-        report_path=report_path, error_message=error_message,
-        summary=summary or {},
+    values = {
+        "task_id": task_id,
+        "agent_id": agent_id,
+        "status": status,
+        "start_time": start_time,
+        "end_time": end_time,
+        "report_path": report_path,
+        "error_message": error_message,
+        "summary": summary or {},
+    }
+    statement = pg_insert(TaskResult).values(**values)
+    statement = statement.on_conflict_do_update(
+        constraint="uq_task_results_task_agent",
+        set_={key: value for key, value in values.items() if key not in {"task_id", "agent_id"}},
     )
-    db.add(result)
+    await db.execute(statement)
     await db.commit()
 
 

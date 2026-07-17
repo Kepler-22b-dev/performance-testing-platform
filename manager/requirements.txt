@@ -7,6 +7,9 @@ aiofiles
 weasyprint
 sqlalchemy[asyncio]
 asyncpg
+psycopg2-binary
+alembic
+boto3
 pytest
 httpx
 pymobiledevice3

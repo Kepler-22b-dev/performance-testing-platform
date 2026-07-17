@@ -13,7 +13,7 @@ from typing import Set, Optional
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 from common.config import (
-    REDIS_HOST, REDIS_PORT, REDIS_DB,
+    get_redis_connection_kwargs,
 )
 
 
@@ -31,10 +31,7 @@ class ConnectionManager:
 
     async def connect(self) -> None:
         """初始化 Redis 连接并启动后台监听任务。"""
-        self._redis = aioredis.Redis(
-            host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB,
-            decode_responses=True,
-        )
+        self._redis = aioredis.Redis(**get_redis_connection_kwargs())
         self._listener_task = asyncio.create_task(self._listen_redis())
 
     async def disconnect(self) -> None:

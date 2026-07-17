@@ -364,8 +364,12 @@ class JMeterRunner:
             ET.SubElement(csv_config, "stringProp", name="delimiter").text = delimiter
             ET.SubElement(csv_config, "boolProp", name="recycle").text = str(recycle).lower()
             ET.SubElement(csv_config, "boolProp", name="stopThread").text = str(stop_on_eof).lower()
-            ET.SubElement(csv_config, "boolProp", name="ignoreFirstLine").text = "false"
-            ET.SubElement(csv_config, "boolProp", name="quotedData").text = "false"
+            # 平台上传时将第一行作为列名，不能在压测时当作业务数据。
+            ET.SubElement(csv_config, "boolProp", name="ignoreFirstLine").text = (
+                "true" if variable_names else "false"
+            )
+            # 支持 "hello,world" 等包含分隔符的标准 CSV 字段。
+            ET.SubElement(csv_config, "boolProp", name="quotedData").text = "true"
             ET.SubElement(csv_config, "boolProp", name="collapseRows").text = "false"
 
             csv_hash = ET.SubElement(root_hash_tree, "hashTree")
