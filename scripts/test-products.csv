@@ -1,0 +1,21 @@
+product_id,name,category,price,stock,keyword,min_price,max_price,page,size,sort_by
+SKU-1001,Mock Phone 15,phone,5299,5000,phone,1000,6000,1,10,price_asc
+SKU-1002,Mock Laptop Pro,computer,8999,3000,mock,5000,10000,1,10,price_desc
+SKU-1003,Mock Wireless Earbuds,audio,699,8000,earbuds,100,1000,2,5,sales_desc
+SKU-1004,Mock Coffee Machine,home,1299,2000,coffee,500,2000,1,10,price_asc
+SKU-1005,Mock Running Shoes,sport,499,6000,running,100,1000,1,10,sales_desc
+SKU-1006,Mock Smart Watch,watch,1599,4000,watch,500,2000,1,10,price_asc
+SKU-1007,Mock Bluetooth Speaker,audio,399,7000,bluetooth,100,500,2,5,price_desc
+SKU-1008,Mock Tablet Pro,computer,4299,2500,tablet,2000,6000,1,10,sales_desc
+SKU-1009,Mock Gaming Mouse,computer,199,10000,mouse,50,300,1,10,price_asc
+SKU-1010,Mock Power Bank,accessory,129,15000,power,50,200,3,5,sales_desc
+SKU-1011,Mock Air Purifier,home,1899,3000,air,1000,3000,1,10,price_desc
+SKU-1012,Mock Robot Vacuum,home,2599,2000,vacuum,1000,4000,1,10,sales_desc
+SKU-1013,Mock Electric Scooter,sport,2999,1500,scooter,1000,5000,2,5,price_asc
+SKU-1014,Mock Drone Camera,electronics,3599,1000,drone,2000,5000,1,10,sales_desc
+SKU-1015,Mock Wireless Charger,accessory,89,20000,charger,50,150,1,10,price_asc
+SKU-1016,Mock Mechanical Keyboard,computer,299,8000,keyboard,100,500,2,5,sales_desc
+SKU-1017,Mock Noise Cancelling Headphones,audio,1299,5000,headphones,500,2000,1,10,price_asc
+SKU-1018,Mock Smart Home Hub,smart_home,799,4000,smart,500,1500,1,10,sales_desc
+SKU-1019,Mock Action Camera,electronics,1999,3000,camera,1000,3000,1,10,price_asc
+SKU-1020,Mock Fitness Tracker,sport,299,12000,fitness,100,500,3,5,sales_desc

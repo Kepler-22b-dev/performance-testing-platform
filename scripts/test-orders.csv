@@ -1,0 +1,16 @@
+order_id,product_id,quantity,pay_type,remark,keyword,search_page,search_size,reason
+ORD-001,SKU-1001,1,MOCK_PAY,测试订单-手机,phone,1,10,测试取消
+ORD-002,SKU-1002,1,MOCK_PAY,压力测试-笔记本,computer,1,10,库存不足
+ORD-003,SKU-1003,2,MOCK_PAY,功能验证-耳机,audio,2,5,重复订单
+ORD-004,SKU-1004,1,MOCK_PAY,并发测试-咖啡机,home,1,10,价格错误
+ORD-005,SKU-1005,3,MOCK_PAY,稳定性测试-运动鞋,sport,1,10,超时取消
+ORD-006,SKU-1001,1,MOCK_PAY,回归测试-手机,phone,2,5,规格不符
+ORD-007,SKU-1002,1,MOCK_PAY,性能测试-笔记本,mock,3,5,物流异常
+ORD-008,SKU-1003,1,MOCK_PAY,接口测试-耳机,laptop,1,10,质量问题
+ORD-009,SKU-1004,2,MOCK_PAY,自动化测试-咖啡机,coffee,1,10,客户取消
+ORD-010,SKU-1005,1,MOCK_PAY,全量测试-运动鞋,running,1,10,缺货取消
+ORD-011,SKU-1001,1,MOCK_PAY,冒烟测试-手机,phone,1,10,重复支付
+ORD-012,SKU-1002,1,MOCK_PAY,验收测试-笔记本,computer,2,5,订单超时
+ORD-013,SKU-001,2,MOCK_PAY,边界测试-无效商品,sku-999,1,10,商品不存在
+ORD-014,SKU-1003,0,MOCK_PAY,异常测试-零数量,audio,1,10,数量异常
+ORD-015,SKU-1001,100,MOCK_PAY,极限测试-大量采购,phone,1,10,库存不足
